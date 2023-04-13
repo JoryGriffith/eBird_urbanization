@@ -2,6 +2,12 @@
 library(terra)
 library(tidyverse)
 library(sf)
+library(ggpubr)
+library(tidyterra)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
 #####################################
 # Data exploration of the filtered data
 # Load csv
@@ -218,10 +224,7 @@ bbox[6,4]<- 0 # replacing xmin
 
 
 
-library(tidyterra)
-library(rnaturalearth)
-library(rnaturalearthdata)
-world <- ne_countries(scale = "medium", returnclass = "sf")
+
 names <- bbox$names
 
 ##### Plot with points and species richness
@@ -569,38 +572,78 @@ biomes_overlap_df <- as.data.frame(intersect(summary_vect, biomes_vect))
 biomes_overlap[[1]]
 
 
+#############################
+# Coverage of points in urban, peri-urban, and rural areas
 
+urb_levels <- summary_filt
 
-summary_rural <- summary_filt %>% filter(urban %in% c(11,12,13))
+urb_levels$urban[which(urb_levels$urban %in% c(11, 12, 13))] <- "Rural"
+urb_levels$urban[which(urb_levels$urban %in% c(21, 22, 23))] <- "Peri-Urban"
+urb_levels$urban[which(urb_levels$urban==30)] <- "Urban"
 
-world_only_rural <- ggplot(data=world)+
+### Thresholded at 53 (mean of checklists needed for 95% coverage)
+threshold_50 <- ggplot(data=world)+
   geom_sf() +
-  geom_point(data=summary_rural, aes(x=x, y=y, color=total_SR), size=0.1) +
+  geom_point(data=urb_levels, aes(x=x, y=y, color=total_SR), size=0.1) +
   coord_sf(crs = 4326, expand = FALSE) +
   scale_color_viridis_c(na.value = NA)+
-  labs(x="Longitude", y="Latitude", color="Richness", title="Rural")+
+  facet_wrap(~urban)+
+  theme_bw() +
+  labs(x="Longitude", y="Latitude", color="Richness", title="Thresholded at mean (53 checklists)",
+       caption = "n=75988")
+# plot of LDG
+
+LDG_50 <- ggplot(urb_levels, aes(x=abs(y), y=total_SR))+
+  geom_point(alpha=0.2, shape=1)+
+  geom_smooth(method="lm", color="forestgreen")+
+  labs(x="Absolute Latitude", y="Species Richness", title="Thresholded at 95 checklists")+
+  facet_wrap(~urban)+
   theme_bw()
 
 
-summary_purban <- summary_filt %>% filter(urban %in% c(21,22,23))
-
-world_only_purban <- ggplot(data=world)+
+##### Thresholded at 67 (75% quantile)
+urb_levels_75 <- urb_levels %>% filter(number_checklists>=67) # 62466
+threshold_75 <- ggplot(data=world)+
   geom_sf() +
-  geom_point(data=summary_purban, aes(x=x, y=y, color=total_SR), size=0.1) +
+  geom_point(data=urb_levels_75, aes(x=x, y=y, color=total_SR), size=0.1) +
   coord_sf(crs = 4326, expand = FALSE) +
   scale_color_viridis_c(na.value = NA)+
-  labs(x="Longitude", y="Latitude", color="Richness", title="Peri-urban")+
+  facet_wrap(~urban)+
+  labs(x="Longitude", y="Latitude", color="Richness", title="Thresholded at 75 (67 checklists)",
+       caption = "n=62466") +
   theme_bw()
 
-world_only_urb <- ggplot(data=world)+
+# Plot of LDG
+LDG_75 <- ggplot(urb_levels_75, aes(x=abs(y), y=total_SR))+
+  geom_point(alpha=0.2, shape=1)+
+  geom_smooth(method="lm", color="forestgreen")+
+  labs(x="Absolute Latitude", y="Species Richness", title="Thresholded at 67 checklists")+
+  facet_wrap(~urban)+
+  theme_bw()
+
+
+##### Thresholded at 95 (95th percentile)
+urb_levels_95 <- urb_levels %>% filter(number_checklists>=95) # 62466
+threshold_95 <- ggplot(data=world)+
   geom_sf() +
-  geom_point(data=summary_urb, aes(x=x, y=y, color=total_SR), size=0.1) +
+  geom_point(data=urb_levels_95, aes(x=x, y=y, color=total_SR), size=0.1) +
   coord_sf(crs = 4326, expand = FALSE) +
   scale_color_viridis_c(na.value = NA)+
-  labs(x="Longitude", y="Latitude", color="Richness", title="Urban")+
+  facet_wrap(~urban)+
+  labs(x="Longitude", y="Latitude", color="Richness", title="Thresholded at 95 (95 checklists)",
+       caption = "n=46161") +
   theme_bw()
 
-library(ggpubr)
+# LDG
+LDG_95 <- ggplot(urb_levels_75, aes(x=abs(y), y=total_SR))+
+  geom_point(alpha=0.2, shape=1)+
+  geom_smooth(method="lm", color="forestgreen")+
+  labs(x="Absolute Latitude", y="Species Richness", title="Thresholded at 95 checklists")+
+  facet_wrap(~urban)+
+  theme_bw()
 
-ggarrange(world_only_urb, world_only_purban, world_only_rural)
+# they all look pretty similar
+
+
+
 

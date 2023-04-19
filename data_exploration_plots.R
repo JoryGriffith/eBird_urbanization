@@ -561,7 +561,7 @@ cities <- cities_in_df %>% group_by(CITY_NAME) %>% summarise(n=n())
 
 ##############################
 # Classifying points into biomes using a terrestrial biomes shapefile
-biomes <- st_read("wwf_biomes/wwf_terr_ecos.shp")
+biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
 
 biomes_vect <- vect(biomes)
 
@@ -570,11 +570,12 @@ summary_vect <- vect(summary_filt, crs=crs(biomes_vect), geom=c("x","y"))
 biomes_overlap_df <- as.data.frame(intersect(summary_vect, biomes_vect))
 
 biomes_overlap[[1]]
-
+head(biomes_overlap_df)
 
 #############################
 # Coverage of points in urban, peri-urban, and rural areas
 
+summary_filt <- read.csv("5yr_summary/summary_thresholded.csv")
 urb_levels <- summary_filt
 
 urb_levels$urban[which(urb_levels$urban %in% c(11, 12, 13))] <- "Rural"
@@ -587,16 +588,18 @@ threshold_50 <- ggplot(data=world)+
   geom_point(data=urb_levels, aes(x=x, y=y, color=total_SR), size=0.1) +
   coord_sf(crs = 4326, expand = FALSE) +
   scale_color_viridis_c(na.value = NA)+
-  facet_wrap(~urban)+
+  facet_wrap(~urban, nrow=2)+
   theme_bw() +
   labs(x="Longitude", y="Latitude", color="Richness", title="Thresholded at mean (53 checklists)",
        caption = "n=75988")
-# plot of LDG
 
+ggsave(filename="threshold_50_coverage.png", plot=threshold_50, height=8, width=10)
+
+# plot of LDG
 LDG_50 <- ggplot(urb_levels, aes(x=abs(y), y=total_SR))+
   geom_point(alpha=0.2, shape=1)+
   geom_smooth(method="lm", color="forestgreen")+
-  labs(x="Absolute Latitude", y="Species Richness", title="Thresholded at 95 checklists")+
+  labs(x="Absolute Latitude", y="Species Richness", title="Thresholded at 53 checklists")+
   facet_wrap(~urban)+
   theme_bw()
 
@@ -612,6 +615,7 @@ threshold_75 <- ggplot(data=world)+
   labs(x="Longitude", y="Latitude", color="Richness", title="Thresholded at 75 (67 checklists)",
        caption = "n=62466") +
   theme_bw()
+ggsave(filename="threshold_75_coverage.png", plot=threshold_75, height=8, width=10)
 
 # Plot of LDG
 LDG_75 <- ggplot(urb_levels_75, aes(x=abs(y), y=total_SR))+
@@ -633,6 +637,7 @@ threshold_95 <- ggplot(data=world)+
   labs(x="Longitude", y="Latitude", color="Richness", title="Thresholded at 95 (95 checklists)",
        caption = "n=46161") +
   theme_bw()
+ggsave(filename="threshold_95_coverage.png", plot=threshold_95, height=8, width=10)
 
 # LDG
 LDG_95 <- ggplot(urb_levels_75, aes(x=abs(y), y=total_SR))+
@@ -644,6 +649,7 @@ LDG_95 <- ggplot(urb_levels_75, aes(x=abs(y), y=total_SR))+
 
 # they all look pretty similar
 
-
+# put LDG plots together
+ggarrange(LDG_50, LDG_75, LDG_95)
 
 

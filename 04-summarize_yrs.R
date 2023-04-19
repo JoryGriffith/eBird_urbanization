@@ -1,6 +1,7 @@
 ################### New data summary that accounts for repeat measures between years ####################
 library(tidyverse)
 library(lubridate)
+
 ######### Redoing the richness calculations over all of the years
 years <- c(2017, 2018, 2019, 2020, 2021)
 

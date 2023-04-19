@@ -1,4 +1,5 @@
 ## This is a script to automate the process of summarising the ebird data for each bounding box group
+# NOT USING ANYMORE BECAUSE IT SUMMARISES BY YEAR AND WE WANT IT TO SUMMARISE ACROSS YEARS
 
 library(terra)
 library(sf)

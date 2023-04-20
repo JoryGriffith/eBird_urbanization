@@ -1,3 +1,5 @@
+library(tidyverse)
+library(terra)
 
 #### Looking at why there is no data in south africa
 i <- 2021

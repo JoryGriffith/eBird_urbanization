@@ -8,7 +8,7 @@ dat <- read.table("/Volumes/Expansion/eBird/eBird_2021_data/custom_bbox/R3C3_202
 summary <- dat %>% group_by(cell) %>% summarise(n=n(),
                                                 number_checklists=length(unique(sampling_event_identifier)),
                                                 lat=mean(latitude),
-                                                long=mean(longitude))
+                                                long=mean(longitude)) 
 
 
 

@@ -6,10 +6,13 @@ library(auk)
 library(beepr)
 
 # load datasets
-eBird_2017 <- auk_ebd("eBird_2017_data/ebd_2017.txt")
-eBird_2018 <- auk_ebd("eBird_2018_data/ebd_2018.txt")
-eBird_2019 <- auk_ebd("eBird_2019_data/ebd_2019.txt")
-eBird_2020 <- auk_ebd("eBird_2020_data/ebd_2020.txt")
+eBird_2017 <- auk_ebd("/Volumes/Expansion/eBird/eBird_2017_data/ebd_2017.txt")
+eBird_2018 <- auk_ebd("/Volumes/Expansion/eBird/eBird_2018_data/ebd_2018.txt")
+eBird_2019 <- auk_ebd("/Volumes/Expansion/eBird/eBird_2019_data/ebd_2019.txt")
+eBird_2020 <- auk_ebd("/Volumes/Expansion/eBird/eBird_2020_data/ebd_2020.txt")
+eBird_2021 <- auk_ebd("/Volumes/Expansion/eBird/eBird_2021_data/ebd_2021.txt")
+eBird_2022 <- auk_ebd("/Volumes/Expansion/eBird/eBird_2022_data/ebd_2022.txt")
+
 # load columns I want
 cols <- c("latitude", "longitude", "group identifier", "sampling event identifier",
           "scientific name", "observation count", "observer_id", "observation_date", "duration_minutes")
@@ -44,6 +47,20 @@ bbox$xmax <- as.numeric(bbox$xmax)
 bbox$ymin <- as.numeric(bbox$ymin)
 bbox$ymax <- as.numeric(bbox$ymax)
 # filter data for the custom bbox using a loop (for 2018)
+
+# 2017
+for (i in 1:19){
+  
+  eBird_2017 %>% 
+    auk_bbox(bbox=c(bbox$xmin[i], bbox$ymin[i], bbox$xmax[i], bbox$ymax[i])) %>% # filter out square
+    auk_filter(file = paste("eBird_2017_data/custom_bbox/", names[i], "_2017_unfilt.txt", sep="")) # make dataframe
+  
+  # then filter out columns I want
+  
+  auk_ebd(paste("eBird_2017_data/custom_bbox/", names[i], "_2017_unfilt.txt", sep="")) %>% 
+    auk_select(select = cols, file = paste("eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""))
+  
+}
 
 # 2018
 for (i in 2:19){
@@ -89,18 +106,30 @@ for (i in 1:19){
 }
 
 
-# 2017
+# 2021
 for (i in 1:19){
   
-  eBird_2017 %>% 
+  eBird_2021 %>% 
     auk_bbox(bbox=c(bbox$xmin[i], bbox$ymin[i], bbox$xmax[i], bbox$ymax[i])) %>% # filter out square
-    auk_filter(file = paste("eBird_2017_data/custom_bbox/", names[i], "_2017_unfilt.txt", sep="")) # make dataframe
+    auk_filter(file = paste("eBird_2021_data/custom_bbox/", names[i], "_2021_unfilt.txt", sep="")) # make dataframe
   
   # then filter out columns I want
   
-  auk_ebd(paste("eBird_2017_data/custom_bbox/", names[i], "_2017_unfilt.txt", sep="")) %>% 
-    auk_select(select = cols, file = paste("eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""))
+  auk_ebd(paste("eBird_2021_data/custom_bbox/", names[i], "_2021_unfilt.txt", sep="")) %>% 
+    auk_select(select = cols, file = paste("eBird_2021_data/custom_bbox/", names[i], "_2021_filt.txt", sep=""))
   
 }
 
-
+# 2022
+for (i in 1:19){
+  
+  eBird_2022 %>% 
+    auk_bbox(bbox=c(bbox$xmin[i], bbox$ymin[i], bbox$xmax[i], bbox$ymax[i])) %>% # filter out square
+    auk_filter(file = paste("eBird_2022_data/custom_bbox/", names[i], "_2022_unfilt.txt", sep="")) # make dataframe
+  
+  # then filter out columns I want
+  
+  auk_ebd(paste("eBird_2022_data/custom_bbox/", names[i], "_2022_unfilt.txt", sep="")) %>% 
+    auk_select(select = cols, file = paste("eBird_2022_data/custom_bbox/", names[i], "_2022_filt.txt", sep=""))
+  
+}

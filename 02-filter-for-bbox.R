@@ -53,7 +53,7 @@ for (i in 1:19){
   
   eBird_2017 %>% 
     auk_bbox(bbox=c(bbox$xmin[i], bbox$ymin[i], bbox$xmax[i], bbox$ymax[i])) %>% # filter out square
-    auk_filter(file = paste("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_unfilt.txt", sep=""), overwrite=TRUE) # make dataframe
+    auk_filter(file = paste("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_unfilt.txt", sep="")) # make dataframe
   
   # then filter out columns I want
   
@@ -81,7 +81,7 @@ for (i in 1:19){
   
   eBird_2019 %>% 
     auk_bbox(bbox=c(bbox$xmin[i], bbox$ymin[i], bbox$xmax[i], bbox$ymax[i])) %>% # filter out square
-    auk_filter(file = paste("/Volumes/Expansion/eBird/eBird_2019_data/custom_bbox/", names[i], "_2019_unfilt.txt", sep=""), overwrite=TRUE) # make dataframe
+    auk_filter(file = paste("/Volumes/Expansion/eBird/eBird_2019_data/custom_bbox/", names[i], "_2019_unfilt.txt", sep="")) # make dataframe
   
   # then filter out columns I want
   

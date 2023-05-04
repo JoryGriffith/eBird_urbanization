@@ -85,7 +85,7 @@ for (i in 1:19){
 
 
 ######## 2019
-for (i in 18:19){
+for (i in 1:19){
   
   dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2019_data/custom_bbox/", names[i], "_2019_filt.txt", sep=""), header=TRUE,  na.strings="")
   # turn into spatvector
@@ -102,7 +102,7 @@ for (i in 18:19){
 
 
 ####### 2020
-for (i in 17:19){
+for (i in 1:19){
   
   dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2020_data/custom_bbox/", names[i], "_2020_filt.txt", sep=""), header=TRUE,  na.strings="")
   # turn into spatvector
@@ -119,7 +119,7 @@ for (i in 17:19){
 
 
 ####### 2021
-for (i in 1:16){
+for (i in 1:19){
     
     dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2021_data/custom_bbox/", names[i], "_2021_filt.txt", sep=""), header=TRUE,  na.strings="")
     # turn into spatvector
@@ -136,9 +136,9 @@ for (i in 1:16){
   }
 
 ####### 2022
-for (i in 1:16){
+for (i in 1:19){
   
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2022_data/custom_bbox/", names[i], "_2022_filt.txt", sep=""), header=TRUE,  na.strings="")
+  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2022_data/custom_bbox/", names[i], "_2022_filt.txt", sep=""), header=TRUE)
   # turn into spatvector
   
   vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))

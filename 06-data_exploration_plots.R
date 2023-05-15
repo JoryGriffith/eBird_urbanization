@@ -21,6 +21,44 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 #plot(raster.aggregated)
 
 
+
+# load summary data
+summary <- read.csv("5yr_summary/global_richness_summary.csv")
+# 2075417 squares with richness values (this is the unfiltered data)
+
+# add the lat and long values
+
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
+plot(GHSL)
+
+summary$x <- xFromCell(GHSL, summary$cell) # extract the coordinates from the cells
+summary$y <- yFromCell(GHSL, summary$cell)
+
+summary$urban <- as.data.frame(terra::extract(GHSL, summary[,c(21:22)]))$SMOD_global
+
+# plot data
+summary_plot <- ggplot(data=world)+
+  geom_sf() +
+  geom_point(data=summary, aes(x=x, y=y, color=urban), size=0.03) +
+  coord_sf(crs = 4326, expand = FALSE) +
+  scale_color_viridis_c(na.value = NA, option="B")+
+  labs(x="Longitude", y="Latitude", color="Urban", Title=)+
+  theme_bw()
+
+summary_plot
+
+
+test <- summary %>% filter(square=="r3c3")
+
+
+
+
+
+
+
+
+
+
 # plot of urbanization and species richness
 ggplot(summary_filt, aes(x=urban, y=total_SR))+
   geom_point()+

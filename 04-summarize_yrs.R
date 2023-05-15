@@ -10,12 +10,12 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r3c1", "r3c2", "r3c3", "r3c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
 
-# loop for each square
-for (j in 5:8) {
+# loop for each square (skipped 5(r2c1), did 6 and 7)
+for (j in 14:14){
 datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
-    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
+    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[14], "_", years[i], "_filt.txt", sep=""), 
                       header=TRUE) # load data
   
     dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
@@ -72,19 +72,16 @@ for(i in 1:length(list_csv_files)) {                              # Head of for-
          read.csv(paste("5yr_summary/", list_csv_files[i], sep="")))
 }
 
-dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, 
-                 r2c4, r3c1, r3c2, r3c4, r4c1, r4c2, r4c3, r4c4)
+dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, 
+                 r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, r2c4, 
+                 r3c1, r3c2, r3c3, r3c4, 
+                 r4c1, r4c2, r4c3, r4c4)
 #save all the summaries as a csv
-write.csv(dat, "5yr_summary/global_richness_summary.csv", row.names=FALSE)
+write.csv(dat, "global_richness_summary.csv", row.names=FALSE)
 
 # find top 500 cells
 top_cells <- dat %>% slice_max(total_SR, n=500)
-write.csv(top_cells, "5yr_summary/top_500_cells.csv")
-
-
-
-
-
+write.csv(top_cells, "top_500_cells.csv", row.names=FALSE)
 
 
 

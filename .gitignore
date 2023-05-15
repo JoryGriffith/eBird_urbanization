@@ -5,3 +5,7 @@
 # Ignore images
 *.png
 *.pdf
+# ignore csv files
+*.csv
+*.csv
+*.csv

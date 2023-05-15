@@ -9,34 +9,27 @@ library(beepr)
 library(scales)
 
 # First I want to load and look at the top cells so that I know where they are coming from
-top_cells <- read.csv("5yr_summary/top_500_cells.csv") # this is the updated top cells that count across years
+top_cells <- read.csv("top_500_cells.csv") 
 # there are 504 because some of them are tied
-
-unique(top_cells$square)
-# "r3c2"    "r2c2ABA" "r2c2AA"  "r2c2ABB" "r2c3"    "r2c1"    "r2c4"    "r2c2B"   
-# they are all in the 3rd or 2ns row which is good, means they are close to the equator
-
 top_cells %>% group_by(square) %>% summarise(n=n())
-# figure out which squares the top cells are in
+unique(top_cells$square) # figure out which squares the top cells are in
 
 #########
 # Need to extract the raw data from these cells and put it into a data frame so I can calculate coverage
 
-names <- c("r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2")
-years <- c(2017, 2018, 2019, 2020, 2021)
+names <- c("r1c1", "r1c2", "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2", "r3c3")
 
+years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
-
-
-##### r2c1
-for (j in 3:length(names)) {
+# make loop for filter out cells that I want
+for (j in 1:length(names)) {
   
   top_cell <- top_cells %>% filter(square==names[j])
 # make list
-  datalist = vector("list", length = length(years))
+   datalist = vector("list", length = length(years))
 
 for (i in 1:length(years)) {
-  dat <- read.table(paste("eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), header=TRUE)
+  dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), header=TRUE)
   # filter out cells that are in the top cell
   dat_filt <- dat %>% filter(cell %in% top_cell$cell)
   # add to list
@@ -47,7 +40,11 @@ for (i in 1:length(years)) {
 # save as csv
 write.csv(data, paste("thresholding/", names[j], "_topcells.csv", sep=""))
 print(paste("finished", names[j]))
+rm(dat)
+rm(datalist)
+rm(data)
 }
+
 
 
 #######################
@@ -61,15 +58,16 @@ for (j in 1:length(names)) {
   dat_top <- read.csv(paste("thresholding/", names[j], "_topcells.csv", sep=""))
   
   ebird.split <- dat_top %>% group_by(cell) %>% group_split()
-  # this is a bit unnecessary because this is only one cell
+  
   
   # make data frame for output
   output <- data.frame(matrix(NA,
                               nrow=length(ebird.split),
-                              ncol=7))
+                              ncol=13))
   
   # make column names for output
-  names(output)<-c("cell_ID", "SC_obs", "obs.richness", "sampsize_obs", "SC_95", "richness_95", "sampsize_95")
+  names(output)<-c("cell_ID", "SC_obs", "obs.richness", "sampsize_obs", "SC_95", "richness_95", "sampsize_95",
+                   "SC_97", "richness_97", "sampsize_97", "SC_98", "richness_98", "sampsize_98")
   
   
   set.seed(20) # because it is bootstrapping
@@ -80,11 +78,11 @@ for (j in 1:length(names)) {
       w <- length(warnings())
       # put into the format that is accepted by the iNEXT package
       temp <- ebird.split[[i]] %>% # select list element
-        group_by(scientific_name, sampling_event_identifier) %>% 
+        group_by(SCIENTIFIC.NAME, SAMPLING.EVENT.IDENTIFIER) %>% 
         summarize(present=n()) %>%
         mutate(present=1) %>%
-        pivot_wider(names_from=sampling_event_identifier, values_from=present, values_fill=0) %>%
-        column_to_rownames(var="scientific_name") %>%
+        pivot_wider(names_from=SAMPLING.EVENT.IDENTIFIER, values_from=present, values_fill=0) %>%
+        column_to_rownames(var="SCIENTIFIC.NAME") %>%
         as.data.frame() 
       
       # convert this dataframe into data format for iNext
@@ -93,7 +91,8 @@ for (j in 1:length(names)) {
       out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=500, nboot=50)
       out.inc.filt1<-out.inc$iNextEst$coverage_based %>% filter(Method=="Observed") # filter for observed coverage
       out.inc.filt2<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.95)==min(abs(SC-0.95)))  # filter for row that is closest to 95% coverage
-      
+      out.inc.filt3<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.97)==min(abs(SC-0.97))) # filter for row that is closest to 97% coverage
+      out.inc.filt4<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.98)==min(abs(SC-0.98))) # filter for row that is closest to 98% coverage
       #sampling_profile <- estimateD(temp_inext, q=0, datatype="incidence_freq",base="coverage", 
       #                             level=0.80, conf=0.95) # set to a coverage level of 60
       
@@ -104,6 +103,12 @@ for (j in 1:length(names)) {
       output$SC_95[i] <- out.inc.filt2$SC # sample coverage
       output$richness_95[i] <- out.inc.filt2$qD
       output$sampsize_95[i] <- out.inc.filt2$t
+      output$SC_97[i] <- out.inc.filt3$SC # sample coverage
+      output$richness_97[i] <- out.inc.filt3$qD
+      output$sampsize_97[i] <- out.inc.filt3$t
+      output$SC_98[i] <- out.inc.filt4$SC # sample coverage
+      output$richness_98[i] <- out.inc.filt4$qD
+      output$sampsize_98[i] <- out.inc.filt4$t
       # add new columns to data frame
       print(paste("finished", i))
     }
@@ -120,61 +125,85 @@ for (j in 1:length(names)) {
 
 coverage <- dplyr::bind_rows(coverage_list)
 
+coverage %>% group_by(square) %>% summarise(n=n()) 
+
 write.csv(coverage, "thresholding/coverage_top500.csv", row.names=FALSE)
+
 
 
 ###############################
 # Look at coverage threshold
 coverage <- read.csv("thresholding/coverage_top500.csv")
-
+summary(coverage)
 # look at distribution of sample sizes
 hist(coverage$obs.richness)
-mean(coverage$obs.richness)
 hist(coverage$richness_95)
-mean(coverage$richness_95) # definitely very different from the observed richness
+hist(coverage$richness_97)
+hist(coverage$richness_98)
 
-mean(coverage$sampsize_obs) # 752 observed sample size
-mean(coverage$sampsize_95) # 53 mean sample size for 95% coverage
-quantile(coverage$sampsize_95, 0.95) # 95 upper 95th percent
+# look at mean richness at different coverages
+mean(coverage$obs.richness) # 363.9464
+mean(coverage$richness_95) # 204.684
+mean(coverage$richness_97) # 232.3299
+mean(coverage$richness_98) # 254
 
-max(coverage$sampsize_95)
-# 53 is my cuttoff for the data
+# look at the mean of sample size at different coverages
+mean(coverage$sampsize_obs) # 2310.851
+mean(coverage$sampsize_95) # 46
+mean(coverage$sampsize_97) # 75
+mean(coverage$sampsize_98) # 111
 
-quantile(coverage$sampsize_95, 0.75)
+# look at 95th quantile
+quantile(coverage$sampsize_95, 0.95) # 87
+quantile(coverage$sampsize_97, 0.95) # 139
+quantile(coverage$sampsize_98, 0.95) # 203
+
+
+
 ##############################
-# Apply threshold to the data
+# Apply different thresholds to the data
 
 # load summary data
-summary <- read.csv("5yr_summary/global_richness_summary.csv")
+summary <- read.csv("global_richness_summary.csv") # 2.1 mil
 
-summary_filt <- summary %>% filter(number_checklists >= 53)
-# went from 1.8 mil to 85,485
+# threshold for 95 coverage
+summary_filt95 <- summary %>% filter(number_checklists >= 87) # 79,768
+# threshold for 97 coverage
+summary_filt97 <- summary %>% filter(number_checklists >= 139) # 53,066
+# threshold for 98 coverage
+summary_filt98 <- summary %>% filter(number_checklists >= 203) # 37,081
+
+# Going to use the 95% coverage filter for now
+
+######## Add in lat long and urbanization score
+
 
 # now need to put this in raster form and merge with the urbanization raster
-GHSLreproj<-rast("SMOD_global/reprojected.SMOD_global.tif")
-#head(values(GHSLreproj))
+# this raster layer has the places with high human impact removed
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/urbanization.tif")
+
 
 # need to extract cell numbers, urbanization scores, and x and y coordinates from the raster
-# turn into a data frame (this does not because the memory is not large enough)
-# GHSL_df <- as.data.frame(GHSLreproj, xy=TRUE, cells=TRUE, na.rm=TRUE)
+summary_filt95$x <- xFromCell(GHSL, summary_filt95$cell) # extract the coordinates from the cells
+summary_filt95$y <- yFromCell(GHSL, summary_filt95$cell)
 
+summary_filt95$urban <- as.data.frame(terra::extract(GHSL, summary_filt95[,c(21:22)]))$GHS_SMOD_E2020_GLOBE_R2022A_54009_1000_V1_0
 
-summary_filt$x <- xFromCell(GHSLreproj, summary_filt$cell) # extract the coordinates from the cells
-summary_filt$y <- yFromCell(GHSLreproj, summary_filt$cell)
-
-summary_filt$urban <- as.data.frame(terra::extract(GHSLreproj, summary_filt[,c(20:21)]))$SMOD_global
-
-hist(summary_filt$x)
-
-# definitely concentrated in the northern hemisphere
-hist(summary_filt$y)
-hist(summary_filt$urban)
-summary_filt %>% group_by(urban) %>% summarise(n=n())
+summary_filt95 %>% group_by(urban) %>% summarise(n=n())
 
 # remove ones with urbanization score of 10 (water)
-summary_filt <- summary_filt %>% filter(!urban==10)
+summary_filt <- summary_filt95 %>% filter(!urban==10) %>% filter(!is.nan(urban)) # 71047 datapoints now
 # save the thresholded data
-#write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
+write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
+
+
+
+
+
+
+
+
+
 
 
 

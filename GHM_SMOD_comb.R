@@ -3,7 +3,7 @@ library(terra)
 library(tidyverse)
 
 # Load GHSL layer
-GHSLreproj<-rast("SMOD_global/reprojected.SMOD_global.tif")
+GHSLreproj<-rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
 
 # Load GHM layer
 #GHM <- rast("gHM/gHM.tif")
@@ -13,7 +13,7 @@ GHSLreproj<-rast("SMOD_global/reprojected.SMOD_global.tif")
 #writeRaster(GHMreproject, "ghM/GHMreprojected.tif", overwrite=TRUE)
 
 # load GHM
-GHM <- rast("ghM/GHMreprojected.tif")
+GHM <- rast("/Volumes/Expansion/eBird/ghM/GHMreprojected.tif")
 
 # assign values more than 0.5 an NA 
 #GHM[GHM$gHM>=0.5] <- NA
@@ -28,15 +28,15 @@ dat <- resample(GHM, GHSLreproj, method="cubicspline")
 # should look more into interpolation methods for estimating the new cell values in the GHM
 plot(dat)
 
-# make raster stack
-GHSL
 
 extent <- c(-100, -70, 30, 50)
 colors=c("palegreen", "darkorange", "firebrick2")
 GHSL.test <- GHSLreproj
+plot(GHSL.test)
 GHSL.test[(dat > 0.5 & GHSL.test == 11)] <- NA # turn everything that is wilderness and over 0.5 as NA
-GHSL.test[(GHSL.test ==10),] <- NA # turn water into NA
-# need to refigure out this code because it doesn't seem to be working
+summary(values(GHSL.test))
+GHSL.test[(GHSL.test==10)] <- NA # turn water into NA
+
 plot(GHSL.test, ext=extent, col=colors)
 
 
@@ -60,6 +60,6 @@ plot(GHSL.test, ext=extent, col=colors)
 # reproject
 
 # save as tif file
-writeRaster(GHSL.test, "SMOD_global/GHSL_filtered.tif")
+writeRaster(GHSL.test, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif", overwrite=TRUE)
 
 

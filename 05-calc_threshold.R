@@ -180,22 +180,20 @@ summary_filt98 <- summary %>% filter(number_checklists >= 203) # 37,081
 
 # now need to put this in raster form and merge with the urbanization raster
 # this raster layer has the places with high human impact removed
-GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/urbanization.tif")
-
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
 
 # need to extract cell numbers, urbanization scores, and x and y coordinates from the raster
 summary_filt95$x <- xFromCell(GHSL, summary_filt95$cell) # extract the coordinates from the cells
 summary_filt95$y <- yFromCell(GHSL, summary_filt95$cell)
 
-summary_filt95$urban <- as.data.frame(terra::extract(GHSL, summary_filt95[,c(21:22)]))$GHS_SMOD_E2020_GLOBE_R2022A_54009_1000_V1_0
+summary_filt95$urban <- as.data.frame(terra::extract(GHSL, summary_filt95[,c(21:22)]))$SMOD_global
 
 summary_filt95 %>% group_by(urban) %>% summarise(n=n())
 
-# remove ones with urbanization score of 10 (water)
-summary_filt <- summary_filt95 %>% filter(!urban==10) %>% filter(!is.nan(urban)) # 71047 datapoints now
+# remove ones with NaN urbanization score
+summary_filt <- summary_filt95 %>% filter(!is.nan(urban)) # 70749 datapoints now
 # save the thresholded data
 write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
-
 
 
 

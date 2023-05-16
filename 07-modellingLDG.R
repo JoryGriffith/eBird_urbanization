@@ -7,8 +7,7 @@ library(rnaturalearthdata)
 library(countrycode)
 
 world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
-plot(world)
-?ne_countries
+
 st_crs(world)
 
 # load thresholded summary data
@@ -21,31 +20,27 @@ dat <- rename(dat, lat = y, long = x)
 dat <- dat %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
 
 ######### Assign continent
-dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(world))
+#dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(world))
 
-joined <- st_join(dat_sf, world)
+#joined <- st_join(dat_sf, world)
 
 
-dat_joined <- as.data.frame(joined[,c(1:22,41)] %>% mutate(long = sf::st_coordinates(.)[,1],
-                                                           lat = sf::st_coordinates(.)[,2]))# just keep country name
+#dat_joined <- as.data.frame(joined[,c(1:22,41)] %>% mutate(long = sf::st_coordinates(.)[,1],
+                                                  #         lat = sf::st_coordinates(.)[,2]))# just keep country name
 # extract continent using country name
-dat_joined$continent <- countrycode(sourcevar = dat_joined[,"name_long"],
-                                     origin = "country.name",
-                                     destination = "continent")
+#dat_joined$continent <- countrycode(sourcevar = dat_joined[,"name_long"],
+ #                                    origin = "country.name",
+#                                     destination = "continent")
 
 
 ##################
 # Trying new way to do continent
 continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
-plot(continents)
+#plot(continents)
 
 dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(continents))
 
-dat_withbiome <- st_join(dat_sf, continents, left=TRUE)
-?st_join
-
-
-
+dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
 
 
 #########################
@@ -59,43 +54,27 @@ length(unique(biomes$BIOME)) # 16 biomes
 length(unique(biomes$ECO_NAME)) # 827 ecoregion names
 
 # plot biome
-plot(biomes["BIOME"])
+#plot(biomes["BIOME"])
 
 # want to extract biomes
-dat_sf <- st_as_sf(dat, crs=st_crs(biomes), coords=c('long', "lat"))
-dat_withbiome <- st_join(dat_sf, biomes[,"BIOME"])
+dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
 
 
 # create seperate columns for lat long again
-datFINAL <- dat_withbiome %>% mutate(long = sf::st_coordinates(.)[,1],
-                                             lat = sf::st_coordinates(.)[,2])
-# have a bunch of NA values for continent and biome, not sure why need to look into that
+datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
+                                             lat = sf::st_coordinates(.)[,2]))
 
+summary(datFINAL)
 # save as csv
-write.csv(datFINAL, "modeling_data.csv", row.names=FALSE)
-
-
-
-
-
+write_csv(datFINAL, "modeling_data.csv")
 
 
 
 ######################################
 # Start running models
 
-dat2 <- read.csv("modeling_data.csv")
+dat <- read.csv("modeling_data.csv")
 summary(dat)
-
-
-
-
-
-
-
-
-
-
 
 
 

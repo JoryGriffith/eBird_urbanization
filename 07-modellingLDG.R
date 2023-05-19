@@ -77,17 +77,28 @@ write_csv(datFINAL, "modeling_data.csv")
 # Start running models
 
 dat <- read.csv("modeling_data.csv")
+dat %>% group_by(urban) %>% summarise(n=n())
 summary(dat)
 hist(dat$total_SR) # a bit skewed, also count data
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR)) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
+
+# turn biome and urban into a factor
+class(dat$BIOME)
+dat$BIOME <- as.factor(dat$BIOME)
+dat$urban <- as.factor(dat$urban)
 # Try a simple linear model with absolute latitude
+
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
               abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
+
 mod1.trans <- lm(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
                    abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
+dat$abslat <- abs(dat$lat)
+mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban + hemisphere + CONTINENT +
+                   abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 summary(mod1)
 summary(mod1.trans)
 AIC(mod1)
@@ -102,6 +113,7 @@ hist(residuals(mod1.trans)) # they are both pretty normally distributed but the 
 # rerun using gls (same as linear model when no spatial autocorrelation included)
 gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
               abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
+
 anova(gls1) # everything very significant
 
 # check for spatial autocorrelation
@@ -109,7 +121,7 @@ dat$gls1Resids <- residuals(gls1)
 hist(dat$gls1Resids) # looking very normally distributed, that's good
 
 #residsI <- spline.correlog(x=dat$long, y=dat$lat,
- #                          z=dat$gls1Resids, resamp=100, quiet=TRUE) # this takes up too much memory in R because there are so many data points
+                     #      z=dat$gls1Resids, resamp=100, quiet=TRUE) # this takes up too much memory in R because there are so many data points
 
 #plot(residsI,xlim=c(0,50))
 
@@ -133,7 +145,7 @@ plot(gstat::variogram(residuals(gls1, "normalized") ~
 
 #### Moran's I
 # make distance matrix
-#w <-as.matrix(1/dist(cbind(dat$long, dat$lat))) # this is too much for my computer to handle, do on lab computer
+#w <-as.matrix(1/dist(cbind(dat$long, dat$lat))) # this is too much for my computer or the lab computer to handle
 #wlist<-mat2listw(w)
 #moran.test(dat$gls1Resids, wlist)
 
@@ -144,18 +156,18 @@ csGaus <- corGaus(form=~lat+long,nugget=TRUE) # gaussian
 csLin <- corLin(form=~lat+long,nugget=TRUE) # linear
 csRatio <- corRatio(form=~lat+long,nugget=TRUE) # ratio
 # update models
-glsSpher <- update(gls1, correlation=corSpher(form=~lat+long,nugget=TRUE)) # spherical
-glsExp <- update(gls1, correlation=csLin)
+#glsSpher <- update(gls1, correlation=corSpher(form=~lat+long,nugget=TRUE)) # spherical
+#glsExp <- update(gls1, correlation=csLin)
 
 ############### Subsample to test things
 # since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
 # going to subsample within my data
-dat.samp <- dat[sample(nrow(dat), 5000), ]
+dat.samp <- dat[sample(nrow(dat), 1000), ]
 # try to run a correlog
 
 
-gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + BIOME + log(number_checklists), dat.samp)
+gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + long + CONTINENT +
+                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp)
 
 # Make a correlogram
 dat.samp$gls1.samp <- residuals(gls1.samp)
@@ -168,14 +180,67 @@ w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distanc
 wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
 # this quickly becomes very large because it is pairwise distances
 moran.test(dat.samp$gls1.samp, wlist)
-# it is signficant
+# it is significant
 
 
-lsSpher <- update(gls1.samp, correlation=corSpher(form=~lat+long,nugget=TRUE)) # spherical
+glsGaus <- update(gls1.samp, correlation=csGaus) # gaussian
+# need to do this on lab computer
+# going to see if this works because it seems to be taking a long time
+
+
+#####################
+# Plotting model results
+library(jtools)
+effect_plot(mod1.trans, pred=urban, interval=TRUE) # negative relationship
+
+effect_plot(mod1.trans, pred=lat, interval=TRUE) # peaks at intermediate latitudes, looks pretty good
+
+effect_plot(mod1.trans, pred=hemisphere, interval=TRUE) # no difference
+
+effect_plot(mod1.trans, pred=BIOME, interval=TRUE)
+
+effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
+
+
+library(interactions)
+
+interact_plot(mod1.trans, lat, urban)
+# woo this looks great!
+# plot with absolute latitude
+interact_plot(mod1.abslat, abslat, urban)
+
+#########################
+# Going to try to do a quadratic model to see if it is a better fit
+dat$lat2 <- (dat$lat)**2
+
+head(dat)
+mod.quad <- lm(sqrt(total_SR) ~ lat + lat2 + lat:urban + lat2:urban + hemisphere + CONTINENT +
+                 lat:CONTINENT + BIOME + log(number_checklists), dat)
+plot(mod.quad)
+summary(mod.quad)
+effect_plot(mod.quad, pred=list(lat,lat2), interval=TRUE)
+
+AIC(mod.quad) # for some reason not showing up as quadratic
+AIC(mod1.trans)
+# the non-quadratic model is better
+interact_plot(mod.quad, lat, urban)
 
 
 
+# try model with only 3 categories
+dat <- dat %>% mutate(urban2=ifelse(urban==11, 1, ifelse(urban==30, 3, 2)))
+dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
+dat$urban2 <- as.factor(dat$urban2)
+mod.3cat <- lm(sqrt(total_SR) ~ abs(lat) * urban2 + hemisphere + CONTINENT +
+                   abs(lat):CONTINENT + BIOME + log(number_checklists), dat) # looks good
+AIC(mod1.trans)
+AIC(mod.3cat) # less good of a model but not too far off
+mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + CONTINENT +
+                    abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
+interact_plot(mod.3cat, lat, urban2, interval=TRUE)
+interact_plot(mod1.abslat, abslat, urban2, interval=TRUE) 
+# looking good!
 
 
 

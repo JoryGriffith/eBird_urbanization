@@ -156,7 +156,7 @@ csGaus <- corGaus(form=~lat+long,nugget=TRUE) # gaussian
 csLin <- corLin(form=~lat+long,nugget=TRUE) # linear
 csRatio <- corRatio(form=~lat+long,nugget=TRUE) # ratio
 # update models
-#glsSpher <- update(gls1, correlation=corSpher(form=~lat+long,nugget=TRUE)) # spherical
+glsGaus <- update(gls1, correlation=corGaus(form=~lat+long,nugget=TRUE)) # gaussian
 #glsExp <- update(gls1, correlation=csLin)
 
 

@@ -22,8 +22,10 @@ for (j in 1:length(years)){
     # then filter for columns I want
     auk_ebd(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_unfilt.txt", sep="")) %>% 
       auk_select(file=paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""))
+    print(paste("finished", names[i]))
   }
-}
+print(paste("finished", years[j]))
+  }
 
 
 # Winter

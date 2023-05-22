@@ -186,6 +186,14 @@ moran.test(dat.samp$gls1.samp, wlist)
 glsGaus <- update(gls1.samp, correlation=csGaus) # gaussian
 # need to do this on lab computer
 # going to see if this works because it seems to be taking a long time
+dat.samp$glsGaus <- residuals(glsGaus)
+hist(dat.samp$glsGaus)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsGaus, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+# still spatially autocorrelated
+# need to try different correlation structures but it is going to take a long time
+
+glsSpher <- update(gls1.samp, correlation=csSpher)
 
 
 #####################

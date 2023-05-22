@@ -159,41 +159,6 @@ csRatio <- corRatio(form=~lat+long,nugget=TRUE) # ratio
 #glsSpher <- update(gls1, correlation=corSpher(form=~lat+long,nugget=TRUE)) # spherical
 #glsExp <- update(gls1, correlation=csLin)
 
-############### Subsample to test things
-# since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
-# going to subsample within my data
-dat.samp <- dat[sample(nrow(dat), 1000), ]
-# try to run a correlog
-
-
-gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + long + CONTINENT +
-                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp)
-
-# Make a correlogram
-dat.samp$gls1.samp <- residuals(gls1.samp)
-hist(dat.samp$gls1.samp)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$gls1.samp, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20)) # there is some autocorrelation at small distances
-
-# calculate Moran's I
-w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distance matrix - weights things that are close together higher
-wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
-# this quickly becomes very large because it is pairwise distances
-moran.test(dat.samp$gls1.samp, wlist)
-# it is significant
-
-
-glsGaus <- update(gls1.samp, correlation=csGaus) # gaussian
-# need to do this on lab computer
-# going to see if this works because it seems to be taking a long time
-dat.samp$glsGaus <- residuals(glsGaus)
-hist(dat.samp$glsGaus)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsGaus, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-# still spatially autocorrelated
-# need to try different correlation structures but it is going to take a long time
-
-glsSpher <- update(gls1.samp, correlation=csSpher)
 
 
 #####################
@@ -251,6 +216,86 @@ interact_plot(mod1.abslat, abslat, urban2, interval=TRUE)
 # looking good!
 
 
+
+############### Subsample to test things
+# since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
+# going to subsample within my data
+dat.samp <- dat[sample(nrow(dat), 1000), ]
+# try to run a correlog
+
+
+gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + long + CONTINENT +
+                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp)
+
+# Make a correlogram
+dat.samp$gls1.samp <- residuals(gls1.samp)
+hist(dat.samp$gls1.samp)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$gls1.samp, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20)) # there is some autocorrelation at small distances
+
+# calculate Moran's I
+w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distance matrix - weights things that are close together higher
+wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
+# this quickly becomes very large because it is pairwise distances
+moran.test(dat.samp$gls1.samp, wlist)
+# it is significant
+
+# update with gaussian
+glsGaus <- update(gls1.samp, correlation=csGaus) # gaussian
+dat.samp$glsGaus <- residuals(glsGaus)
+hist(dat.samp$glsGaus)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsGaus, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+# still spatially autocorrelated
+
+# update with spherical
+glsSpher <- update(gls1.samp, correlation=csSpher)
+dat.samp$glsSpher <- residuals(glsSpher)
+hist(dat.samp$glsSpher)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsSpher, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+
+# update with exponential 
+glsExp <- update(gls1.samp, correlation=csExp)
+dat.samp$glsExp <- residuals(glsExp)
+hist(dat.samp$glsExp)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsExp, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+
+# update with linear
+glsLin <- update(gls1.samp, correlation=csLin)
+dat.samp$glsLin <- residuals(glsLin)
+hist(dat.samp$glsLin)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsLin, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20)) # now the whole thing is autocorrelated, definitely not that
+
+# update with ratio
+glsRatio <- update(gls1.samp, correlation=csRatio)
+dat.samp$glsRatio <- residuals(glsRatio)
+hist(dat.samp$glsRatio)
+residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsRatio, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20)) 
+
+# compare AIC
+AIC(gls1.samp, glsExp, glsGaus, glsLin, glsSpher, glsRatio)
+# dat lin and dat spher are the best of them
+
+# plot variograms
+plot(nlme::Variogram(gls1.samp, form =~lat + long, resType="normalized")) # plot original model
+plot(nlme::Variogram(glsSpher, form =~lat + long, resType="normalized")) # plot model with spherical autocorrelation structure
+plot(nlme::Variogram(glsGaus, form =~lat + long, resType="normalized")) # gaussian
+plot(nlme::Variogram(glsExp, form =~lat + long, resType="normalized")) # exponential
+plot(nlme::Variogram(glsLin, form =~lat + long, resType="normalized")) # linear
+plot(nlme::Variogram(glsSpher, form =~lat + long, resType="normalized")) # gaussian
+# these all look very similar
+
+# test moran's I
+w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distance matrix - weights things that are close together higher
+wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
+# this quickly becomes very large because it is pairwise distances
+moran.test(dat.samp$glsSpher, wlist)
+# all of the models with the spatial autocorrelation structures still have significant autocorrelation
+# this is a problem
 
 
 

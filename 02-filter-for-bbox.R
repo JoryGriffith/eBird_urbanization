@@ -1,7 +1,5 @@
 ##### This is to filter for custom bboxes for the different years so I can load the data into R
 
-library(terra)
-library(sf)
 library(auk)
 library(beepr)
 

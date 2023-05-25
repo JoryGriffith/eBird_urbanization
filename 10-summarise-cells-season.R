@@ -2,6 +2,7 @@
 
 library(tidyverse)
 library(lubridate)
+library(terra)
 
 ######### 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
@@ -44,7 +45,7 @@ for (j in 1:length(names)){
     )
   dat_summary$square=names[j]
   # save as csv
-  write.csv(dat_summary, paste("5yr_summary/", names[j], "_summer_SR.csv", sep=""))
+  write.csv(dat_summary, paste("5yr_summary/summer/", names[j], "_summer_SR.csv", sep=""))
   print(paste("finished", names[j]))
 }
 
@@ -83,27 +84,153 @@ for (j in 1:length(names)){
     )
   dat_summary$square=names[j]
   # save as csv
-  write.csv(dat_summary, paste("5yr_summary/", names[j], "_winter_SR.csv", sep=""))
+  write.csv(dat_summary, paste("5yr_summary/winter/", names[j], "_winter_SR.csv", sep=""))
   print(paste("finished", names[j]))
 }
 
-######################## need to change
-list_csv_files <- list.files(path = "5yr_summary/", pattern="*.csv")
+############ put all together - winter
+list_csv_files <- list.files(path = "5yr_summary/winter/", pattern="*.csv")
 #dat <- readr::read_csv(paste("5yr_summary/", list_csv_files, sep=""), id = "file_name")
 
-names <- tolower(gsub('_SR.csv', "", list_csv_files))
+names <- tolower(gsub('_winter_SR.csv', "", list_csv_files))
 
 
-####################
 for(i in 1:length(list_csv_files)) {                              # Head of for-loop
   assign(names[i],                                   # Read and store data frames
-         read.csv(paste("5yr_summary/", list_csv_files[i], sep="")))
+         read.csv(paste("5yr_summary/winter/", list_csv_files[i], sep="")))
+}
+class(r4c3$square)
+r4c1$square <- as.character(r4c1$square)
+r4c3$square <- as.character(r4c3$square)
+dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, 
+                 r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, r2c4, 
+                 r3c1, r3c2, r3c3, r3c4, 
+                 r4c1, r4c2, r4c3, r4c4)
+
+
+#save all the summaries as a csv
+write.csv(dat, "winter_richness_summary.csv", row.names=FALSE)
+
+
+############ put all together - summer
+list_csv_files <- list.files(path = "5yr_summary/summer/", pattern="*.csv")
+#dat <- readr::read_csv(paste("5yr_summary/", list_csv_files, sep=""), id = "file_name")
+
+names <- tolower(gsub('_summer_SR.csv', "", list_csv_files))
+
+
+for(i in 1:length(list_csv_files)) {                              # Head of for-loop
+  assign(names[i],                                   # Read and store data frames
+         read.csv(paste("5yr_summary/summer/", list_csv_files[i], sep="")))
 }
 
 dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, 
                  r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, r2c4, 
                  r3c1, r3c2, r3c3, r3c4, 
                  r4c1, r4c2, r4c3, r4c4)
+
 #save all the summaries as a csv
-write.csv(dat, "global_richness_summary.csv", row.names=FALSE)
+write.csv(dat, "summer_richness_summary.csv", row.names=FALSE)
+
+
+#### Add the urbanization data
+summer <- read.csv("summer_richness_summary.csv")
+winter <- read.csv("winter_richness_summary.csv")
+# similar number of data points
+
+# extract urbanization values for each
+# summer
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
+
+summer$x <- xFromCell(GHSL, summer$cell) # extract the coordinates from the cells
+summer$y <- yFromCell(GHSL, summer$cell)
+
+summer$urban <- as.data.frame(terra::extract(GHSL, summer[,c(9:10)]))$SMOD_global
+summer$season <- "summer" # add season
+
+# winter
+winter$x <- xFromCell(GHSL, winter$cell) # extract the coordinates from the cells
+winter$y <- yFromCell(GHSL, winter$cell)
+
+winter$urban <- as.data.frame(terra::extract(GHSL, winter[,c(9:10)]))$SMOD_global
+winter$season <- "winter"
+
+# plot coverage of both
+library(rnaturalearth)
+library(rnaturalearthdata)
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+summer_coverage_plot <- ggplot(data=world)+
+  geom_sf() +
+  geom_point(data=summer, aes(x=x, y=y, color=total_SR), size=0.03) +
+  coord_sf(crs = 4326, expand = FALSE) +
+  scale_color_viridis_c(na.value = NA, option="B")+
+  labs(x="Longitude", y="Latitude", color="SR")+
+  theme_bw()
+
+winter_coverage_plot <- ggplot(data=world)+
+  geom_sf() +
+  geom_point(data=winter, aes(x=x, y=y, color=total_SR), size=0.03) +
+  coord_sf(crs = 4326, expand = FALSE) +
+  scale_color_viridis_c(na.value = NA, option="B")+
+  labs(x="Longitude", y="Latitude", color="SR")+
+  theme_bw()
+
+# put them together
+season_dat <- rbind(summer, winter)
+# almost 2 million points
+
+# threshold to 87 (like the other models)
+season_dat_filt <- season_dat %>% filter(number_checklists >=87)
+season_dat_filt <- season_dat_filt %>% filter(!is.na(urban)) # remove NAs
+# brings it down to 37,058
+season_dat_filt %>% group_by(season) %>% summarise(n=n()) # 16,116 summer and 20,942 winter
+
+# plot by season
+seasonal_coverage_plot <- ggplot(data=world)+
+  geom_sf() +
+  geom_point(data=season_dat_filt, aes(x=x, y=y, color=total_SR), size=0.03) +
+  coord_sf(crs = 4326, expand = FALSE) +
+  scale_color_viridis_c(na.value = NA, option="B")+
+  labs(x="Longitude", y="Latitude", color="SR")+
+  theme_bw() +
+  facet_wrap(~season)
+# pretty similar coverage, that's good
+
+season_dat_filt %>% group_by(urban) %>% summarise(n=n())
+
+urb_levels <- season_dat_filt
+
+urb_levels$urban[which(urb_levels$urban %in% c(11, 12, 13))] <- 1
+urb_levels$urban[which(urb_levels$urban %in% c(21, 22, 23))] <- 2
+urb_levels$urban[which(urb_levels$urban==30)] <- 3
+
+urb_levels$urban <- as.factor(urb_levels$urban)
+urban_names <- c(
+  `1` = "Rural",
+  `2` = "Peri-Urban",
+  `3` = "Urban"
+)
+
+LDG <- ggplot(urb_levels, aes(x=abs(y), y=total_SR, color=urban)) +
+  geom_point(alpha=0.1, shape=1)+
+  geom_smooth(method="lm")+
+  labs(x="Absolute Latitude", y="Species Richness")+
+  theme_bw() +
+  facet_wrap(~season)# has the expected relationship!
+
+##################
+# extract continent 
+###################
+# extract biome 
+
+
+write.csv(season_dat, "season_model_data.csv")
+
+
+
+
+
+
+
 

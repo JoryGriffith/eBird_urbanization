@@ -87,5 +87,23 @@ for (j in 1:length(names)){
   print(paste("finished", names[j]))
 }
 
+######################## need to change
+list_csv_files <- list.files(path = "5yr_summary/", pattern="*.csv")
+#dat <- readr::read_csv(paste("5yr_summary/", list_csv_files, sep=""), id = "file_name")
 
+names <- tolower(gsub('_SR.csv', "", list_csv_files))
+
+
+####################
+for(i in 1:length(list_csv_files)) {                              # Head of for-loop
+  assign(names[i],                                   # Read and store data frames
+         read.csv(paste("5yr_summary/", list_csv_files[i], sep="")))
+}
+
+dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, 
+                 r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, r2c4, 
+                 r3c1, r3c2, r3c3, r3c4, 
+                 r4c1, r4c2, r4c3, r4c4)
+#save all the summaries as a csv
+write.csv(dat, "global_richness_summary.csv", row.names=FALSE)
 

@@ -3,6 +3,7 @@
 library(tidyverse)
 library(lubridate)
 library(terra)
+library(sf)
 
 ######### 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
@@ -51,7 +52,6 @@ for (j in 1:length(names)){
 
 
 ## Winter
-
 for (j in 1:length(names)){
   datalist = vector("list", length = length(years))
   # loop for each year
@@ -221,11 +221,27 @@ LDG <- ggplot(urb_levels, aes(x=abs(y), y=total_SR, color=urban)) +
 
 ##################
 # extract continent 
+continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
+#plot(continents)
+
+dat_sf <- st_as_sf(season_dat_filt, coords=c('x', "y"), crs=st_crs(continents))
+
+dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
+
 ###################
 # extract biome 
+biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
 
+dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
 
-write.csv(season_dat, "season_model_data.csv")
+# create seperate columns for lat long again
+datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
+                                                        lat = sf::st_coordinates(.)[,2]))
+
+datFINAL <- datFINAL %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
+
+# save final data as csv
+write_csv(datFINAL, "season_model_data.csv")
 
 
 

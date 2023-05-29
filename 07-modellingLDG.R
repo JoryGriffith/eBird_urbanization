@@ -7,6 +7,7 @@ library(ncf)
 library(automap)
 library(spdep)
 library(gstat)
+library(beepr)
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
 
@@ -72,7 +73,7 @@ write_csv(datFINAL, "modeling_data.csv")
 
 
 
-
+#####################################
 ######################################
 # Start running models
 
@@ -93,14 +94,15 @@ dat$urban <- as.factor(dat$urban)
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
               abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
-mod1.trans <- lm(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
+mod1.trans <- lm(sqrt(total_SR) ~ abs(lat) * urban * hemisphere + CONTINENT +
                    abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
 dat$abslat <- abs(dat$lat)
-mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban + hemisphere + CONTINENT +
+mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban * hemisphere + CONTINENT +
                    abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 summary(mod1)
 summary(mod1.trans)
+anova(mod1.trans)
 AIC(mod1)
 AIC(mod1.trans) # the one with the sqrt tranformation is much lower
 # these are looking pretty good
@@ -156,7 +158,7 @@ csGaus <- corGaus(form=~lat+long,nugget=TRUE) # gaussian
 csLin <- corLin(form=~lat+long,nugget=TRUE) # linear
 csRatio <- corRatio(form=~lat+long,nugget=TRUE) # ratio
 # update models
-glsGaus <- update(gls1, correlation=corGaus(form=~lat+long,nugget=TRUE)) # gaussian
+glsGaus <- update(gls1, correlation=csLin) # gaussian
 #glsExp <- update(gls1, correlation=csLin)
 
 
@@ -177,11 +179,12 @@ effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
 
 library(interactions)
 
+interact_plot(mod1.trans, lat, hemisphere)
 interact_plot(mod1.trans, lat, urban)
 # woo this looks great!
 # plot with absolute latitude
-interact_plot(mod1.abslat, abslat, urban)
-
+interact_plot(mod1.abslat, abslat, urban, plot.points=TRUE)
+interact_plot(mod1.abslat, abslat, hemisphere)
 #########################
 # Going to try to do a quadratic model to see if it is a better fit
 dat$lat2 <- (dat$lat)**2
@@ -220,18 +223,19 @@ interact_plot(mod1.abslat, abslat, urban2, interval=TRUE)
 ############### Subsample to test things
 # since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
 # going to subsample within my data
-dat.samp <- dat[sample(nrow(dat), 1000), ]
+dat.samp <- dat[sample(nrow(dat), 5000), ]
 # try to run a correlog
 
-
-gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + long + CONTINENT +
+gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
                    abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp)
+
 
 # Make a correlogram
 dat.samp$gls1.samp <- residuals(gls1.samp)
 hist(dat.samp$gls1.samp)
 residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$gls1.samp, resamp=100, quiet=TRUE) 
 plot(residsI,xlim=c(0,20)) # there is some autocorrelation at small distances
+
 
 # calculate Moran's I
 w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distance matrix - weights things that are close together higher
@@ -246,6 +250,7 @@ dat.samp$glsGaus <- residuals(glsGaus)
 hist(dat.samp$glsGaus)
 residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsGaus, resamp=100, quiet=TRUE) 
 plot(residsI,xlim=c(0,20))
+beep()
 # still spatially autocorrelated
 
 # update with spherical
@@ -278,7 +283,7 @@ plot(residsI,xlim=c(0,20))
 
 # compare AIC
 AIC(gls1.samp, glsExp, glsGaus, glsLin, glsSpher, glsRatio)
-# dat lin and dat spher are the best of them
+# glsExp was the best
 
 # plot variograms
 plot(nlme::Variogram(gls1.samp, form =~lat + long, resType="normalized")) # plot original model
@@ -296,6 +301,37 @@ wlist<-mat2listw(w) # assign weights based on inverse distances (converts square
 moran.test(dat.samp$glsSpher, wlist)
 # all of the models with the spatial autocorrelation structures still have significant autocorrelation
 # this is a problem
+
+
+##########################################
+# Try modelling with the other thresholds
+# The 97% one is 139 checklists
+# The 98% one is 203 checklists
+
+dat.97 <- dat %>% filter(number_checklists >= 139) # 47057 observations
+
+# Model 
+gls2 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
+              abs(lat):CONTINENT + BIOME + log(number_checklists), dat.97)
+anova(gls2) # all very significant
+
+# try to add a correlation structure
+glsExp2 <- update(gls2, correlation=csExp)
+# still too large
+
+## Testing how many datapoints can be in the model and I can still be able to add a correlation structure
+dat.samp2 <- dat[sample(nrow(dat), 40000), ]
+# try to run a correlog
+# seems to work with 40000 but not 50000
+# with the highest threshold we have 37000 so maybe I should use that
+
+gls2.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
+                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp2)
+
+glsExp2 <- update(gls2.samp, correlation=csExp)
+
+
+
 
 
 

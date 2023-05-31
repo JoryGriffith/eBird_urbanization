@@ -8,6 +8,7 @@ library(automap)
 library(spdep)
 library(gstat)
 library(beepr)
+library(jtools)
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
 
@@ -187,20 +188,22 @@ interact_plot(mod1.abslat, abslat, urban, plot.points=TRUE)
 interact_plot(mod1.abslat, abslat, hemisphere)
 #########################
 # Going to try to do a quadratic model to see if it is a better fit
-dat$lat2 <- (dat$lat)**2
 
 head(dat)
-mod.quad <- lm(sqrt(total_SR) ~ lat + lat2 + lat:urban + lat2:urban + hemisphere + CONTINENT +
+mod.quad <- lm(sqrt(total_SR) ~ lat + urban + lat:urban + I(lat^2) + lat:urban +  I(lat^2):urban 
+               + hemisphere + CONTINENT +
                  lat:CONTINENT + BIOME + log(number_checklists), dat)
 plot(mod.quad)
 summary(mod.quad)
-effect_plot(mod.quad, pred=list(lat,lat2), interval=TRUE)
+effect_plot(mod.quad, pred=lat, interval=TRUE)
+interact_plot(mod.quad, lat, urban)
 
 AIC(mod.quad) # for some reason not showing up as quadratic
 AIC(mod1.trans)
+
 # the non-quadratic model is better
 interact_plot(mod.quad, lat, urban)
-
+# this looks weird, not sure what is happening
 
 
 # try model with only 3 categories
@@ -332,6 +335,60 @@ glsExp2 <- update(gls2.samp, correlation=csExp)
 
 
 
+############ Trying a poisson model
+mod.poisson <- glm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
+      abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), data=dat, family=poisson)
+plot(mod.poisson)
+summary(mod.poisson) # it is overdispersed
+# everything very significant
+# plot
+ggplot(dat, aes(x=abs(lat), y=total_SR)) + geom_point() +
+  stat_smooth(method="glm", method.args=list(family="poisson"), se=FALSE)+facet_wrap(~urban)
+
+# try poly model with latitude
+mod.poisson.poly <- glm(total_SR ~ lat + urban + lat:urban + I(lat^2) + lat:urban +  I(lat^2):urban 
+                   + hemisphere + CONTINENT + as.factor(BIOME) + log(number_checklists), data=dat, family=poisson)
+
+AIC(mod.poisson, mod.poisson.poly)
+# the poly is worse
+
+
+
+
+############################
+# Thinking about subsampling the data in order to be able to run a regression without spatial autocorrelation
+# look at the spread of the data between continents
+dat %>% group_by(CONTINENT) %>% summarise(n=n())
+# there are 55,000 in North America compared to much less everywhere else
+# I could try to subsample in just north america and see if that reduces the spatial autocorrelation
+
+# right now there are 70,749 points, lets see if I thinned that to 50,000
+library(spThin)
+# I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
+# it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
+dat.thinned <- thin.algorithm(dat.samp[,c(25:26)], thin.par=50, 
+               rep=10)
+?thin.algorithm
+da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
+
+dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
+
+# run model with thinned data and check for autocorrelation
+gls1.thinned <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
+                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.thinned.new)
+dat.thinned.new$gls1.thinned <- residuals(gls1.thinned)
+hist(dat.thinned.new$gls1.thinned)
+residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$gls1.thinned, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+beep()
+
+# test Moran's I
+w <-as.matrix(1/dist(cbind(dat.thinned.new$long, dat.thinned.new$lat))) # make inverse distance matrix - weights things that are close together higher
+wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
+# this quickly becomes very large because it is pairwise distances
+moran.test(dat.thinned.new$gls1.thinned, wlist)
+beep()
+# still spatially autocorrelated
 
 
 

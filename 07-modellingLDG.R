@@ -9,6 +9,10 @@ library(spdep)
 library(gstat)
 library(beepr)
 library(jtools)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
 
@@ -79,31 +83,65 @@ write_csv(datFINAL, "modeling_data.csv")
 # Start running models
 
 dat <- read.csv("modeling_data.csv")
-dat %>% group_by(urban) %>% summarise(n=n())
-summary(dat)
-hist(dat$total_SR) # a bit skewed, also count data
-hist(log(dat$total_SR))
-hist(sqrt(dat$total_SR)) # this looks pretty good
-hist(dat$number_checklists) # this is super log normal, used the log in the response variable
-
 # turn biome and urban into a factor
-class(dat$BIOME)
 dat$BIOME <- as.factor(dat$BIOME)
 dat$urban <- as.factor(dat$urban)
+
+dat %>% group_by(urban) %>% summarise(n=n())
+summary(dat)
+hist(dat$total_SR, breaks=50)
+?hist# a bit skewed, also count data
+hist(log(dat$total_SR))
+hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
+hist(dat$number_checklists) # this is super log normal, used the log in the response variable
+
+
+# make another columbn with only 3 categories
+# try model with only 3 categories
+dat <- dat %>% mutate(urban2=ifelse(urban==11, 1, ifelse(urban==30, 3, 2)))
+dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
+dat$urban2 <- as.factor(dat$urban2)
+
+dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
+                     labels = c("Natural", "Suburban", "Urban"))
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
               abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
-mod1.trans <- lm(sqrt(total_SR) ~ abs(lat) * urban * hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
 dat$abslat <- abs(dat$lat)
+
+mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + BIOME + log(number_checklists), dat)
+mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + BIOME + log(number_checklists), dat)
+AIC(mod1.trans, mod1.trans.cont) # continent is better
+
+
+# Plot model results for talk
+predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) # looks the same whether sqrt included in model or not
+
+results.plot<-
+  plot(predicted, add.data=TRUE, dot.size=0.4, alpha=0.4, dot.alpha=0.1, show.title=FALSE, colors=c("darkgreen", "chocolate1", "firebrick")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20))
+
+ggsave(results.plot, file="results.plot.png", height=5, width=8)
+
+
+
+
+# take out continent and then run another model with continent instead of hemisphere because they are collinear
+
+#mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + BIOME + number_checklists, dat)
+
+#dat$abslat <- abs(dat$lat)
 mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban * hemisphere + CONTINENT +
                    abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 summary(mod1)
 summary(mod1.trans)
 anova(mod1.trans)
+
 AIC(mod1)
 AIC(mod1.trans) # the one with the sqrt tranformation is much lower
 # these are looking pretty good
@@ -111,11 +149,10 @@ plot(mod1.trans)
 plot(mod1) # sqrt transformation is a better fit and more normal
 hist(residuals(mod1))
 hist(residuals(mod1.trans)) # they are both pretty normally distributed but the transformed one is better
-
-
+plot(mod1)
+min(dat$total_SR)
 # rerun using gls (same as linear model when no spatial autocorrelation included)
-gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-              abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
+gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + BIOME + log(number_checklists), dat)
 
 anova(gls1) # everything very significant
 
@@ -181,10 +218,12 @@ effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
 library(interactions)
 
 interact_plot(mod1.trans, lat, hemisphere)
-interact_plot(mod1.trans, lat, urban)
+
+interact_plot(mod1.trans, abslat, urban, interval=TRUE)
+
 # woo this looks great!
 # plot with absolute latitude
-interact_plot(mod1.abslat, abslat, urban, plot.points=TRUE)
+interact_plot(mod1.trans, abslat, urban)
 interact_plot(mod1.abslat, abslat, hemisphere)
 #########################
 # Going to try to do a quadratic model to see if it is a better fit
@@ -221,12 +260,20 @@ interact_plot(mod.3cat, lat, urban2, interval=TRUE)
 interact_plot(mod1.abslat, abslat, urban2, interval=TRUE) 
 # looking good!
 
+# need to look into the rank deficient fit error - says it may because there are colinear covariates or having more parameters than available variables
+
+
+
+
+
+
+
 
 
 ############### Subsample to test things
 # since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
 # going to subsample within my data
-dat.samp <- dat[sample(nrow(dat), 5000), ]
+dat.samp <- dat[sample(nrow(dat), 1000), ]
 # try to run a correlog
 
 gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
@@ -366,9 +413,11 @@ dat %>% group_by(CONTINENT) %>% summarise(n=n())
 library(spThin)
 # I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
 # it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
-dat.thinned <- thin.algorithm(dat.samp[,c(25:26)], thin.par=50, 
+dat.samp <- dat[sample(nrow(dat), 1000), ]
+
+dat.thinned <- thin.algorithm(dat.samp[,c(25:26)], thin.par=10, 
                rep=10)
-?thin.algorithm
+
 da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
 
 dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
@@ -384,11 +433,56 @@ beep()
 
 # test Moran's I
 w <-as.matrix(1/dist(cbind(dat.thinned.new$long, dat.thinned.new$lat))) # make inverse distance matrix - weights things that are close together higher
+?dist
 wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
 # this quickly becomes very large because it is pairwise distances
 moran.test(dat.thinned.new$gls1.thinned, wlist)
 beep()
 # still spatially autocorrelated
+
+
+# what if I add a correlation structure
+glsSpher <- update(gls1.thinned, correlation=csSpher)
+dat.thinned.new$glsSpher <- residuals(glsSpher)
+hist(dat.thinned.new$glsSpher)
+residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$glsSpher, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+beep()
+
+w <-as.matrix(1/dist(cbind(dat.thinned.new$long, dat.thinned.new$lat))) # make inverse distance matrix - weights things that are close together higher
+wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
+# this quickly becomes very large because it is pairwise distances
+moran.test(dat.thinned.new$glsSpher, wlist)
+beep()
+# this is not working for some reason - all the residuals are the same
+
+# try another correlation structure
+glsGaus <- update(gls1.thinned, correlation=csGaus)
+dat.thinned.new$glsGaus <- residuals(glsGaus)
+hist(dat.thinned.new$glsGaus)
+residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$glsGaus, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+beep()
+
+glsExp <- update(gls1.thinned, correlation=csExp)
+dat.thinned.new$glsExp <- residuals(glsExp)
+hist(dat.thinned.new$glsGaus)
+residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$glsExp, resamp=100, quiet=TRUE) 
+plot(residsI,xlim=c(0,20))
+beep()
+
+
+
+# look at variogram with and without correlation structure
+plot(nlme::Variogram(gls1.thinned, form =~lat + long, resType="normalized"))
+plot(nlme::Variogram(glsSpher, form =~lat + long, resType="normalized"))
+AIC(gls1.thinned, glsSpher, glsExp)
+# better with the correlation structure
+beep()
+
+anova(gls1.thinned)
+anova(glsSpher)
+
 
 
 

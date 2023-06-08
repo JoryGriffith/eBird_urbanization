@@ -76,7 +76,6 @@ anova(mod1) # triple interaction is significant
 plot(mod1)
 # looking pretty good
 
-# do another one with absolute lat for plotting
 
 # run a gls
 gls1 <- gls(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere +
@@ -120,7 +119,12 @@ summary(mod1)
 anova(mod1)
 #  geom_point(alpha=0.1)
 library(emmeans)
-?lsmeans
+library(ggeffects)
+
+emmeans(mod1, specs=c("abslat", "urban2", "season")) 
+lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="winter")) # comapre slopes in winter
+lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="summer")) # compare slopes in summer
+
 predicted <- ggpredict(mod1, terms = c("abslat", "urban2", "season")) # looks the same whether sqrt included in model or not
 
 seasonal.results.plot<-

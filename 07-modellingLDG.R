@@ -134,6 +134,8 @@ results.plot <-
 
 ggsave(results.plot, file="results.plot.png", height=5, width=9)
 
+# Compare slopes
+lstrends(mod1.trans, pairwise ~ urban2, var="abslat")
 
 # take out continent and then run another model with continent instead of 
 # hemisphere because they are collinear

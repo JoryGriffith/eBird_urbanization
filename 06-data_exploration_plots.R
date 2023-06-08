@@ -56,8 +56,8 @@ summary95_plot <- ggplot(data=world)+
   geom_sf() +
   geom_point(data=summary_filt, aes(x=x, y=y, color=total_SR), size=0.03) +
   coord_sf(crs = 4326, expand = FALSE) +
-  scale_color_viridis_c(na.value = NA, option="B")+
-  labs(x="Longitude", y="Latitude", color="SR")+
+  scale_color_viridis_c(na.value = NA, option="C")+
+  labs(x="Longitude", y="Latitude", color="Species Richness")+
   theme_bw()
 ggsave(summary95_plot, file="CoveragePlot.png", height=8, width=6)
 

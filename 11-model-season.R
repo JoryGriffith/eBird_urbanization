@@ -115,19 +115,22 @@ preds <- (predict(mod.test))^2 # predict and back transform
 ggplot(dat, aes(x=abslat, y=sqrt(total_SR), color=urban2)) + 
   facet_wrap(~season)+
   geom_line(data = cbind(dat, preds), aes(y = preds)) # it is looking fucked up because there are so many other variables that i am not including in the plot
-?ggpredict
 
+summary(mod1)
+anova(mod1)
 #  geom_point(alpha=0.1)
-
-library(ggeffects)
-
+library(emmeans)
+?lsmeans
 predicted <- ggpredict(mod1, terms = c("abslat", "urban2", "season")) # looks the same whether sqrt included in model or not
+
 seasonal.results.plot<-
-  plot(predicted, facet = TRUE, add.data=TRUE, dot.size=0.4, alpha=0.4, dot.alpha=0.2, show.title=FALSE, colors=c("darkgreen", "chocolate1", "firebrick")) +
+  plot(predicted, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
+       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
   theme_bw()+
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20))
-?theme
+  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+
 ggsave(seasonal.results.plot, file="seasonal.results.plot.png", height=6, width=12)
 # it back transforms automatically but does not transform the errors, might need to fix later
 

@@ -11,6 +11,7 @@ library(beepr)
 library(jtools)
 library(rnaturalearth)
 library(rnaturalearthdata)
+library(ggeffects)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 
@@ -90,7 +91,7 @@ dat$urban <- as.factor(dat$urban)
 dat %>% group_by(urban) %>% summarise(n=n())
 summary(dat)
 hist(dat$total_SR, breaks=50)
-?hist# a bit skewed, also count data
+
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
@@ -103,7 +104,7 @@ dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
 dat$urban2 <- as.factor(dat$urban2)
 
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
-                     labels = c("Natural", "Suburban", "Urban"))
+                     labels = c("Natural n = 23,042", "Suburban n = 35,071", "Urban n = 12,636"))
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
@@ -112,26 +113,30 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 
 dat$abslat <- abs(dat$lat)
 
-mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + BIOME + log(number_checklists), dat)
-mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + BIOME + log(number_checklists), dat)
+mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+                   BIOME + log(number_checklists), dat)
+mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
+                        BIOME + log(number_checklists), dat)
 AIC(mod1.trans, mod1.trans.cont) # continent is better
 
-
 # Plot model results for talk
-predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) # looks the same whether sqrt included in model or not
+predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) 
+# looks the same whether sqrt included in model or not
+?ggeffects::plot
 
-results.plot<-
-  plot(predicted, add.data=TRUE, dot.size=0.4, alpha=0.4, dot.alpha=0.1, show.title=FALSE, colors=c("darkgreen", "chocolate1", "firebrick")) +
+results.plot <-
+  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
   theme_bw()+
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20))
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
 
-ggsave(results.plot, file="results.plot.png", height=5, width=8)
+ggsave(results.plot, file="results.plot.png", height=5, width=9)
 
 
-
-
-# take out continent and then run another model with continent instead of hemisphere because they are collinear
+# take out continent and then run another model with continent instead of 
+# hemisphere because they are collinear
 
 #mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + BIOME + number_checklists, dat)
 
@@ -152,7 +157,8 @@ hist(residuals(mod1.trans)) # they are both pretty normally distributed but the 
 plot(mod1)
 min(dat$total_SR)
 # rerun using gls (same as linear model when no spatial autocorrelation included)
-gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + BIOME + log(number_checklists), dat)
+gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + 
+              BIOME + log(number_checklists), dat)
 
 anova(gls1) # everything very significant
 

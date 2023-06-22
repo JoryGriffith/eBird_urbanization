@@ -41,7 +41,7 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 #bbox$ymax <- as.numeric(bbox$ymax)
 #write.csv(bbox, "bounding_box_coordinates.csv")
 #bbox <- read.csv("bounding_box_coordinates.csv")
-dat <- read.delim("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/r4c2_2017_filt.txt", header=TRUE, na.strings="")
+#dat <- read.delim("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/r4c2_2017_filt.txt", header=TRUE, na.strings="")
 
 
 ####### 2017

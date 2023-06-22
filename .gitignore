@@ -5,11 +5,10 @@
 # Ignore images
 *.png
 *.pdf
-# ignore csv files
-*.csv
-*.csv
-*.csv
-*.csv
+# ignore some files
+thresholding/
+5yr_summary/
+global_richness_summary.csv
 5yr_summary/._r1c1_SR.csv
 5yr_summary/._r1c1_SR.csv
 5yr_summary/._r1c1_SR.csv
@@ -32,3 +31,4 @@
 5yr_summary/._r4c3_SR.csv
 5yr_summary/._r4c4_SR.csv
 ._.gitignore
+._global_richness_summary.csv

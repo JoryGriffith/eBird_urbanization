@@ -20,23 +20,12 @@ dat$urban2 <- as.factor(dat$urban2)
 dat$abslat <- abs(dat$lat) # absolute latitude
 
 # Plot relationship 
-urb_levels <- dat
 
-urb_levels$urban[which(urb_levels$urban %in% c(11, 12, 13))] <- 1
-urb_levels$urban[which(urb_levels$urban %in% c(21, 22, 23))] <- 2
-urb_levels$urban[which(urb_levels$urban==30)] <- 3
-
-urb_levels$urban <- as.factor(urb_levels$urban)
-urban_names <- c(
-  `1` = "Rural",
-  `2` = "Peri-Urban",
-  `3` = "Urban"
-)
-
-LDG <- ggplot(urb_levels, aes(x=abs(lat), y=total_SR, color=urban)) +
+LDG <- ggplot(dat, aes(x=abs(lat), y=total_SR, color=urban2)) +
   geom_point(alpha=0.1, shape=1) +
   geom_smooth(method="lm") +
   labs(x="Absolute Latitude", y="Species Richness")+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000")) +
   theme_bw() +
   facet_wrap(~season)# has the expected relationship!
 
@@ -122,8 +111,8 @@ library(emmeans)
 library(ggeffects)
 
 emmeans(mod1, specs=c("abslat", "urban2", "season")) 
-lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="winter")) # comapre slopes in winter
-lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="summer")) # compare slopes in summer
+lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Winter")) # comapre slopes in winter
+lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Summer")) # compare slopes in summer
 
 predicted <- ggpredict(mod1, terms = c("abslat", "urban2", "season")) # looks the same whether sqrt included in model or not
 
@@ -132,10 +121,34 @@ seasonal.results.plot<-
        line.size=1.5, show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
   theme_bw()+
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'))+
+  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'), legend.position="none")+
   guides(fill = guide_legend(byrow = TRUE))
-
+seasonal.results.plot
 ggsave(seasonal.results.plot, file="seasonal.results.plot.png", height=6, width=12)
+ggsave(seasonal.results.plot, file="seasonal.results.plot.conclusion.png", height=6, width=7)
+
+predicted2 <- predicted %>% filter(group=="Natural")
+seasonal.results.plot2<-
+  plot(predicted2, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
+       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#009E73")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'), legend.position="none")+
+  guides(fill = guide_legend(byrow = TRUE))
+seasonal.results.plot2
+ggsave(seasonal.results.plot2, file="seasonal.results2.plot.png", height=6, width=12)
+ggsave(seasonal.results.plot2, file="seasonal.results2.plot.conclusion.png", height=6, width=7) # less wide for conclusion
+
+predicted3 <- predicted %>% filter(group%in%c("Natural", "Urban"))
+seasonal.results.plot3<-
+  plot(predicted3, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
+       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'), legend.position="none")
+seasonal.results.plot3
+ggsave(seasonal.results.plot3, file="seasonal.results.plot3.png", height=6, width=12)
+ggsave(seasonal.results.plot3, file="seasonal.results3.plot.conclusion.png", height=6, width=7)
 # it back transforms automatically but does not transform the errors, might need to fix later
 
 

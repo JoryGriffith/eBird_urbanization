@@ -3,8 +3,6 @@
 library(terra)
 library(tidyverse)
 library(sf)
-library(auk)
-library(iNEXT)
 library(beepr)
 library(scales)
 

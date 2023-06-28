@@ -492,6 +492,65 @@ anova(gls1.thinned)
 anova(glsSpher)
 
 
+###################################
+#### Trying new ways to deal with spatial autocorrelation
+
+# sample data
+dat.samp <- dat[sample(nrow(dat), 10000), ]
+# turn into sf object
+dat.samp.sf <- st_as_sf(dat.samp, coords=c('long', "lat")) 
+
+mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+                   BIOME + log(number_checklists), dat.samp) # here is the model that I am working with
+dat.samp$residuals <- residuals(mod1.trans)
+dat.samp$fitted <- fitted(mod1.trans)
+
+
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # calculate distances
+dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
+
+# Moran's I test
+lm.morantest(mod1.trans, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
+
+lm.LMtests(mod1.trans, dat.samp.lw, test="LMerr", zero.policy = T) # test for spatial error - very significant
+
+lm.LMtests(mod1.trans, dat.samp.lw, test="LMlag", zero.policy = T) # test for spatial lag - also very significant
+
+Inc.lag <- lag.listw(dat.samp.lw, dat.samp$residuals, zero.policy = T)
+plot(Inc.lag)
+moran.plot(dat.samp$residuals, dat.samp.lw)
+# slope of the regression line between spatially lagged values and observed values
+
+# to assess if the slope is significantly diff from 0, can permute values across samples
+moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE) # moran monte carlo
+moran
+# significant
+
+# look at how it changes with distance of nearest neighbors used
+moran_I <- c()
+
+# loop d through a sequence ranging from 50 to 2000
+for (d in seq(50, 2000, 50)) {
+  dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
+  dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
+  moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+  moran_I <- c(moran_I, moran$statistic)
+}
+
+moran_I <- data.frame(moran = moran_I, 
+                      distance = seq(50, 2000, 50))
+
+ggplot(moran_I, aes(x = distance, y = moran)) + 
+  geom_point() +
+  geom_line()
+
+
+
+
+
+
+
+
 
 
 

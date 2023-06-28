@@ -5,15 +5,19 @@ library(tidyverse)
 library(lubridate)
 library(beepr)
 library(sf)
+library(foreach)
+library(doParallel)
+
 
 # load original reprojected raster file
 
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
+#GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
 
-GHSL_5km <- aggregate(GHSL, fact=5, fun="mean", cores=4, filename="/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
+#GHSL_5km <- aggregate(GHSL, fact=5, fun="mean", cores=4, filename="/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 
-plot(GHSL_5km)
+#plot(GHSL_5km)
 
+GHSL_5km <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 # yay! created the new raster
 
 # Now I need to aggregate the eBird data into that raster and summarise
@@ -26,10 +30,31 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
-for (j in 1:length(years)) {
+# trying to run in parallel
+n.cores <- parallel::detectCores() - 2
 
-  for (i in 1:length(names)){
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""), header=TRUE, na.strings="")
+#create the cluster
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "FORK"
+)
+
+print(my.cluster)
+
+#register it to be used by %dopar%
+doParallel::registerDoParallel(cl = my.cluster)
+
+#check if it is registered (optional)
+foreach::getDoParRegistered()
+
+
+for (j in 6:6) {
+
+# foreach  (i = 6:length(names),
+ #           .combine = 'c') %dopar% {
+for(i in 6:length(names)){
+  dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j],"_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), 
+                    header=TRUE, na.strings="")
   # turn into spatvector
   
   vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
@@ -39,11 +64,16 @@ for (j in 1:length(years)) {
   # get cell number that each point is in
   dat$cell_5km_scale<-cellFromXY(GHSL_5km, xy[,3:4])
   # also get coordinates for the midpoint of each cell
-  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""), row.names=FALSE)
+  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_", years[j],"_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), row.names=FALSE)
   print(paste("finished", names[i]))
+  rm(dat)
 }
 print(paste("finished", years[j]))
 }
+beep()
+beep_on_error()
+
+
 
 
 ############# 2) Summarise by cell no. ########
@@ -51,7 +81,7 @@ for (j in 1:length(names)){
   datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
-    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[14], "_", years[i], "_filt.txt", sep=""), 
+    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
                       header=TRUE) # load data
     
     dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
@@ -89,7 +119,7 @@ for (j in 1:length(names)){
   dat_summary2 <- merge(dat_summary, months_wide, by="cell_5km")
   dat_summary2$square=names[j]
   # save as csv
-  write.csv(dat_summary2, paste("5yr_summary_5km/", names[j], "_SR.csv", sep=""))
+  write.csv(dat_summary2, paste("5yr_summary_5km/", names[j], "_SR_5km.csv", sep=""))
   print(paste("finished", names[j]))
 }
 

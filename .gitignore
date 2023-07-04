@@ -33,3 +33,4 @@ global_richness_summary.csv
 ._.gitignore
 ._global_richness_summary.csv
 5yr_summary_5km
+thresholding_5km/

@@ -7,6 +7,7 @@ library(beepr)
 library(sf)
 library(foreach)
 library(doParallel)
+library(iNEXT)
 
 
 # load original reprojected raster file
@@ -191,8 +192,9 @@ coverage_list = vector("list", length = length(names))
 
 
 # do in parallel
-foreach  (j = 1:length(names),
-            .combine = 'c') %dopar% {
+#foreach  (j = 1:length(names),
+ #           .combine = 'c') %dopar% {
+for (j in 2:length(names)){ # 73 in r2c1
   
   dat_top <- read.csv(paste("thresholding_5km/", names[j], "_topcells_5km.csv", sep=""))
   
@@ -227,7 +229,7 @@ foreach  (j = 1:length(names),
       # convert this dataframe into data format for iNext
       temp_inext <- as.incfreq(temp)
       #and now using estimateD to get qD
-      out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=1000, nboot=50)
+      out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=500, nboot=50)
       out.inc.filt1<-out.inc$iNextEst$coverage_based %>% filter(Method=="Observed") # filter for observed coverage
       out.inc.filt2<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.95)==min(abs(SC-0.95)))  # filter for row that is closest to 95% coverage
       out.inc.filt3<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.97)==min(abs(SC-0.97))) # filter for row that is closest to 97% coverage
@@ -266,7 +268,14 @@ coverage <- dplyr::bind_rows(coverage_list)
 
 coverage %>% group_by(square) %>% summarise(n=n()) 
 
-write.csv(coverage, "thresholding_5km/coverage_top500_5km.csv", row.names=FALSE)
+write.csv(coverage, "coverage_top500_5km.csv", row.names=FALSE)
+
+
+
+
+
+
+
 
 
 

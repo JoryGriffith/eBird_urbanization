@@ -268,7 +268,7 @@ coverage <- dplyr::bind_rows(coverage_list)
 
 coverage %>% group_by(square) %>% summarise(n=n()) 
 
-write.csv(coverage, "thresholding_5km/coverage_top500_5km.csv", row.names=FALSE)
+write.csv(coverage, "coverage_top500_5km.csv", row.names=FALSE)
 
 
 

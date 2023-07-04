@@ -15,6 +15,8 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r3c1", "r3c2", "r3c3", "r3c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
 
+years <- c(2017, 2018, 2019, 2020, 2021, 2022)
+
 # Summer
 for (j in 1:length(years)){
   for (i in 1:length(names)){

@@ -271,6 +271,184 @@ coverage %>% group_by(square) %>% summarise(n=n())
 write.csv(coverage, "coverage_top500_5km.csv", row.names=FALSE)
 
 
+#################################
+#################################
+
+###### Scale up raster for season
+
+#### Extract cell no. for season
+GHSL_5km <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
+
+names <- c("r1c1", "r1c2", "r1c3", "r1c4",
+           "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
+           "r3c1", "r3c2", "r3c3", "r3c4",
+           "r4c1", "r4c2", "r4c3", "r4c4")
+
+years <- c(2017, 2018, 2019, 2020, 2021, 2022)
+
+for (j in 1:length(years)){
+  for (i in 1:length(names)){
+    
+    dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
+    # turn into spatvector
+    vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
+    
+    xy=geom(vect)
+    
+    # get cell number that each point is in
+    dat$cell_5km<-cellFromXY(GHSL_5km, xy[,3:4])
+    # also get coordinates for the midpoint of each cell
+    write.table(dat, paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), row.names=FALSE)
+    print(paste("finished", names[i]))
+    
+  }
+  print(paste("finished", years[j]))
+}
+
+
+# Winter
+for (j in 1:length(years)){
+  for (i in 1:length(names)){
+    
+    dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
+    # turn into spatvector
+    vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
+    
+    xy=geom(vect)
+    
+    # get cell number that each point is in
+    dat$cell_5km<-cellFromXY(GHSL_5km, xy[,3:4])
+    # also get coordinates for the midpoint of each cell
+    write.table(dat, paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), row.names=FALSE)
+    print(paste("finished", names[i]))
+    
+  }
+  print(paste("finished", years[j]))
+}
+
+
+#### Summarize by season ########
+years <- c(2017, 2018, 2019, 2020, 2021, 2022)
+
+names <- c("r1c1", "r1c2", "r1c3", "r1c4",
+           "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
+           "r3c1", "r3c2", "r3c3", "r3c4",
+           "r4c1", "r4c2", "r4c3", "r4c4")
+
+
+## Summer
+for (j in 1:length(names)){
+  datalist = vector("list", length = length(years))
+  # loop for each year
+  for (i in 1:length(years)) {
+    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/summer/", names[j], "_", years[i], "_summer_filt.txt", sep=""), 
+                      header=TRUE) # load data
+    
+    dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
+    dat$OBSERVATION.DATE <- as.character(dat$OBSERVATION.DATE)
+    dat$OBSERVER.ID <- as.character(dat$OBSERVER.ID)
+    dat$SAMPLING.EVENT.IDENTIFIER <- as.character(dat$SAMPLING.EVENT.IDENTIFIER)
+    dat$OBSERVATION.COUNT <- as.character(dat$OBSERVATION.COUNT)
+    dat$GROUP.IDENTIFIER <- as.character(dat$GROUP.IDENTIFIER)
+    datalist[[i]] <- dat # put in a list
+  }
+  # bind lists together
+  
+  dat2 <- dplyr::bind_rows(datalist)
+  dat2$month <- month(dat2$OBSERVATION.DATE)
+  # summarise
+  
+  ## aggregate to get number of checklists and raw richness per cell
+  dat_summary <- dat2 %>%
+    group_by(cell) %>%
+    summarize(number_checklists=length(unique(SAMPLING.EVENT.IDENTIFIER)),
+              total_SR=length(unique(SCIENTIFIC.NAME)),
+              total_duration=sum(DURATION.MINUTES),
+              avg_duration=mean(DURATION.MINUTES),
+              no_months=length(unique(month))
+    )
+  dat_summary$square=names[j]
+  # save as csv
+  write.csv(dat_summary, paste("5yr_summary_5km/summer/", names[j], "_summer_SR_5km.csv", sep=""))
+  print(paste("finished", names[j]))
+}
+
+
+## Winter
+for (j in 1:length(names)){
+  datalist = vector("list", length = length(years))
+  # loop for each year
+  for (i in 1:length(years)) {
+    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/winter/", names[j], "_", years[i], "_winter_filt.txt", sep=""), 
+                      header=TRUE) # load data
+    
+    dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
+    dat$OBSERVATION.DATE <- as.character(dat$OBSERVATION.DATE)
+    dat$OBSERVER.ID <- as.character(dat$OBSERVER.ID)
+    dat$SAMPLING.EVENT.IDENTIFIER <- as.character(dat$SAMPLING.EVENT.IDENTIFIER)
+    dat$OBSERVATION.COUNT <- as.character(dat$OBSERVATION.COUNT)
+    dat$GROUP.IDENTIFIER <- as.character(dat$GROUP.IDENTIFIER)
+    datalist[[i]] <- dat # put in a list
+  }
+  # bind lists together
+  
+  dat2 <- dplyr::bind_rows(datalist)
+  dat2$month <- month(dat2$OBSERVATION.DATE)
+  # summarise
+  
+  ## aggregate to get number of checklists and raw richness per cell
+  dat_summary <- dat2 %>%
+    group_by(cell) %>%
+    summarize(number_checklists=length(unique(SAMPLING.EVENT.IDENTIFIER)),
+              total_SR=length(unique(SCIENTIFIC.NAME)),
+              total_duration=sum(DURATION.MINUTES),
+              avg_duration=mean(DURATION.MINUTES),
+              no_months=length(unique(month))
+    )
+  dat_summary$square=names[j]
+  # save as csv
+  write.csv(dat_summary, paste("5yr_summary_5km/winter/", names[j], "_winter_SR_5km.csv", sep=""))
+  print(paste("finished", names[j]))
+}
+
+# Put all together - winter
+list_csv_files <- list.files(path = "5yr_summary_5km/winter/", pattern="*.csv")
+#dat <- readr::read_csv(paste("5yr_summary/", list_csv_files, sep=""), id = "file_name")
+
+names <- tolower(gsub('_winter_SR_5km.csv', "", list_csv_files))
+
+for(i in 1:length(list_csv_files)) {                              # Head of for-loop
+  assign(names[i],                                   # Read and store data frames
+         read.csv(paste("5yr_summary_5km/winter/", list_csv_files[i], sep="")))
+}
+class(r4c3$square)
+r4c1$square <- as.character(r4c1$square)
+r4c3$square <- as.character(r4c3$square)
+dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, 
+                 r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, r2c4, 
+                 r3c1, r3c2, r3c3, r3c4, 
+                 r4c1, r4c2, r4c3, r4c4)
+write.csv(dat, "winter_richness_summary_5km.csv", row.names=FALSE)
+
+# Put all together - summer
+list_csv_files <- list.files(path = "5yr_summary_5km/summer/", pattern="*.csv")
+#dat <- readr::read_csv(paste("5yr_summary/", list_csv_files, sep=""), id = "file_name")
+
+names <- tolower(gsub('_summer_SR_5km.csv', "", list_csv_files))
+
+
+for(i in 1:length(list_csv_files)) {                              # Head of for-loop
+  assign(names[i],                                   # Read and store data frames
+         read.csv(paste("5yr_summary_5km/summer/", list_csv_files[i], sep="")))
+}
+
+dat <- bind_rows(r1c1, r1c2, r1c3, r1c4, 
+                 r2c1, r2c2aa, r2c2aba, r2c2abb, r2c2b, r2c3, r2c4, 
+                 r3c1, r3c2, r3c3, r3c4, 
+                 r4c1, r4c2, r4c3, r4c4)
+
+#save all the summaries as a csv
+write.csv(dat, "summer_richness_summary_5km.csv", row.names=FALSE)
 
 
 

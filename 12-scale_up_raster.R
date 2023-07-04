@@ -289,7 +289,7 @@ years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 for (j in 1:length(years)){
   for (i in 1:length(names)){
     
-    dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
+    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
     # turn into spatvector
     vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
     
@@ -310,7 +310,7 @@ for (j in 1:length(years)){
 for (j in 1:length(years)){
   for (i in 1:length(names)){
     
-    dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
+    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
     # turn into spatvector
     vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
     
@@ -328,14 +328,6 @@ for (j in 1:length(years)){
 
 
 #### Summarize by season ########
-years <- c(2017, 2018, 2019, 2020, 2021, 2022)
-
-names <- c("r1c1", "r1c2", "r1c3", "r1c4",
-           "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
-           "r3c1", "r3c2", "r3c3", "r3c4",
-           "r4c1", "r4c2", "r4c3", "r4c4")
-
-
 ## Summer
 for (j in 1:length(names)){
   datalist = vector("list", length = length(years))

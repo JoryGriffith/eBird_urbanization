@@ -571,7 +571,9 @@ ggplot(moran_I, aes(x = distance, y = moran)) +
   geom_line()
 beep()
 
-##### Try running models 
+
+
+##### Try running models  with full data
 # Spatially lagged X model
 dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                                        BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
@@ -608,7 +610,6 @@ beep()
 
 
 # try to run on full model
-
 dat.sf <- st_as_sf(dat, coords=c('long', "lat")) 
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
@@ -618,7 +619,7 @@ dat$residuals <- residuals(mod1.trans)
 dat$fitted <- fitted(mod1.trans)
 
 
-dat.nb <- dnearneigh(dat.sf, d1=0, d2=200) # calculate distances
+dat.nb <- dnearneigh(dat.sf, d1=0, d2=200) # calculate distances (up to 200km)
 dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
 
 dat.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 

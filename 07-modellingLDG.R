@@ -102,12 +102,12 @@ hist(dat$number_checklists) # this is super log normal, used the log in the resp
 
 # make another columbn with only 3 categories
 # try model with only 3 categories
-dat <- dat %>% mutate(urban2=ifelse(urban==11, 1, ifelse(urban==30, 3, 2)))
+dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
 dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
 dat$urban2 <- as.factor(dat$urban2)
 
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
-                     labels = c("Natural n = 23,042", "Suburban n = 35,071", "Urban n = 12,636"))
+                     labels = c("Natural n = 40,490", "Suburban n = 17,623", "Urban n = 12,636"))
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
@@ -118,6 +118,7 @@ dat$abslat <- abs(dat$lat)
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                    BIOME + log(number_checklists), dat)
+
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
                         BIOME + log(number_checklists), dat)
 AIC(mod1.trans, mod1.trans.cont) # continent is better
@@ -125,7 +126,7 @@ AIC(mod1.trans, mod1.trans.cont) # continent is better
 # Plot model results for talk
 predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
-?ggeffects::plot
+
 
 results.plot <-
   plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 

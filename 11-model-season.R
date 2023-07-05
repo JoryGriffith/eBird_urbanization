@@ -14,7 +14,7 @@ dat$urban<-as.factor(dat$urban)
 dat$BIOME <- as.factor(dat$BIOME)
 
 # make another column with just 3 categories
-dat <- dat %>% mutate(urban2=ifelse(urban==11, 1, ifelse(urban==30, 3, 2)))
+dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
 dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
 dat$urban2 <- as.factor(dat$urban2)
 dat$abslat <- abs(dat$lat) # absolute latitude

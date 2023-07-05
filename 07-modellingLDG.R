@@ -620,7 +620,7 @@ dat$residuals <- residuals(mod1.trans)
 dat$fitted <- fitted(mod1.trans)
 
 
-dat.nb <- dnearneigh(dat.sf, d1=0, d2=200) # calculate distances (up to 200km)
+dat.nb <- dnearneigh(dat.sf, d1=0, d2=100) # calculate distances (up to 200km)
 dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
 
 dat.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 

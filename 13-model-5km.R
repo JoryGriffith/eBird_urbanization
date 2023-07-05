@@ -21,7 +21,7 @@ summary_filt95 <- summary %>% filter(number_checklists >= 102) # went from 56986
 
 
 #### Now I need to load the urbanization data and figure out a threshold for that
-GHSL_5km <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_5km_cellsize.tif")
+GHSL_5km <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 
 summary(values(GHSL_5km))
 # right now it is an average, so I need to figure out thresholds for each category
@@ -29,7 +29,7 @@ summary(values(GHSL_5km))
 plot(GHSL_5km)
 
 # Load original data
-GHSLreproj<-rast("/Volumes/Backup/eBird/SMOD_global/reprojected.SMOD_global.tif")
+GHSLreproj<-rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
 unique(values(GHSLreproj))
 summary(values(GHSLreproj)) # NAs 4029
 # recategorize to 1, 2, and 3
@@ -104,7 +104,7 @@ summary_filt <- rename(summary_filt, lat = y, long = x) # rename to lat and long
 summary_filt <- summary_filt %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
 
 ######## Extract continent
-continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
+continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
 #plot(continents)
 
 dat_sf <- st_as_sf(summary_filt, coords=c('long', "lat"), crs=st_crs(continents))
@@ -113,7 +113,7 @@ dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest
 
 
 ######## Extract biome
-biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
+biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
 class(biomes) # sf and data frame
 
 dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
@@ -125,6 +125,7 @@ datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinate
 
 summary(datFINAL)
 # save as csv
+
 write_csv(datFINAL, "modeling_data_5km.csv")
 
 
@@ -184,14 +185,8 @@ datFINAL_seas <- datFINAL_seas %>% mutate(hemisphere = if_else(lat>0, "northern"
 
 # save final data as csv
 write_csv(datFINAL_seas, "season_model_data_5km.csv")
-?write_csv
 
 test <- read.csv("modeling_data.csv")
-
-
-
-
-
 
 
 

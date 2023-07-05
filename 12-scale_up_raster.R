@@ -352,7 +352,7 @@ for (j in 1:length(names)){
   
   ## aggregate to get number of checklists and raw richness per cell
   dat_summary <- dat2 %>%
-    group_by(cell) %>%
+    group_by(cell_5km) %>%
     summarize(number_checklists=length(unique(SAMPLING.EVENT.IDENTIFIER)),
               total_SR=length(unique(SCIENTIFIC.NAME)),
               total_duration=sum(DURATION.MINUTES),
@@ -371,7 +371,7 @@ for (j in 1:length(names)){
   datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
-    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/winter/", names[j], "_", years[i], "_winter_filt.txt", sep=""), 
+    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/winter/", names[j], "_", years[i], "_winter_filt.txt", sep=""), 
                       header=TRUE) # load data
     
     dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
@@ -390,7 +390,7 @@ for (j in 1:length(names)){
   
   ## aggregate to get number of checklists and raw richness per cell
   dat_summary <- dat2 %>%
-    group_by(cell) %>%
+    group_by(cell_5km) %>%
     summarize(number_checklists=length(unique(SAMPLING.EVENT.IDENTIFIER)),
               total_SR=length(unique(SCIENTIFIC.NAME)),
               total_duration=sum(DURATION.MINUTES),

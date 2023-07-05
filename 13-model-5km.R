@@ -186,11 +186,64 @@ datFINAL_seas <- datFINAL_seas %>% mutate(hemisphere = if_else(lat>0, "northern"
 # save final data as csv
 write_csv(datFINAL_seas, "season_model_data_5km.csv")
 
-test <- read.csv("modeling_data.csv")
+
+#################################
+#### Modeling regular data ########
+############################
+
+full.dat <- read.csv("modeling_data_5km.csv")
+# need to rerun this because it did not save correctly
+
+full.dat$BIOME <- as.factor(full.dat$BIOME)
+full.dat$urban <- as.factor(full.dat$urban)
+
+full.dat %>% group_by(urban) %>% summarise(n=n())
+summary(full.dat)
+hist(full.dat$total_SR, breaks=50)
+
+hist(log(full.dat$total_SR))
+hist(sqrt(full.dat$total_SR), breaks=50) # this looks pretty good
+hist(full.dat$number_checklists)
+
+# Run models
+mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
+             abs(lat):CONTINENT + BIOME + log(number_checklists), dat.full)
 
 
+dat$abslat <- abs(dat$lat)
+
+mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+                   BIOME + log(number_checklists), dat.full) # square root transform total species richness
+
+# Plot results of model
+predicted <- ggpredict(mod2, terms = c("abslat", "urban")) 
+
+results.plot <-
+  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+
+## Try to run model with spatial autocorrelation
+dat.full.sf <- st_as_sf(dat.full, coords=c('long', "lat"))
+
+dat.full$residuals <- residuals(mod2)
+dat.full$fitted <- fitted(mod2)
 
 
+dat.full.nb <- dnearneigh(dat.full.sf, d1=0, d2=200) # calculate distances
+dat.full.lw <- nb2listw(dat.full.nb, style = "W", zero.policy = TRUE) # turn from matrix to list
+# Moran's test
+lm.morantest(mod2, dat.full.lw, zero.policy = T) # very spatially autocorrelated
+beep()
+lm.LMtests(mod2, dat.full.lw, test="all", zero.policy = T) # test for spatial error - very significant
+beep()
+
+# Try spatially lagged X model
+dat.full.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+                        BIOME + log(number_checklists), data = dat.full, listw = dat.full.lw, zero.policy = TRUE)
 
 
 

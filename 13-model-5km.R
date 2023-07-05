@@ -2,6 +2,11 @@
 
 library(tidyverse)
 library(terra)
+library(sf)
+
+###########################
+# Preparing regular data for modelling
+###########################
 
 ## Load summary data
 summary <- read.csv("global_richness_summary_5km.csv")
@@ -29,7 +34,7 @@ unique(values(GHSLreproj))
 summary(values(GHSLreproj)) # NAs 4029
 # recategorize to 1, 2, and 3
 
-GHSLreproj[GHSLreproj$SMOD_global==10,] <- NA
+GHSLreproj[(GHSLreproj==10)] <- NA
 GHSLreproj <- subst(GHSLreproj, c(11,12, 13), 1)
 GHSLreproj <- subst(GHSLreproj, c(21,22,23), 2)
 GHSLreproj <- subst(GHSLreproj, 30, 3)
@@ -117,6 +122,76 @@ dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_
 # create seperate columns for lat long again
 datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
                                                         lat = sf::st_coordinates(.)[,2]))
+
+summary(datFINAL)
+# save as csv
+write_csv(datFINAL, "modeling_data_5km.csv")
+
+
+###################################
+## Preparing seasonal data for modelling 
+###################################
+
+# load data
+summer <- read.csv("summer_richness_summary_5km.csv")
+winter <- read.csv("winter_richness_summary_5km.csv")
+
+# extract urbanization values for each
+GHSL_5km <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_5km_3levels.tif")
+plot(GHSL_5km)
+
+summer$x <- xFromCell(GHSL_5km, summer$cell_5km) # extract the coordinates from the cells
+summer$y <- yFromCell(GHSL_5km, summer$cell_5km)
+
+summer$urban <- as.data.frame(terra::extract(GHSL_5km, summer[,c(9:10)]))$SMOD_global
+summer$season <- "summer" # add season
+
+# winter
+winter$x <- xFromCell(GHSL_5km, winter$cell_5km) # extract the coordinates from the cells
+winter$y <- yFromCell(GHSL_5km, winter$cell_5km)
+
+winter$urban <- as.data.frame(terra::extract(GHSL_5km, winter[,c(9:10)]))$SMOD_global
+winter$season <- "winter"
+
+season_dat <- rbind(summer, winter) # put them together
+# threshold to 102
+season_dat_filt <- season_dat %>% filter(number_checklists >=102)
+season_dat_filt <- season_dat_filt %>% filter(!is.na(urban))
+
+season_dat_filt %>% group_by(season) %>% summarise(n=n()) # 12,359 summer and 15,254 winter
+season_dat_filt %>% group_by(urban) %>% summarise(n=n())
+
+#####################
+# extract continent 
+continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
+#plot(continents)
+
+dat_sf <- st_as_sf(season_dat_filt, coords=c('x', "y"), crs=st_crs(continents))
+
+dat_cont_seas <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
+
+###################
+# extract biome 
+biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
+
+dat_withbiome_seas <- st_join(dat_cont_seas, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
+
+# create seperate columns for lat long again
+datFINAL_seas <- as.data.frame(dat_withbiome_seas[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
+                                                        lat = sf::st_coordinates(.)[,2]))
+
+datFINAL_seas <- datFINAL_seas %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
+
+# save final data as csv
+write_csv(datFINAL_seas, "season_model_data_5km.csv")
+?write_csv
+
+test <- read.csv("modeling_data.csv")
+
+
+
+
+
 
 
 

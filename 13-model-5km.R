@@ -116,7 +116,7 @@ dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest
 biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
 class(biomes) # sf and data frame
 
-dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
+dat_withbiome <- st_join(dat_sf, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
 
 
 # create seperate columns for lat long again

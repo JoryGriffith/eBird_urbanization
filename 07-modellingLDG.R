@@ -500,7 +500,7 @@ anova(glsSpher)
 #### Trying new ways to deal with spatial autocorrelation
 
 # sample data
-dat.samp <- dat[sample(nrow(dat), 10000), ]
+dat.samp <- dat[sample(nrow(dat), 40000), ]
 # turn into sf object
 dat.samp.sf <- st_as_sf(dat.samp, coords=c('long', "lat")) 
 
@@ -574,7 +574,7 @@ beep()
 
 
 
-##### Try running models  with full data
+##### Try running models  with sample data
 # Spatially lagged X model
 dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                                        BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)

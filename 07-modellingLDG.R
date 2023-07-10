@@ -500,7 +500,7 @@ anova(glsSpher)
 #### Trying new ways to deal with spatial autocorrelation
 
 # sample data
-dat.samp <- dat[sample(nrow(dat), 40000), ]
+dat.samp <- dat[sample(nrow(dat), 50000), ]
 # turn into sf object
 dat.samp.sf <- st_as_sf(dat.samp, coords=c('long', "lat")) 
 
@@ -509,7 +509,7 @@ mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphe
 summary(mod1.trans)
 dat.samp$residuals <- residuals(mod1.trans)
 dat.samp$fitted <- fitted(mod1.trans)
-
+saveRDS(mod1.trans, "50K_samp_lmmod.rds")
 
 dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # calculate distances
 dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
@@ -579,7 +579,7 @@ beep()
 dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                                        BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 summary(dat.samp.slx) # R2 is 0.38 (higher than without the lag)
-
+saveRDS(dat.samp.slx, "50K_samp_slxmod.rds")
 
 # Spatial lag model
 dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 

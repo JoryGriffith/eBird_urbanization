@@ -34,3 +34,6 @@ global_richness_summary.csv
 ._global_richness_summary.csv
 5yr_summary_5km
 thresholding_5km/
+4K_samp_slxmod.rds
+50K_samp_lmmod.rds
+50K_samp_slxmod.rds

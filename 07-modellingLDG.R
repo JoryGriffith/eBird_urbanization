@@ -15,11 +15,12 @@ library(ggeffects)
 library(foreach)
 library(doParallel)
 library(spatialreg)
+library(elevatr)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
-
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
 
 # load thresholded summary data
 dat <- read.csv("5yr_summary/summary_thresholded.csv")
@@ -77,10 +78,19 @@ datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinate
 
 summary(datFINAL)
 # save as csv
+
 write_csv(datFINAL, "modeling_data.csv")
 
+################################
+## Add elevation
+dat.mod <- read_csv("modeling_data.csv")
+dat.mod2 <- dat.mod[,c(25,26,1:24)] # reorder because lat and long need to be the first and second column
 
+dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
 
+dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
+
+write_csv(dat, "modeling_data.csv")
 
 #####################################
 ######################################

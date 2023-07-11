@@ -4,6 +4,7 @@ library(tidyverse)
 library(lubridate)
 library(terra)
 library(sf)
+library(elevatr)
 
 ######### 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
@@ -244,9 +245,17 @@ datFINAL <- datFINAL %>% mutate(hemisphere = if_else(lat>0, "northern", "souther
 write_csv(datFINAL, "season_model_data.csv")
 
 
+##########
+# Extract elevation
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+dat.mod <- read_csv("season_model_data.csv")
+dat.mod2 <- dat.mod[,c(13,14,1:12,15)] # reorder because lat and long need to be the first and second column
 
+dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
 
+dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
 
+write_csv(dat.mod.ele.df, "season_model_data.csv")
 
 
 

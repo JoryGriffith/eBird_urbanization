@@ -3,6 +3,7 @@
 library(tidyverse)
 library(terra)
 library(sf)
+library(elevatr)
 
 ###########################
 # Preparing regular data for modelling
@@ -125,8 +126,21 @@ datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinate
 
 summary(datFINAL)
 # save as csv
-
 write_csv(datFINAL, "modeling_data_5km.csv")
+
+################
+### Add elevation
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_3levels.tif")
+dat.mod <- read_csv("modeling_data_5km.csv")
+dat.mod2 <- dat.mod[,c(24,25,1:23)] # reorder because lat and long need to be the first and second column
+
+dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
+
+dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
+
+write_csv(dat.mod.ele.df, "modeling_data_5km.csv")
+
+
 
 
 ###################################
@@ -185,6 +199,17 @@ datFINAL_seas <- datFINAL_seas %>% mutate(hemisphere = if_else(lat>0, "northern"
 
 # save final data as csv
 write_csv(datFINAL_seas, "season_model_data_5km.csv")
+
+################
+### Add elevation
+dat.mod <- read_csv("season_model_data_5km.csv")
+dat.mod2 <- dat.mod[,c(13,14, 1:12,15)] # reorder because lat and long need to be the first and second column
+
+dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
+
+dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
+
+write_csv(dat.mod.ele.df, "season_model_data_5km.csv")
 
 
 #################################

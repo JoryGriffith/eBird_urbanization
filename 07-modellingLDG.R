@@ -109,6 +109,7 @@ hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
 
+dat %>% group_by(BIOME) %>% summarise(n=n())
 
 # make another columbn with only 3 categories
 # try model with only 3 categories
@@ -127,14 +128,29 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 dat$abslat <- abs(dat$lat)
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), dat)
+                   BIOME + log(number_checklists), dat) # latitude and hemisphere interaction
+
+mod1.hemisphere.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                   BIOME + log(number_checklists), dat) # urban, latitude, and hemisphere triple interaction
 
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
-                        BIOME + log(number_checklists), dat)
-AIC(mod1.trans, mod1.trans.cont) # continent is better
+                        BIOME + log(number_checklists), dat) # continent and latitude interaction
+
+mod1.trans.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+                   BIOME + log(number_checklists) + elevation, dat) # hemisphere and latitude interaction with elevation
+
+mod1.trans.cont.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
+                        BIOME + log(number_checklists) + elevation, dat) # continent and latitude interaction with elevation
+
+mod1.trans.cont.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * CONTINENT + 
+                             BIOME + log(number_checklists) + elevation, dat) # triple interaction between continent, latitude, and urbanization
+
+summary(mod1.trans.wele)
+AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn) 
+# last one with continent urbanization latitude interaction is best
 
 # Plot model results for talk
-predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) 
+predicted <- ggpredict(mod1.trans.cont.intrxn, terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
 
 
@@ -146,13 +162,45 @@ results.plot <-
   theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
 
-ggsave(results.plot, file="results.plot.png", height=5, width=9)
+#ggsave(results.plot, file="results.plot.png", height=5, width=9)
+
 
 # Compare slopes
 lstrends(mod1.trans, pairwise ~ urban2, var="abslat")
 
-# take out continent and then run another model with continent instead of 
-# hemisphere because they are collinear
+
+# Compare between continents
+predicted2 <- ggpredict(mod1.trans.cont.intrxn, terms = c("abslat", "urban2", "CONTINENT")) 
+# looks the same whether sqrt included in model or not
+
+results.plot2 <-
+  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+results.plot2
+ggsave(results.plot2, file="results.bycontient.png")
+
+# Compare between hemispheres
+predicted3 <- ggpredict(mod1.hemisphere.intrxn, terms = c("abslat", "urban2", "hemisphere")) 
+# looks the same whether sqrt included in model or not
+
+results.plot3 <-
+  plot(predicted3, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+results.plot3 # gradient steeper in the southern hemisphere
+ggsave(results.plot3, file="results.hemisphere.png")
+
+
+
+
+
 
 #mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + BIOME + number_checklists, dat)
 
@@ -506,22 +554,33 @@ anova(gls1.thinned)
 anova(glsSpher)
 
 
+
+
+
+
+
 ###################################
 #### Trying new ways to deal with spatial autocorrelation
 
 # sample data
-dat.samp <- dat[sample(nrow(dat), 50000), ]
+set.seed(10)
+dat.samp <- dat[sample(nrow(dat), 10000), ]
 # turn into sf object
-dat.samp.sf <- st_as_sf(dat.samp, coords=c('long', "lat")) 
+dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                    BIOME + log(number_checklists), dat.samp) # here is the model that I am working with
 summary(mod1.trans)
 dat.samp$residuals <- residuals(mod1.trans)
 dat.samp$fitted <- fitted(mod1.trans)
-saveRDS(mod1.trans, "50K_samp_lmmod.rds")
+#saveRDS(mod1.trans, "50K_samp_lmmod.rds")
 
-dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # calculate distances
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=100) # calculate distances
+# This function identifies neighbours of region points by euclidean distance
+# it returns a list of integer vectors giving the region id numbers for neighbors satisfying the distance criteria
+class(dat.samp.nb) # this is an nb object
+
+?dnearneigh
 dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
 
 # Moran's I test
@@ -589,7 +648,64 @@ beep()
 dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                                        BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 summary(dat.samp.slx) # R2 is 0.38 (higher than without the lag)
-saveRDS(dat.samp.slx, "50K_samp_slxmod.rds")
+summary(mod1.trans)
+summary(impacts(dat.samp.slx, listw=dat.samp.lw), zstats=TRUE) # indirect impacts are still pretty high
+#saveRDS(dat.samp.slx, "50K_samp_slxmod.rds")
+
+# test model
+dat.samp$residuals.slx <- residuals(dat.samp.slx)
+moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+
+
+
+
+predicted <- ggpredict(dat.samp.slx, terms = c("hemispheresouthern"), listw=dat.samp.lw) 
+
+
+results.plot <-
+  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+
+results.plot
+
+
+dat.samp.slx$terms
+
+
+
+
+# Try to use predict function to plot the results of the spatial model
+pred.lat <- predict(dat.samp.slx, listw = dat.samp.lw, newdata=dat.samp)
+
+
+
+
+# Load model that I saved with 50k samples
+nonspatial.mod <- readRDS("50K_samp_lmmod.rds")
+spatial.mod <- readRDS("50K_samp_slxmod.rds")
+
+# Look at direct and indirect effects
+summary(nonspatial.mod)
+summary(spatial.mod) # R2 is 0.388
+summary(impacts(spatial.mod, listw=dat.samp.lw), zstats=TRUE)
+# mostly everything is significant except the difference between urban and suburban and a couple of the biomes
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Spatial lag model
 dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
@@ -635,5 +751,47 @@ dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
 
 dat.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                         BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
+
+
+
+
+
+
+
+############################################
+# Bin the data by 5 degrees of latitude and sample within the bins
+bin.size <- 5
+
+chunks = split(dat, ceiling(dat$lat/bin.size)) # divide into bins
+length(chunks)
+?ceiling
+# pull samples from each bin
+samples <- lapply(chunks, function(chunk.num) {
+  # Draw 30 values for this particular chunk
+  samp <- sample(chunks[[chunk.num]], size = 30, replace = F) # sample 100 from each bin
+  
+  # Return samples in data frame with chunk number for later reference
+  data.frame(value=samp, chunk=chunk.num)
+})
+
+# Combine all samples into one data frame
+samples <- do.call('rbind', samples)
+
+datalist = vector("list", length = length(chunks))
+
+
+for (i in 1:length(chunks)){
+  if (nrow(chunks[[i]]) > 100) {
+    chunki <- chunks[[i]]
+  datalist[[i]] <- chunki[sample(nrow(chunki), 100), ] }
+  else { (datalist[[i]] <- chunks[[i]])}
+}
+
+samps <- dplyr::bind_rows(datalist)
+
+chunki <- chunks[[1]]
+  chunki[sample(nrow(chunki), 100), ]
+
+
 
 

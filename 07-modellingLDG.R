@@ -1,4 +1,6 @@
 ## In this script, I will start running some models of how the latitudinal diversity gradient changes with urbanization
+
+# Load packages
 library(terra)
 library(sf)
 library(tidyverse)
@@ -17,82 +19,7 @@ library(doParallel)
 library(spatialreg)
 library(elevatr)
 
-world <- ne_countries(scale = "medium", returnclass = "sf")
 
-#world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
-
-# load thresholded summary data
-dat <- read.csv("5yr_summary/summary_thresholded.csv")
-dat <- rename(dat, lat = y, long = x)
-
-# First I need to get the other data that I want to include in the model
-
-######## Assign hemisphere
-dat <- dat %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
-
-######### Assign continent
-#dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(world))
-
-#joined <- st_join(dat_sf, world)
-
-
-#dat_joined <- as.data.frame(joined[,c(1:22,41)] %>% mutate(long = sf::st_coordinates(.)[,1],
-                                                  #         lat = sf::st_coordinates(.)[,2]))# just keep country name
-# extract continent using country name
-#dat_joined$continent <- countrycode(sourcevar = dat_joined[,"name_long"],
- #                                    origin = "country.name",
-#                                     destination = "continent")
-
-
-##################
-# Trying new way to do continent
-continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
-#plot(continents)
-
-dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(continents))
-
-dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
-
-
-#########################
-# Extract biome
-# Classifying points into biomes using a terrestrial biomes shapefile
-biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
-class(biomes) # sf and data frame
-# look at how many biomes there are
-length(unique(biomes$REALM)) # 9 of these
-length(unique(biomes$BIOME)) # 16 biomes
-length(unique(biomes$ECO_NAME)) # 827 ecoregion names
-
-# plot biome
-#plot(biomes["BIOME"])
-
-# want to extract biomes
-dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
-
-
-# create seperate columns for lat long again
-datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
-                                             lat = sf::st_coordinates(.)[,2]))
-
-summary(datFINAL)
-# save as csv
-
-write_csv(datFINAL, "modeling_data.csv")
-
-################################
-## Add elevation
-dat.mod <- read_csv("modeling_data.csv")
-dat.mod2 <- dat.mod[,c(25,26,1:24)] # reorder because lat and long need to be the first and second column
-
-dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
-
-dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
-
-write_csv(dat, "modeling_data.csv")
-
-#####################################
 ######################################
 # Start running models
 
@@ -108,6 +35,7 @@ hist(dat$total_SR, breaks=50)
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
+dat$abslat <- abs(dat$lat)
 
 dat %>% group_by(BIOME) %>% summarise(n=n())
 
@@ -119,14 +47,15 @@ dat$urban2 <- as.factor(dat$urban2)
 
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural n = 40,490", "Suburban n = 17,623", "Urban n = 12,636"))
+######
+
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
               abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
 
-dat$abslat <- abs(dat$lat)
-
+# try a bumch of different models
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                    BIOME + log(number_checklists), dat) # latitude and hemisphere interaction
 
@@ -198,28 +127,33 @@ results.plot3 # gradient steeper in the southern hemisphere
 ggsave(results.plot3, file="results.hemisphere.png")
 
 
+# Plotting model results using jtools and interactions packages
+library(jtools)
+effect_plot(mod1.trans, pred=urban, interval=TRUE) # negative relationship
+
+effect_plot(mod1.trans, pred=lat, interval=TRUE) # peaks at intermediate latitudes, looks pretty good
+
+effect_plot(mod1.trans, pred=hemisphere, interval=TRUE) # no difference
+
+effect_plot(mod1.trans, pred=BIOME, interval=TRUE)
+
+effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
 
 
+library(interactions)
 
+interact_plot(mod1.trans, lat, hemisphere)
 
-#mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + BIOME + number_checklists, dat)
+interact_plot(mod1.trans, abslat, urban, interval=TRUE)
 
-#dat$abslat <- abs(dat$lat)
-mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban * hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
-summary(mod1)
-summary(mod1.trans)
-anova(mod1.trans)
+# woo this looks great!
+# plot with absolute latitude
+interact_plot(mod1.trans, abslat, urban)
+interact_plot(mod1.abslat, abslat, hemisphere)
 
-AIC(mod1)
-AIC(mod1.trans) # the one with the sqrt tranformation is much lower
-# these are looking pretty good
-plot(mod1.trans)
-plot(mod1) # sqrt transformation is a better fit and more normal
-hist(residuals(mod1))
-hist(residuals(mod1.trans)) # they are both pretty normally distributed but the transformed one is better
-plot(mod1)
-min(dat$total_SR)
+###########################
+# LOOK AT SPATIAL AUTOCORRELATION
+
 # rerun using gls (same as linear model when no spatial autocorrelation included)
 gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + 
               BIOME + log(number_checklists), dat)
@@ -234,7 +168,6 @@ hist(dat$gls1Resids) # looking very normally distributed, that's good
                      #      z=dat$gls1Resids, resamp=100, quiet=TRUE) # this takes up too much memory in R because there are so many data points
 
 #plot(residsI,xlim=c(0,50))
-
 
 
 #### Variogram
@@ -267,34 +200,11 @@ csLin <- corLin(form=~lat+long,nugget=TRUE) # linear
 csRatio <- corRatio(form=~lat+long,nugget=TRUE) # ratio
 # update models
 glsGaus <- update(gls1, correlation=csLin) # gaussian
-#glsExp <- update(gls1, correlation=csLin)
+# This takes forever to run
 
 
 
 #####################
-# Plotting model results
-library(jtools)
-effect_plot(mod1.trans, pred=urban, interval=TRUE) # negative relationship
-
-effect_plot(mod1.trans, pred=lat, interval=TRUE) # peaks at intermediate latitudes, looks pretty good
-
-effect_plot(mod1.trans, pred=hemisphere, interval=TRUE) # no difference
-
-effect_plot(mod1.trans, pred=BIOME, interval=TRUE)
-
-effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
-
-
-library(interactions)
-
-interact_plot(mod1.trans, lat, hemisphere)
-
-interact_plot(mod1.trans, abslat, urban, interval=TRUE)
-
-# woo this looks great!
-# plot with absolute latitude
-interact_plot(mod1.trans, abslat, urban)
-interact_plot(mod1.abslat, abslat, hemisphere)
 #########################
 # Going to try to do a quadratic model to see if it is a better fit
 
@@ -336,11 +246,9 @@ interact_plot(mod1.abslat, abslat, urban2, interval=TRUE)
 
 
 
+##########################
+### SUBSAMPLING
 
-
-
-
-############### Subsample to test things
 # since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
 # going to subsample within my data
 dat.samp <- dat[sample(nrow(dat), 1000), ]
@@ -473,7 +381,8 @@ AIC(mod.poisson, mod.poisson.poly)
 
 
 ############################
-# Thinking about subsampling the data in order to be able to run a regression without spatial autocorrelation
+# TRYING THINNING
+
 # look at the spread of the data between continents
 dat %>% group_by(CONTINENT) %>% summarise(n=n())
 # there are 55,000 in North America compared to much less everywhere else
@@ -556,11 +465,8 @@ anova(glsSpher)
 
 
 
-
-
-
 ###################################
-#### Trying new ways to deal with spatial autocorrelation
+#### Trying new ways to deal with spatial autocorrelation using the spatialreg package
 
 # sample data
 set.seed(10)
@@ -631,7 +537,7 @@ for (d in seq(50, 2000, 50)) {
   dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
   moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
   moran_I <- c(moran_I, moran$statistic)
-}
+} # THIS TAKES A REALLY LONG TIME
 
 moran_I <- data.frame(moran = moran_I, 
                       distance = seq(50, 2000, 50))
@@ -655,54 +561,6 @@ summary(impacts(dat.samp.slx, listw=dat.samp.lw), zstats=TRUE) # indirect impact
 # test model
 dat.samp$residuals.slx <- residuals(dat.samp.slx)
 moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-
-
-
-
-predicted <- ggpredict(dat.samp.slx, terms = c("hemispheresouthern"), listw=dat.samp.lw) 
-
-
-results.plot <-
-  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-  guides(fill = guide_legend(byrow = TRUE))
-
-results.plot
-
-
-dat.samp.slx$terms
-
-
-
-
-# Try to use predict function to plot the results of the spatial model
-pred.lat <- predict(dat.samp.slx, listw = dat.samp.lw, newdata=dat.samp)
-
-
-
-
-# Load model that I saved with 50k samples
-nonspatial.mod <- readRDS("50K_samp_lmmod.rds")
-spatial.mod <- readRDS("50K_samp_slxmod.rds")
-
-# Look at direct and indirect effects
-summary(nonspatial.mod)
-summary(spatial.mod) # R2 is 0.388
-summary(impacts(spatial.mod, listw=dat.samp.lw), zstats=TRUE)
-# mostly everything is significant except the difference between urban and suburban and a couple of the biomes
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -735,6 +593,14 @@ moran.mc(dat.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE) # 
 beep()
 
 
+# Load models with 50k samples
+nonspatial.mod <- readRDS("50K_samp_lmmod.rds")
+spatial.mod <- readRDS("50K_samp_slxmod.rds")
+
+plot(ggeffects::ggpredict(spatial.mod, terms=c("urban2Suburban.n...17.623"), listw=dat.samp.lw, facets = TRUE))
+
+
+
 
 # try to run on full model
 dat.sf <- st_as_sf(dat, coords=c('long', "lat")) 
@@ -751,7 +617,7 @@ dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
 
 dat.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                         BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
-
+# DOESN'T WORK (TOO MANY SAMPLES)
 
 
 
@@ -764,34 +630,136 @@ bin.size <- 5
 
 chunks = split(dat, ceiling(dat$lat/bin.size)) # divide into bins
 length(chunks)
-?ceiling
-# pull samples from each bin
-samples <- lapply(chunks, function(chunk.num) {
-  # Draw 30 values for this particular chunk
-  samp <- sample(chunks[[chunk.num]], size = 30, replace = F) # sample 100 from each bin
-  
-  # Return samples in data frame with chunk number for later reference
-  data.frame(value=samp, chunk=chunk.num)
-})
-
-# Combine all samples into one data frame
-samples <- do.call('rbind', samples)
 
 datalist = vector("list", length = length(chunks))
 
-
+set.seed(40)
 for (i in 1:length(chunks)){
-  if (nrow(chunks[[i]]) > 100) {
+  if (nrow(chunks[[i]]) > 200) {
     chunki <- chunks[[i]]
-  datalist[[i]] <- chunki[sample(nrow(chunki), 100), ] }
+  datalist[[i]] <- chunki[sample(nrow(chunki), 200), ] }
   else { (datalist[[i]] <- chunks[[i]])}
 }
 
 samps <- dplyr::bind_rows(datalist)
 
-chunki <- chunks[[1]]
-  chunki[sample(nrow(chunki), 100), ]
+# Run model with more evenly sampled areas
+dat.binned.mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                   BIOME + log(number_checklists) + elevation, data = samps) # with hemisphere
+
+summary(dat.binned.mod1)
+# everything still significant
+
+dat.binned.mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + 
+                        BIOME + log(number_checklists) + elevation, data = samps) # with continent
+
+summary(dat.binned.mod2)
+
+AIC(dat.binned.mod1, dat.binned.mod2) # better with continent
+
+# Plot model results
+predicted1 <- ggpredict(dat.binned.mod1, terms = c("abslat", "urban2")) 
+# looks the same whether sqrt included in model or not
+
+results.plot1 <-
+  plot(predicted1, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+results.plot1
+
+# Plot model results
+predicted2 <- ggpredict(dat.binned.mod2, terms = c("abslat", "urban2")) 
+# looks the same whether sqrt included in model or not
+
+results.plot2 <-
+  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+results.plot2 # this is a rank deficient fit because there are not enough points for an interaction for each continent
+# looks different depending on whether I include continent as a fixed effect or an interaction
+# But the basic pattern is the same
+
+# test for spatial autocorrelation
+samps.sf <- st_as_sf(samps, coords=c("long", "lat")) 
+samps.nb <- dnearneigh(samps.sf, d1=0, d2=100) # calculate distances
+samps.lw <- nb2listw(samps.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+
+# Moran's I test
+lm.morantest(dat.binned.mod1, samps.lw, zero.policy = T)
+lm.morantest(dat.binned.mod2, samps.lw, zero.policy = T)
+# significant autocorrelation
+
+# Try to run spatial model
+samps.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
+                   BIOME + log(number_checklists), data = samps, listw = samps.lw, zero.policy = TRUE)
+summary(impacts(samps.slx, listw=samps.lw), zstats=TRUE)
+
+# try spatial lag model
+samps.slm <- lagsarlm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
+                     BIOME + log(number_checklists), data = samps, listw = samps.lw, zero.policy = TRUE)
+summary(samps.slm)
+
+plot(ggeffects::ggpredict(samps.slx, terms=c("abslat"), listw=samps.lw, facets = TRUE))
+
+preds <- predict(samps.slx, listw=samps.lw, newdata=samps) # this does not work
+
+# Trying to do this with OLS
+x1 <- model.matrix(dat.binned.mod1)
+lagx1 <- create_WX(x1,samps.lw,prefix="lagx")  # create lagged x variables
+# Ok I am a bit confused what this is doing, says it is creating spatially lagged RHS variables
+# But they are numerical when the variables are categorical, maybe it is based on weights? 
+# Need to figure out exactly what this is doing
+spat.data2 <- cbind(samps,lagx1) 
+eg2c=lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
+          BIOME + log(number_checklists) + lagx.SALESPC+ 
+          lagx.COLLENRP +lagx.BKGRTOABC +lagx.BAPTISTSP +lagx.BKGRTOMIX +lagx.ENTRECP-1, data=spat.data2)
 
 
 
+####################################
+# TRY RUNNING SOME NON-LINEAR MODELS ON THE FULL DATASET TO SEE IF THERE IS A NON-LINEAR TREND
+library(mgcv)
 
+mod.gam1 <- gam(sqrt(total_SR) ~ s(abslat) * urban2 * hemisphere +
+                  BIOME + log(number_checklists) + elevation, data = dat) # wrapping smoothing parameter around abslat
+summary(mod.gam1)
+
+
+predictions = predict(
+  mod.gam1,
+  newdata = dat,
+  type = 'response',
+  se = TRUE
+)
+
+df_preds = data.frame(dat, predictions) %>%
+  mutate(lower = fit - 1.96 * se.fit,
+         upper = fit + 1.96 * se.fit)
+
+ggplot(aes(x = abslat, y = total_SR, color=urban2), data = df_preds) +
+  geom_smooth(method="gam")
+
+plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = TRUE) 
+gratia::draw(mod.gam1)
+
+# Try super simplified model
+mod.gam2 <- gam(total_SR ~ s(abslat, by=urban2) + hemisphere +
+                  BIOME + log(number_checklists) + s(elevation), data = dat) # couldn't do hemisphere intxn for some reason
+summary(mod.gam2)
+plot(ggeffects::ggpredict(mod.gam2, terms=c("abslat", "urban2"), facets = TRUE))
+# SR generally decreases by elevation
+# this is the relationship with just absolute latitude overall
+# there is not a hump in the middle even though there are more points there
+
+
+ggplot(dat, aes(y=total_SR, x=abslat, color=urban2)) +
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(), legend.spacing.y = unit(1, 'cm'))+
+  geom_smooth(method="gam")
+# there is not a peak

@@ -5,6 +5,8 @@ library(tidyverse)
 library(sf)
 library(beepr)
 library(scales)
+library(rnaturalearth)
+library(rnaturalearthdata)
 
 # First I want to load and look at the top cells so that I know where they are coming from
 top_cells <- read.csv("top_500_cells.csv") 
@@ -194,8 +196,83 @@ summary_filt <- summary_filt95 %>% filter(!is.nan(urban)) # 70749 datapoints now
 write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 
 
+###############################################################################################
+#### Prepare data for modelling
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+#world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+
+# load thresholded summary data
+dat <- read.csv("5yr_summary/summary_thresholded.csv")
+dat <- rename(dat, lat = y, long = x)
+
+# First I need to get the other data that I want to include in the model
+
+######## Assign hemisphere
+dat <- dat %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
+
+######### Assign continent
+#dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(world))
+
+#joined <- st_join(dat_sf, world)
 
 
+#dat_joined <- as.data.frame(joined[,c(1:22,41)] %>% mutate(long = sf::st_coordinates(.)[,1],
+#         lat = sf::st_coordinates(.)[,2]))# just keep country name
+# extract continent using country name
+#dat_joined$continent <- countrycode(sourcevar = dat_joined[,"name_long"],
+#                                    origin = "country.name",
+#                                     destination = "continent")
+
+
+##################
+# Trying new way to do continent
+continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
+#plot(continents)
+
+dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(continents))
+
+dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
+
+
+#########################
+# Extract biome
+# Classifying points into biomes using a terrestrial biomes shapefile
+biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
+class(biomes) # sf and data frame
+# look at how many biomes there are
+length(unique(biomes$REALM)) # 9 of these
+length(unique(biomes$BIOME)) # 16 biomes
+length(unique(biomes$ECO_NAME)) # 827 ecoregion names
+
+# plot biome
+#plot(biomes["BIOME"])
+
+# want to extract biomes
+dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
+
+
+# create seperate columns for lat long again
+datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
+                                                        lat = sf::st_coordinates(.)[,2]))
+
+summary(datFINAL)
+# save as csv
+
+#write_csv(datFINAL, "modeling_data.csv")
+
+################################
+## Add elevation
+#dat.mod <- read_csv("modeling_data.csv")
+dat.mod2 <- datFINAL[,c(25,26,1:24)] # reorder because lat and long need to be the first and second column
+
+dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
+
+dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
+
+write_csv(dat, "modeling_data.csv")
 
 
 

@@ -49,6 +49,7 @@ dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural n = 40,490", "Suburban n = 17,623", "Urban n = 12,636"))
 ######
 
+dat %>% group_by(CONTINENT) %>% summarise(n=n())
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
@@ -65,7 +66,7 @@ mod1.hemisphere.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
                         BIOME + log(number_checklists), dat) # continent and latitude interaction
 
-mod1.trans.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+mod1.trans.wele <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
                    BIOME + log(number_checklists) + elevation, dat) # hemisphere and latitude interaction with elevation
 
 mod1.trans.cont.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
@@ -79,7 +80,7 @@ AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.t
 # last one with continent urbanization latitude interaction is best
 
 # Plot model results for talk
-predicted <- ggpredict(mod1.trans.cont.intrxn, terms = c("abslat", "urban2")) 
+predicted <- ggpredict(mod1.trans.wele , terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
 
 
@@ -90,7 +91,7 @@ results.plot <-
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
   theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
-
+results.plot
 #ggsave(results.plot, file="results.plot.png", height=5, width=9)
 
 
@@ -99,7 +100,7 @@ lstrends(mod1.trans, pairwise ~ urban2, var="abslat")
 
 
 # Compare between continents
-predicted2 <- ggpredict(mod1.trans.cont.intrxn, terms = c("abslat", "urban2", "CONTINENT")) 
+predicted2 <- ggpredict(mod1.trans.cont.intrxn, terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
 
 results.plot2 <-
@@ -474,14 +475,14 @@ dat.samp <- dat[sample(nrow(dat), 10000), ]
 # turn into sf object
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
 
-mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), dat.samp) # here is the model that I am working with
+mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                   BIOME + log(number_checklists) + elevation, dat.samp) # here is the model that I am working with
 summary(mod1.trans)
 dat.samp$residuals <- residuals(mod1.trans)
 dat.samp$fitted <- fitted(mod1.trans)
 #saveRDS(mod1.trans, "50K_samp_lmmod.rds")
 
-dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=100) # calculate distances
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=40) # calculate distances
 # This function identifies neighbours of region points by euclidean distance
 # it returns a list of integer vectors giving the region id numbers for neighbors satisfying the distance criteria
 class(dat.samp.nb) # this is an nb object
@@ -551,16 +552,18 @@ beep()
 
 ##### Try running models  with sample data
 # Spatially lagged X model
-dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                                       BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
+dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                                       BIOME + log(number_checklists) + elevation, data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 summary(dat.samp.slx) # R2 is 0.38 (higher than without the lag)
 summary(mod1.trans)
 summary(impacts(dat.samp.slx, listw=dat.samp.lw), zstats=TRUE) # indirect impacts are still pretty high
 #saveRDS(dat.samp.slx, "50K_samp_slxmod.rds")
+# interaction effect no longer significant hmmm
 
 # test model
 dat.samp$residuals.slx <- residuals(dat.samp.slx)
 moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+# no more spatial autocorrelation!
 
 
 
@@ -687,23 +690,29 @@ results.plot2 # this is a rank deficient fit because there are not enough points
 
 # test for spatial autocorrelation
 samps.sf <- st_as_sf(samps, coords=c("long", "lat")) 
-samps.nb <- dnearneigh(samps.sf, d1=0, d2=100) # calculate distances
+samps.nb <- dnearneigh(samps.sf, d1=0, d2=40) # calculate distances
 samps.lw <- nb2listw(samps.nb, style = "W", zero.policy = TRUE) # turn into weighted list
-
+# supplements a neighbors list with spatial weights for the chosen coding scheme
+?nb2listw
 # Moran's I test
 lm.morantest(dat.binned.mod1, samps.lw, zero.policy = T)
-lm.morantest(dat.binned.mod2, samps.lw, zero.policy = T)
+lm.morantest(dat.binned.mod2, samps.lw, zero.policy = T) 
+
 # significant autocorrelation
 
 # Try to run spatial model
 samps.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), data = samps, listw = samps.lw, zero.policy = TRUE)
+                   BIOME + log(number_checklists) + elevation, data = samps, listw = samps.lw, zero.policy = TRUE)
 summary(impacts(samps.slx, listw=samps.lw), zstats=TRUE)
 
 # try spatial lag model
 samps.slm <- lagsarlm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
                      BIOME + log(number_checklists), data = samps, listw = samps.lw, zero.policy = TRUE)
-summary(samps.slm)
+summary(samps.slm) # still spatially autocorrelated
+
+# test for autocorrelation
+samps$residuals.slx <- residuals(samps.slx)
+moran.mc(samps$residuals.slx, samps.lw, nsim = 999, zero.policy = TRUE) 
 
 plot(ggeffects::ggpredict(samps.slx, terms=c("abslat"), listw=samps.lw, facets = TRUE))
 
@@ -728,6 +737,7 @@ library(mgcv)
 
 mod.gam1 <- gam(sqrt(total_SR) ~ s(abslat) * urban2 * hemisphere +
                   BIOME + log(number_checklists) + elevation, data = dat) # wrapping smoothing parameter around abslat
+# change the wigglyness
 summary(mod.gam1)
 
 

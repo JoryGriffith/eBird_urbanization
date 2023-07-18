@@ -47,9 +47,28 @@ dat$urban2 <- as.factor(dat$urban2)
 
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural n = 40,490", "Suburban n = 17,623", "Urban n = 12,636"))
+
+# Divide globe into 4 quadrants at the prime meridian and antimeridian
+dat$quadrant <- NA
+
+for (i in 1:nrow(dat)){
+  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+    dat$quadrant[i] <- 1
+  }
+  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+    dat$quadrant[i] <- 2
+  }
+  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+    dat$quadrant[i] <- 3 
+  }
+  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+}
+dat$quadrant <- as.factor(dat$quadrant)
+
+dat <- dat %>% filter(!CONTINENT == "Antarctica")
 ######
 
-dat %>% group_by(CONTINENT) %>% summarise(n=n())
+dat %>% group_by(CONTINENT) %>% summarise(n=n()) # most are in quadrant 2 which includes north america
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
@@ -75,12 +94,16 @@ mod1.trans.cont.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat
 mod1.trans.cont.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * CONTINENT + 
                              BIOME + log(number_checklists) + elevation, dat) # triple interaction between continent, latitude, and urbanization
 
+mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+                      BIOME + log(number_checklists) + elevation, dat) # model with quadrant instead
+
 summary(mod1.trans.wele)
-AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn) 
+AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn, mod1.quadrant) 
 # last one with continent urbanization latitude interaction is best
+# The model with quadrant is better than the model with only hemisphere but not as good as the model with continent
 
 # Plot model results for talk
-predicted <- ggpredict(mod1.trans.wele , terms = c("abslat", "urban2")) 
+predicted <- ggpredict(mod1.quadrant , terms = c("abslat", "urban2", "quadrant")) 
 # looks the same whether sqrt included in model or not
 
 
@@ -92,7 +115,7 @@ results.plot <-
   theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
 results.plot
-#ggsave(results.plot, file="results.plot.png", height=5, width=9)
+ggsave(results.plot, file="results.plot.quadrant.png", height=5, width=9)
 
 
 # Compare slopes
@@ -473,7 +496,8 @@ anova(glsSpher)
 set.seed(10)
 dat.samp <- dat[sample(nrow(dat), 10000), ]
 # turn into sf object
-dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat"), crs=st_crs(GHSL)) 
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    BIOME + log(number_checklists) + elevation, dat.samp) # here is the model that I am working with
@@ -482,21 +506,23 @@ dat.samp$residuals <- residuals(mod1.trans)
 dat.samp$fitted <- fitted(mod1.trans)
 #saveRDS(mod1.trans, "50K_samp_lmmod.rds")
 
-dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=40) # calculate distances
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # make list of nearest neighbors
+test <- as.data.frame(card(dat.samp.nb)) # this gives how many neighbors there are. 
+
+class(dat.samp.sf)
 # This function identifies neighbours of region points by euclidean distance
 # it returns a list of integer vectors giving the region id numbers for neighbors satisfying the distance criteria
 class(dat.samp.nb) # this is an nb object
 
-?dnearneigh
 dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
+beep()
 
 # Moran's I test
 lm.morantest(mod1.trans, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
 beep()
 lm.LMtests(mod1.trans, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
 beep()
-#lm.LMtests(mod1.trans, dat.samp.lw, test="LMlag", zero.policy = T) # test for spatial lag - also very significant
-# LMerr and LMlag both significant, RLMlag significant, SARMA significant
+
 
 
 Inc.lag <- lag.listw(dat.samp.lw, dat.samp$residuals, zero.policy = T)
@@ -531,17 +557,17 @@ doParallel::registerDoParallel(cl = my.cluster)
 foreach::getDoParRegistered()
 # loop d through a sequence ranging from 50 to 2000 ( in parallel)
 
-for (d in seq(50, 2000, 50)) {
-#foreach  (d = seq(50, 2000, 50),
- #                      .combine = 'c') %dopar% {
+for (d in seq(1, 200, 10)) {
+#foreach  (d = seq(0, 200, 10),
+#                       .combine = 'c') %dopar% {
   dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
   dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
   moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
   moran_I <- c(moran_I, moran$statistic)
 } # THIS TAKES A REALLY LONG TIME
-
+beep()
 moran_I <- data.frame(moran = moran_I, 
-                      distance = seq(50, 2000, 50))
+                      distance = seq(0, 200, 10))
 
 ggplot(moran_I, aes(x = distance, y = moran)) + 
   geom_point() +
@@ -552,11 +578,12 @@ beep()
 
 ##### Try running models  with sample data
 # Spatially lagged X model
-dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
                                        BIOME + log(number_checklists) + elevation, data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
+beep()
 summary(dat.samp.slx) # R2 is 0.38 (higher than without the lag)
 summary(mod1.trans)
-summary(impacts(dat.samp.slx, listw=dat.samp.lw), zstats=TRUE) # indirect impacts are still pretty high
+summary(impacts(dat.samp.slx, listw=dat.samp.lw), zstats=TRUE) 
 #saveRDS(dat.samp.slx, "50K_samp_slxmod.rds")
 # interaction effect no longer significant hmmm
 
@@ -566,18 +593,30 @@ moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
 # no more spatial autocorrelation!
 
 
+# Trying to do this with OLS to see exactly what is happening
+x1 <- model.matrix(mod1.trans)
+lagx1 <- create_WX(x1,samps.lw,prefix="lagx")  # create lagged x variables
+# Ok I am a bit confused what this is doing, says it is creating spatially lagged RHS variables
+# But they are numerical when the variables are categorical, maybe it is based on weights? 
+# Need to figure out exactly what this is doing
+#spat.data2 <- cbind(samps,lagx1) 
+#eg2c=lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
+     #     BIOME + log(number_checklists) + lagx.SALESPC+ 
+      #    lagx.COLLENRP +lagx.BKGRTOABC +lagx.BAPTISTSP +lagx.BKGRTOMIX +lagx.ENTRECP-1, data=spat.data2)
+
 
 
 # Spatial lag model
-dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
                        BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
+beep()
 summary(dat.samp.slm)
 
 # Spatial error model
-dat.samp.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
+dat.samp.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
            BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 summary(dat.samp.sem)
-
+beep()
 
 
 AIC(dat.samp.slx, dat.samp.sem, dat.samp.slm)
@@ -589,38 +628,11 @@ dat.samp$residuals.slm <- residuals(dat.samp.slm)
 dat.samp$residuals.sem <- residuals(dat.samp.sem)
 
 moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE) # significant p = 0.001
-moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE) # this is not significant!!! This might be the best model!
-moran.mc(dat.samp$residuals.slm, dat.samp.lw, nsim = 999, zero.policy = TRUE) # significant but less p = 0.005
-moran.mc(dat.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE) # significant p=0.001
-# these all got rid of spatial autocorrelation!
+moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE) # still autocorrelated
+moran.mc(dat.samp$residuals.slm, dat.samp.lw, nsim = 999, zero.policy = TRUE) # still autocorrelated
+moran.mc(dat.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE) # not autocorrelated! Spatial error model could be the answer!
 beep()
-
-
-# Load models with 50k samples
-nonspatial.mod <- readRDS("50K_samp_lmmod.rds")
-spatial.mod <- readRDS("50K_samp_slxmod.rds")
-
-plot(ggeffects::ggpredict(spatial.mod, terms=c("urban2Suburban.n...17.623"), listw=dat.samp.lw, facets = TRUE))
-
-
-
-
-# try to run on full model
-dat.sf <- st_as_sf(dat, coords=c('long', "lat")) 
-
-mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), dat) # here is the model that I am working with
-summary(mod1.trans)
-dat$residuals <- residuals(mod1.trans)
-dat$fitted <- fitted(mod1.trans)
-
-
-dat.nb <- dnearneigh(dat.sf, d1=0, d2=100) # calculate distances (up to 200km)
-dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
-
-dat.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                        BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
-# DOESN'T WORK (TOO MANY SAMPLES)
+# the spatial error model is the best!
 
 
 
@@ -718,55 +730,53 @@ plot(ggeffects::ggpredict(samps.slx, terms=c("abslat"), listw=samps.lw, facets =
 
 preds <- predict(samps.slx, listw=samps.lw, newdata=samps) # this does not work
 
-# Trying to do this with OLS
-x1 <- model.matrix(dat.binned.mod1)
-lagx1 <- create_WX(x1,samps.lw,prefix="lagx")  # create lagged x variables
-# Ok I am a bit confused what this is doing, says it is creating spatially lagged RHS variables
-# But they are numerical when the variables are categorical, maybe it is based on weights? 
-# Need to figure out exactly what this is doing
-spat.data2 <- cbind(samps,lagx1) 
-eg2c=lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
-          BIOME + log(number_checklists) + lagx.SALESPC+ 
-          lagx.COLLENRP +lagx.BKGRTOABC +lagx.BAPTISTSP +lagx.BKGRTOMIX +lagx.ENTRECP-1, data=spat.data2)
+
+
 
 
 
 ####################################
 # TRY RUNNING SOME NON-LINEAR MODELS ON THE FULL DATASET TO SEE IF THERE IS A NON-LINEAR TREND
 library(mgcv)
+# model with regular latitude
+mod.gam1 <- gam(total_SR ~ s(lat, by=urban2) + CONTINENT + BIOME + log(number_checklists) + elevation, data = dat)
 
-mod.gam1 <- gam(sqrt(total_SR) ~ s(abslat) * urban2 * hemisphere +
-                  BIOME + log(number_checklists) + elevation, data = dat) # wrapping smoothing parameter around abslat
-# change the wigglyness
 summary(mod.gam1)
 
-
-predictions = predict(
-  mod.gam1,
-  newdata = dat,
-  type = 'response',
-  se = TRUE
-)
-
-df_preds = data.frame(dat, predictions) %>%
-  mutate(lower = fit - 1.96 * se.fit,
-         upper = fit + 1.96 * se.fit)
-
-ggplot(aes(x = abslat, y = total_SR, color=urban2), data = df_preds) +
-  geom_smooth(method="gam")
-
-plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = TRUE) 
+plot(ggeffects::ggpredict(mod.gam1, terms = c("lat", "urban2")), facets = FALSE) 
 gratia::draw(mod.gam1)
 
-# Try super simplified model
-mod.gam2 <- gam(total_SR ~ s(abslat, by=urban2) + hemisphere +
-                  BIOME + log(number_checklists) + s(elevation), data = dat) # couldn't do hemisphere intxn for some reason
+#predictions = predict(
+ # mod.gam1,
+#  newdata = dat,
+ # type = 'response',
+#  se = TRUE
+#)
+
+#df_preds = data.frame(dat, predictions) %>%
+ # mutate(lower = fit - 1.96 * se.fit,
+  #       upper = fit + 1.96 * se.fit)
+
+#ggplot(aes(x = abslat, y = total_SR, color=urban2), data = df_preds) +
+ # geom_smooth(method="gam")
+
+# model with absolute latitude
+mod.gam2 <- gam(total_SR ~ s(abslat, by=urban2) + CONTINENT +
+                  BIOME + log(number_checklists) + elevation, data = dat) # couldn't do hemisphere intrxn for some reason
 summary(mod.gam2)
 plot(ggeffects::ggpredict(mod.gam2, terms=c("abslat", "urban2"), facets = TRUE))
+plot(ggeffects::ggpredict(mod.gam2, terms=c("elevation"), facets = TRUE))
 # SR generally decreases by elevation
 # this is the relationship with just absolute latitude overall
 # there is not a hump in the middle even though there are more points there
 
+# Try model without smoothing parameter and see how it compares
+mod.gam3 <- gam(total_SR ~ abslat * urban2 + CONTINENT +
+                  BIOME + log(number_checklists) + elevation, data = dat)
+
+plot(ggeffects::ggpredict(mod.gam3, terms=c("abslat", "urban2"), facets = TRUE)) # linear terms
+
+AIC(mod.gam2, mod.gam3) # the linear model is actually better
 
 ggplot(dat, aes(y=total_SR, x=abslat, color=urban2)) +
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+

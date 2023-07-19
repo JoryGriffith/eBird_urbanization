@@ -593,19 +593,6 @@ moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
 # no more spatial autocorrelation!
 
 
-# Trying to do this with OLS to see exactly what is happening
-x1 <- model.matrix(mod1.trans)
-lagx1 <- create_WX(x1,samps.lw,prefix="lagx")  # create lagged x variables
-# Ok I am a bit confused what this is doing, says it is creating spatially lagged RHS variables
-# But they are numerical when the variables are categorical, maybe it is based on weights? 
-# Need to figure out exactly what this is doing
-#spat.data2 <- cbind(samps,lagx1) 
-#eg2c=lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
-     #     BIOME + log(number_checklists) + lagx.SALESPC+ 
-      #    lagx.COLLENRP +lagx.BKGRTOABC +lagx.BAPTISTSP +lagx.BKGRTOMIX +lagx.ENTRECP-1, data=spat.data2)
-
-
-
 # Spatial lag model
 dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
                        BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
@@ -635,7 +622,44 @@ beep()
 # the spatial error model is the best!
 
 
+####### Try different distances
+dat.samp2 <- dat[sample(nrow(dat), 10000), ]
 
+# run regular model
+dat.samp2.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+                                          BIOME + log(number_checklists), data = dat.samp2)
+
+# turn into sf object
+dat.samp2.sf <- st_as_sf(dat.samp2, coords=c("long", "lat"), crs=st_crs(GHSL)) 
+
+dat.samp2.nb <- dnearneigh(dat.samp2.sf, d1=0, d2=1)
+dat.samp2.lw <- nb2listw(dat.samp2.nb, style = "W", zero.policy = TRUE)
+
+dat.samp2.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+                                         BIOME + log(number_checklists), data = dat.samp2, listw = dat.samp2.lw, zero.policy = TRUE)
+
+dat.samp2$residuals.lm <- residuals(dat.samp2.lm)
+moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)
+
+
+dat.samp2$residuals.sem <- residuals(dat.samp2.sem)
+moran.mc(dat.samp2$residuals.sem, dat.samp2.lw, nsim = 999, zero.policy = TRUE) # 100 km still gets rid of autocorrelation
+# still works with a distance of 50 and 10 and 1!
+beep()
+
+plot(ggeffects::ggpredict(dat.samp2.sem, terms=c("abslat"), listw=dat.samp2.lw, facets = TRUE))
+
+summary(dat.samp2.sem)
+# don't use impacts function on error models
+
+plot(predict(dat.samp2.sem, interval='confidence')[1:25])
+predicted <- predict(dat.samp2.sem, interval='confidence')
+dat.samp2.test <- cbind(dat.samp2, predicted)
+
+ggplot(dat.samp2.test, aes(x=abs(lat), y=fit^2, color=urban2))+
+  geom_point(alpha=0.1)+
+  geom_smooth(method="lm") # plot model fits yay!
+# the model results still look the same
 
 
 
@@ -724,11 +748,7 @@ summary(samps.slm) # still spatially autocorrelated
 
 # test for autocorrelation
 samps$residuals.slx <- residuals(samps.slx)
-moran.mc(samps$residuals.slx, samps.lw, nsim = 999, zero.policy = TRUE) 
-
-plot(ggeffects::ggpredict(samps.slx, terms=c("abslat"), listw=samps.lw, facets = TRUE))
-
-preds <- predict(samps.slx, listw=samps.lw, newdata=samps) # this does not work
+moran.mc(samps$residuals.slx, samps.lw, nsim = 999, zero.policy = TRUE)
 
 
 

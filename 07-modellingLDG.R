@@ -6,7 +6,7 @@ library(sf)
 library(tidyverse)
 library(nlme)
 library(ncf)
-library(automap)
+#library(automap)
 library(spdep)
 library(gstat)
 library(beepr)
@@ -623,7 +623,7 @@ beep()
 
 
 ####### Try different distances
-dat.samp2 <- dat[sample(nrow(dat), 10000), ]
+dat.samp2 <- dat[sample(nrow(dat), 30000), ]
 
 # run regular model
 dat.samp2.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
@@ -632,7 +632,7 @@ dat.samp2.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant +
 # turn into sf object
 dat.samp2.sf <- st_as_sf(dat.samp2, coords=c("long", "lat"), crs=st_crs(GHSL)) 
 
-dat.samp2.nb <- dnearneigh(dat.samp2.sf, d1=0, d2=1)
+dat.samp2.nb <- dnearneigh(dat.samp2.sf, d1=0, d2=5)
 dat.samp2.lw <- nb2listw(dat.samp2.nb, style = "W", zero.policy = TRUE)
 
 dat.samp2.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
@@ -660,6 +660,27 @@ ggplot(dat.samp2.test, aes(x=abs(lat), y=fit^2, color=urban2))+
   geom_point(alpha=0.1)+
   geom_smooth(method="lm") # plot model fits yay!
 # the model results still look the same
+
+saveRDS(dat.samp2.sem, "spatialmod30k.rds")
+saveRDS(dat.samp2.lw, "spatial.lw.30k.rds")
+ 
+################ Try running model on full data
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
+dat.sf <- st_as_sf(dat, coords=c("long", "lat"), crs=st_crs(GHSL)) 
+
+dat.nb <- dnearneigh(dat.sf, d1=0, d2=1)
+dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
+
+dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+                                          BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
+# can't run, sample size too large
+dat.samp2$residuals.lm <- residuals(dat.samp2.lm)
+moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)
+
+
+
+
+
 
 
 

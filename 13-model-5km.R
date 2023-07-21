@@ -4,6 +4,8 @@ library(tidyverse)
 library(terra)
 library(sf)
 library(elevatr)
+library(spdep)
+library(spatialreg)
 
 ###########################
 # Preparing regular data for modelling
@@ -131,7 +133,7 @@ write_csv(datFINAL, "modeling_data_5km.csv")
 ################
 ### Add elevation
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_3levels.tif")
-dat.mod <- read_csv("modeling_data_5km.csv")
+dat.mod <- read.csv("modeling_data_5km.csv")
 dat.mod2 <- dat.mod[,c(24,25,1:23)] # reorder because lat and long need to be the first and second column
 
 dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
@@ -202,7 +204,7 @@ write_csv(datFINAL_seas, "season_model_data_5km.csv")
 
 ################
 ### Add elevation
-dat.mod <- read_csv("season_model_data_5km.csv")
+dat.mod <- read.csv("season_model_data_5km.csv")
 dat.mod2 <- dat.mod[,c(13,14, 1:12,15)] # reorder because lat and long need to be the first and second column
 
 dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
@@ -230,15 +232,32 @@ hist(log(full.dat$total_SR))
 hist(sqrt(full.dat$total_SR), breaks=50) # this looks pretty good
 hist(full.dat$number_checklists)
 
+# Quadrant
+for (i in 1:nrow(full.dat)){
+  if (full.dat$long[i] < 0 & full.dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+    full.dat$quadrant[i] <- 1
+  }
+  else if (full.dat$long[i] > 0 & full.dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+    full.dat$quadrant[i] <- 2
+  }
+  else if (full.dat$long[i] < 0 & full.dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+    full.dat$quadrant[i] <- 3 
+  }
+  else {full.dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+}
+full.dat$quadrant <- as.factor(full.dat$quadrant)
+
+full.dat <- full.dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
+
 # Run models
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
-             abs(lat):CONTINENT + BIOME + log(number_checklists), dat.full)
+             abs(lat):CONTINENT + BIOME + log(number_checklists), full.dat)
 
 
-dat$abslat <- abs(dat$lat)
+full.dat$abslat <- abs(full.dat$lat)
 
 mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), dat.full) # square root transform total species richness
+                   BIOME + log(number_checklists), full.dat) # square root transform total species richness
 
 # Plot results of model
 predicted <- ggpredict(mod2, terms = c("abslat", "urban")) 
@@ -251,24 +270,108 @@ results.plot <-
   theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
 
-## Try to run model with spatial autocorrelation
-dat.full.sf <- st_as_sf(dat.full, coords=c('long', "lat"))
+###################
+# Try spatial models
+dat.full.samp <- dat[sample(nrow(full.dat), 10000), ]
 
-dat.full$residuals <- residuals(mod2)
-dat.full$fitted <- fitted(mod2)
+lm1.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant 
+               + BIOME + log(number_checklists) + elevation, dat.full.samp) # model
+
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+dat.samp.sf <- st_as_sf(dat.full.samp, coords=c('long', "lat"), crs=st_crs(GHSL))
 
 
-dat.full.nb <- dnearneigh(dat.full.sf, d1=0, d2=200) # calculate distances
-dat.full.lw <- nb2listw(dat.full.nb, style = "W", zero.policy = TRUE) # turn from matrix to list
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=10) # calculate distances
+dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE) # turn from matrix to list
 # Moran's test
-lm.morantest(mod2, dat.full.lw, zero.policy = T) # very spatially autocorrelated
+lm.morantest(lm1.samp, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
 beep()
-lm.LMtests(mod2, dat.full.lw, test="all", zero.policy = T) # test for spatial error - very significant
-beep()
+lm.LMtests(lm1.samp, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
 
-# Try spatially lagged X model
-dat.full.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                        BIOME + log(number_checklists), data = dat.full, listw = dat.full.lw, zero.policy = TRUE)
+# Try LMerr model
+dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+                                         BIOME + log(number_checklists), data = dat.full.samp, listw = dat.samp.lw, zero.policy = TRUE)
+
+dat.full.samp$residuals.sem <- residuals(dat.sem)
+moran.mc(dat.full.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+
+# plot results
+predicted <- predict(dat.sem, interval='confidence')
+dat.samp.test <- cbind(dat.full.samp, predicted)
+
+ggplot(dat.samp.test, aes(x=abs(lat), y=fit^2, color=urban2))+
+  geom_point(alpha=0.1)+
+  geom_smooth(method="lm")
+
+###################################
+#### Modelling spatial data #######
+##################################
+
+dat.seas <- read.csv("season_model_data_5km.csv")
+
+dat.seas$BIOME <- as.factor(dat.seas$BIOME)
+dat.seas$urban <- as.factor(dat.seas$urban)
+
+dat.seas %>% group_by(urban) %>% summarise(n=n())
+summary(dat.seas)
+hist(dat.seas$total_SR, breaks=50)
+
+hist(log(dat.seas$total_SR))
+hist(sqrt(dat.seas$total_SR), breaks=50) # this looks pretty good
+hist(dat.seas$number_checklists)
+
+dat.seas$abslat <- abs(dat.seas$lat)
+
+# Quadrant
+for (i in 1:nrow(dat.seas)){
+  if (dat.seas$long[i] < 0 & dat.seas$hemisphere[i] == "northern") { # quadrant 1 is North America
+    dat.seas$quadrant[i] <- 1
+  }
+  else if (dat.seas$long[i] > 0 & dat.seas$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+    dat.seas$quadrant[i] <- 2
+  }
+  else if (dat.seas$long[i] < 0 & dat.seas$hemisphere[i] == "southern") { # quadrant 3 is south america 
+    dat.seas$quadrant[i] <- 3 
+  }
+  else {dat.seas$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+}
+dat.seas$quadrant <- as.factor(dat.seas$quadrant)
+
+dat <- dat.seas %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
+
+###### Run linear model and test for spatial autocorrelation
+dat.seas.samp <- dat[sample(nrow(dat.seas), 20000), ]
+
+lm1.seas.samp <- lm(sqrt(total_SR) ~ abslat * urban * season + quadrant 
+               + BIOME + log(number_checklists) + elevation, dat.seas.samp) # model
+
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+dat.samp.sf <- st_as_sf(dat.seas.samp, coords=c('long', "lat"), crs=st_crs(GHSL))
+
+
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=10) # calculate distances
+dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE) # turn from matrix to list
+# Moran's test
+lm.morantest(lm1.seas.samp, dat.samp.lw, zero.policy = T) # no spatial autocorrelation in this model
+
+# Try spatial model
+dat.seas.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban * season + quadrant + 
+                                    BIOME + log(number_checklists), data = dat.seas.samp, listw = dat.samp.lw, zero.policy = TRUE)
+
+dat.seas.samp$residuals.sem <- residuals(dat.seas.sem)
+moran.mc(dat.seas.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+
+# plot results
+predicted <- predict(dat.seas.sem, interval='confidence')
+dat.seas.test <- cbind(dat.seas.samp, predicted)
+
+ggplot(dat.seas.test, aes(x=abs(lat), y=fit^2, color=urban))+
+  geom_point(alpha=0.1)+
+  geom_smooth(method="lm")
+
+
+
+
 
 
 

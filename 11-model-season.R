@@ -6,6 +6,9 @@ library(nlme)
 library(ncf)
 library(rnaturalearth)
 library(rnaturalearthdata)
+library(spdep)
+library(sf)
+library(spatialreg)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 # Load data
@@ -18,6 +21,23 @@ dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30
 dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
 dat$urban2 <- as.factor(dat$urban2)
 dat$abslat <- abs(dat$lat) # absolute latitude
+
+# Divide by quartiles
+for (i in 1:nrow(dat)){
+  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+    dat$quadrant[i] <- 1
+  }
+  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+    dat$quadrant[i] <- 2
+  }
+  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+    dat$quadrant[i] <- 3 
+  }
+  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+}
+dat$quadrant <- as.factor(dat$quadrant)
+
+dat <- dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
 
 # Plot relationship 
 
@@ -175,6 +195,63 @@ dat.samp$gls1.samp.cor <- residuals(gls1.samp.cor)
 residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$gls1.samp.cor, resamp=100, quiet=TRUE) 
 plot(residsI,xlim=c(0,20))
 AIC(gls1.samp, gls1.samp.cor)
+
+
+
+########################
+# Try new spatial models
+
+# try to run in parallel
+library(parallel)
+nc <- detectCores(logical=FALSE)
+cl <- makeCluster(nc)
+set.ClusterOption(cl)
+get.ClusterOption()
+
+dat.samp <- dat[sample(nrow(dat), 37057), ]
+
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat"), crs=st_crs(GHSL)) 
+
+lm1.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * season + quadrant 
+                 + BIOME + log(number_checklists) + elevation, dat.samp)
+
+dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=5)
+dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
+
+lm.morantest(lm1.samp, dat.samp.lw, zero.policy = T) # test for autocorrelation - signficant
+lm.LMtests(lm1.samp, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
+
+dat.samp.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * season + quadrant + 
+                                         BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE) # run spatial error model
+
+dat.samp$residuals.sem <- residuals(dat.samp.sem)
+moran.mc(dat.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE) # autocorrelation test - not sig!
+
+# plot results
+predicted <- predict(dat.samp.sem, interval='confidence')
+dat.samp.test <- cbind(dat.samp, predicted)
+
+ggplot(dat.samp.test, aes(x=abs(lat), y=fit^2, color=urban2))+
+  geom_point(alpha=0.1)+
+  geom_smooth(method="lm") +
+  facet_wrap(~season)
+# similar results yay!
+
+
+### Try to run with full data
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+dat.sf <- st_as_sf(dat, coords=c("long", "lat"), crs=st_crs(GHSL)) 
+
+dat.nb <- dnearneigh(dat.sf, d1=0, d2=5)
+dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
+
+dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * season + quadrant + 
+                                         BIOME + log(number_checklists), data = dat.samp, listw = dat.lw, zero.policy = TRUE) # run spatial error model
+
+
+
+
 
 
 

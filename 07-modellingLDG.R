@@ -75,6 +75,7 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
               abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
 
 
+
 # try a bumch of different models
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
                    BIOME + log(number_checklists), dat) # latitude and hemisphere interaction
@@ -94,8 +95,30 @@ mod1.trans.cont.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat
 mod1.trans.cont.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * CONTINENT + 
                              BIOME + log(number_checklists) + elevation, dat) # triple interaction between continent, latitude, and urbanization
 
+
+
+
+
+
 mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
                       BIOME + log(number_checklists) + elevation, dat) # model with quadrant instead
+
+
+mod <-lm(sqrt(total_SR) ~ abslat * urban2, dat)
+
+predicted <- ggpredict(mod, terms = c("abslat", "urban2")) 
+# looks the same whether sqrt included in model or not
+
+results.plot <-
+  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+results.plot
+
+
 
 summary(mod1.trans.wele)
 AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn, mod1.quadrant) 
@@ -179,7 +202,7 @@ interact_plot(mod1.abslat, abslat, hemisphere)
 # LOOK AT SPATIAL AUTOCORRELATION
 
 # rerun using gls (same as linear model when no spatial autocorrelation included)
-gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + abs(lat):hemisphere + 
+gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban * quadrant + 
               BIOME + log(number_checklists), dat)
 
 anova(gls1) # everything very significant
@@ -201,9 +224,10 @@ hist(dat$gls1Resids) # looking very normally distributed, that's good
 
 # try a different function
 datSPDF <- dat
-coordinates(datSPDF) <- c("long","lat")
+dat.sf <- st_as_sf(datSPDF, coords=c("long", "lat")) 
+
 plot(gstat::variogram(residuals(gls1, "normalized") ~
-                 1, data = datSPDF, cutoff = 100))
+                 1, data = dat.sf, cutoff = 100))
 
 # try with directional
 plot(gstat::variogram(residuals(gls1, "normalized") ~
@@ -490,13 +514,13 @@ anova(glsSpher)
 
 
 ###################################
-#### Trying new ways to deal with spatial autocorrelation using the spatialreg package
+#### USING SPATIALREG PACKAGE TO RUN MODELS
 
 # sample data
 set.seed(10)
-dat.samp <- dat[sample(nrow(dat), 10000), ]
+dat.samp <- dat[sample(nrow(dat), 5000), ]
 # turn into sf object
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat"), crs=st_crs(GHSL)) 
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
@@ -518,10 +542,11 @@ dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
 beep()
 
 # Moran's I test
-lm.morantest(mod1.trans, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
-beep()
-lm.LMtests(mod1.trans, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
-beep()
+moran.results <- lm.morantest(mod1.trans, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
+moran.results
+
+LMtests.results <- lm.LMtests(mod1.trans, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
+LMtests.results
 
 
 
@@ -623,7 +648,8 @@ beep()
 
 
 ####### Try different distances
-dat.samp2 <- dat[sample(nrow(dat), 30000), ]
+set.seed(15)
+dat.samp2 <- dat[sample(nrow(dat), 5000), ]
 
 # run regular model
 dat.samp2.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 

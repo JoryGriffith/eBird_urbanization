@@ -8,7 +8,7 @@ library(lubridate)
 library(beepr)
 
 # load global raster script
-GHSLreproj<-rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
+GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif") # load raster that is filtered
 
 names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
@@ -44,10 +44,13 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 #dat <- read.delim("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/r4c2_2017_filt.txt", header=TRUE, na.strings="")
 
 
-####### 2017
-for (i in 17:19){
+years <- c(2017, 2018, 2019, 2020, 2021, 2022)
+
+for (j in 1:length(years)){
+
+  for (i in 1:length(names)){
 #  tryCatch(
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""), header=TRUE, na.strings="")
+  dat <- read.delim(paste("/Volumes/Backup/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""), header=TRUE, na.strings="")
   # turn into spatvector
   
   vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
@@ -55,9 +58,9 @@ for (i in 17:19){
   xy=geom(vect)
   
   # get cell number that each point is in
-  dat$cell<-cellFromXY(GHSLreproj, xy[,3:4])
+  dat$cell<-cellFromXY(GHSL, xy[,3:4])
   # also get coordinates for the midpoint of each cell
-  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""), row.names=FALSE)
+  write.table(dat, paste("/Volumes/Backup/eBird/eBird_",years[j],"_data/custom_bbox/", names[i], "_",years[j], "_filt.txt", sep=""), row.names=FALSE)
   print(paste("finished", names[i]))
   
 #  error = function(e){
@@ -65,89 +68,7 @@ for (i in 17:19){
     
   #})
 }
-
-
-###### 2018
-for (i in 1:19){
-  
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2018_data/custom_bbox/", names[i], "_2018_filt.txt", sep=""), header=TRUE, na.strings="")
-  # turn into spatvector
-  
-  vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
-  
-  xy=geom(vect)
-  
-  # get cell number that each point is in
-  dat$cell=cellFromXY(GHSLreproj, xy[,3:4])
-  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2018_data/custom_bbox/", names[i], "_2018_filt.txt", sep=""), row.names=FALSE)
-  print(paste("finished", names[i]))
+  print(paste("finished", years[j]))
 }
 
 
-######## 2019
-for (i in 1:19){
-  
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2019_data/custom_bbox/", names[i], "_2019_filt.txt", sep=""), header=TRUE,  na.strings="")
-  # turn into spatvector
-  
-  vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
-  
-  xy=geom(vect)
-  
-  # get cell number that each point is in
-  dat$cell=cellFromXY(GHSLreproj, xy[,3:4])
-  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2019_data/custom_bbox/", names[i], "_2019_filt.txt", sep=""), row.names=FALSE)
-  print(paste("finished", names[i]))
-}
-
-
-####### 2020
-for (i in 1:19){
-  
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2020_data/custom_bbox/", names[i], "_2020_filt.txt", sep=""), header=TRUE,  na.strings="")
-  # turn into spatvector
-  
-  vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
-  
-  xy=geom(vect)
-  
-  # get cell number that each point is in
-  dat$cell=cellFromXY(GHSLreproj, xy[,3:4])
-  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2020_data/custom_bbox/", names[i], "_2020_filt.txt", sep=""), row.names=FALSE)
-  print(paste("finished", names[i]))
-}
-
-
-####### 2021
-for (i in 1:19){
-    
-    dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2021_data/custom_bbox/", names[i], "_2021_filt.txt", sep=""), header=TRUE,  na.strings="")
-    # turn into spatvector
-    
-    vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
-    
-    xy=geom(vect)
-    
-    # get cell number that each point is in
-    dat$cell=cellFromXY(GHSLreproj, xy[,3:4])
-    write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2021_data/custom_bbox/", names[i], "_2021_filt.txt", sep=""), row.names=FALSE)
-    print(paste("finished", names[i]))
-      
-  }
-
-####### 2022
-for (i in 1:19){
-  
-  dat <- read.delim(paste("/Volumes/Expansion/eBird/eBird_2022_data/custom_bbox/", names[i], "_2022_filt.txt", sep=""), header=TRUE)
-  # turn into spatvector
-  
-  vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
-  
-  xy=geom(vect)
-  
-  # get cell number that each point is in
-  dat$cell=cellFromXY(GHSLreproj, xy[,3:4])
-  write.table(dat, paste("/Volumes/Expansion/eBird/eBird_2022_data/custom_bbox/", names[i], "_2022_filt.txt", sep=""), row.names=FALSE)
-  print(paste("finished", names[i]))
-  
-}

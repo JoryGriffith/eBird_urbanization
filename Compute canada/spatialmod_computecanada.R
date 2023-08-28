@@ -17,9 +17,6 @@ dat %>% group_by(urban) %>% summarise(n=n())
 summary(dat)
 hist(dat$total_SR, breaks=50)
 
-hist(log(dat$total_SR))
-hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
-hist(dat$number_checklists) # this is super log normal, used the log in the response variable
 dat$abslat <- abs(dat$lat)
 
 dat %>% group_by(BIOME) %>% summarise(n=n())
@@ -50,22 +47,22 @@ dat <- dat %>% filter(!CONTINENT == "Antarctica")
 
 
 # Run spatial model
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
-dat.sf <- st_as_sf(dat., coords=c("long", "lat"), crs=st_crs(GHSL)) 
+GHSL <- rast("GHSL_filtered.tif")
+dat.sf <- st_as_sf(dat, coords=c("long", "lat"), crs=st_crs(GHSL)) 
 
 dat.nb <- dnearneigh(dat.sf, d1=0, d2=5) # set distance to 5km
 dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
 
-dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+mod1.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
                                          BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE) # run spatial error model
 
-saveRDS(dat.sem, "spatialmod.rds")
+saveRDS(mod1.sem, "spatialmod.rds")
 saveRDS(dat.lw, "dat.lw.rds")
 
 
 ######################
 ## Run seasonal model
-dat.seas <- read.csv("season_model_dat.seasa.csv")
+dat.seas <- read.csv("season_model_data.csv")
 dat.seas$urban<-as.factor(dat.seas$urban)
 dat.seas$BIOME <- as.factor(dat.seas$BIOME)
 
@@ -93,7 +90,7 @@ dat.seas$quadrant <- as.factor(dat.seas$quadrant)
 dat.seas <- dat.seas %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
 
 ## Spatial model
-dat.seas.sf <- st_as_sf(dat.seas., coords=c("long", "lat"), crs=st_crs(GHSL)) 
+dat.seas.sf <- st_as_sf(dat.seas, coords=c("long", "lat"), crs=st_crs(GHSL)) 
 
 dat.seas.nb <- dnearneigh(dat.seas.sf, d1=0, d2=5) # set distance to 5km
 dat.seas.lw <- nb2listw(dat.seas.nb, style = "W", zero.policy = TRUE)

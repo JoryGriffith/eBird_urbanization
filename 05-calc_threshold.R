@@ -66,9 +66,11 @@ for (j in 1:length(names)) {
                               ncol=13))
   
   # make column names for output
-  names(output)<-c("cell_ID", "SC_obs", "obs.richness", "sampsize_obs", "SC_95", "richness_95", "sampsize_95",
+  names(output)<-c("cell_ID", "SC_obs", "obs.richness", "sampsize_obs", "SC_80", "richness_80", "sampsize_80", "SC_90", "richness_90", 
+                   "sampsize_90", "SC_95", 
+                   "richness_95", "sampsize_95",
                    "SC_97", "richness_97", "sampsize_97", "SC_98", "richness_98", "sampsize_98")
-  
+
   
   set.seed(20) # because it is bootstrapping
   withCallingHandlers ({
@@ -90,9 +92,11 @@ for (j in 1:length(names)) {
       #and now using estimateD to get qD
       out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=500, nboot=50)
       out.inc.filt1<-out.inc$iNextEst$coverage_based %>% filter(Method=="Observed") # filter for observed coverage
-      out.inc.filt2<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.95)==min(abs(SC-0.95)))  # filter for row that is closest to 95% coverage
-      out.inc.filt3<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.97)==min(abs(SC-0.97))) # filter for row that is closest to 97% coverage
-      out.inc.filt4<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.98)==min(abs(SC-0.98))) # filter for row that is closest to 98% coverage
+      out.inc.filt2<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.80)==min(abs(SC-0.80)))  # filter for row that is closest to 95% coverage
+      out.inc.filt3<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.90)==min(abs(SC-0.90)))  # filter for row that is closest to 95% coverage
+      out.inc.filt4<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.95)==min(abs(SC-0.95)))  # filter for row that is closest to 95% coverage
+      out.inc.filt5<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.97)==min(abs(SC-0.97))) # filter for row that is closest to 97% coverage
+      out.inc.filt6<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.98)==min(abs(SC-0.98))) # filter for row that is closest to 98% coverage
       #sampling_profile <- estimateD(temp_inext, q=0, datatype="incidence_freq",base="coverage", 
       #                             level=0.80, conf=0.95) # set to a coverage level of 60
       
@@ -100,15 +104,21 @@ for (j in 1:length(names)) {
       output$SC_obs[i] <- out.inc.filt1$SC # sample coverage
       output$obs.richness[i] <- out.inc.filt1$qD
       output$sampsize_obs[i] <- out.inc.filt1$t
-      output$SC_95[i] <- out.inc.filt2$SC # sample coverage
-      output$richness_95[i] <- out.inc.filt2$qD
-      output$sampsize_95[i] <- out.inc.filt2$t
-      output$SC_97[i] <- out.inc.filt3$SC # sample coverage
-      output$richness_97[i] <- out.inc.filt3$qD
-      output$sampsize_97[i] <- out.inc.filt3$t
-      output$SC_98[i] <- out.inc.filt4$SC # sample coverage
-      output$richness_98[i] <- out.inc.filt4$qD
-      output$sampsize_98[i] <- out.inc.filt4$t
+      output$SC_80[i] <- out.inc.filt2$SC # sample coverage
+      output$richness_80[i] <- out.inc.filt2$qD
+      output$sampsize_80[i] <- out.inc.filt2$t
+      output$SC_90[i] <- out.inc.filt3$SC # sample coverage
+      output$richness_90[i] <- out.inc.filt3$qD
+      output$sampsize_90[i] <- out.inc.filt3$t
+      output$SC_95[i] <- out.inc.filt4$SC # sample coverage
+      output$richness_95[i] <- out.inc.filt4$qD
+      output$sampsize_95[i] <- out.inc.filt4$t
+      output$SC_97[i] <- out.inc.filt5$SC # sample coverage
+      output$richness_97[i] <- out.inc.filt5$qD
+      output$sampsize_97[i] <- out.inc.filt5$t
+      output$SC_98[i] <- out.inc.filt6$SC # sample coverage
+      output$richness_98[i] <- out.inc.filt6$qD
+      output$sampsize_98[i] <- out.inc.filt6$t
       # add new columns to data frame
       print(paste("finished", i))
     }
@@ -180,7 +190,7 @@ summary_filt98 <- summary %>% filter(number_checklists >= 203) # 37,081
 
 # now need to put this in raster form and merge with the urbanization raster
 # this raster layer has the places with high human impact removed
-GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif.tif")
 
 # need to extract cell numbers, urbanization scores, and x and y coordinates from the raster
 summary_filt95$x <- xFromCell(GHSL, summary_filt95$cell) # extract the coordinates from the cells

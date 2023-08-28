@@ -1,43 +1,40 @@
 ##### Combining GHM and GHSL layers
 library(terra)
 library(tidyverse)
-
+?project
 # Load GHSL layer
-GHSLreproj<-rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
-
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+plot(GHSL)
 # Load GHM layer
-#GHM <- rast("gHM/gHM.tif")
-## Reproject 
-#GHMreproject <- project(GHM, y="+proj=longlat +datum=WGS84", method="near")
-## save as raster
-#writeRaster(GHMreproject, "ghM/GHMreprojected.tif", overwrite=TRUE)
-
-# load GHM
-GHM <- rast("/Volumes/Expansion/eBird/ghM/GHMreprojected.tif")
+GHM <- rast("/Volumes/Expansion/eBird/gHM/gHM.tif")
+plot(GHM)
 
 # assign values more than 0.5 an NA 
 #GHM[GHM$gHM>=0.5] <- NA
 
-crs(GHM)==crs(GHSLreproj)
-# they are in the same crs
+crs(GHM)==crs(GHSL)
+# they are already in the same crs!
 # just need to make them line up
 
-# try with nearest neighbor interpolation
-dat <- resample(GHM, GHSLreproj, method="cubicspline")
+# Make cells align with cubic spline interpolation
+dat <- resample(GHM, GHSL, method="cubicspline")
+
 # it should be aligned now and I can create a raster stack
 # should look more into interpolation methods for estimating the new cell values in the GHM
 plot(dat)
 
 
 extent <- c(-100, -70, 30, 50)
-colors=c("palegreen", "darkorange", "firebrick2")
-GHSL.test <- GHSLreproj
+colors=c("palegreen", "yellow", "pink", "darkorange", "blue", "firebrick2", "purple", "darkgreen")
+GHSL.test <- GHSL
 plot(GHSL.test)
-GHSL.test[(dat > 0.5 & GHSL.test == 11)] <- NA # turn everything that is wilderness and over 0.5 as NA
+GHSL.test[(dat > 0.5 & GHSL.test %in% c(11,12,13))] <- NA # turn everything that is natural and over 0.5 as NA
 summary(values(GHSL.test))
 GHSL.test[(GHSL.test==10)] <- NA # turn water into NA
+GHSL[(GHSL==10)] <- NA
 
-plot(GHSL.test, ext=extent, col=colors)
+plot(GHSL, col=colors)
+plot(GHSL.test, col=colors) # compare the two to make sure it worked, yes looks good!
 
 
 # making sure it worked
@@ -60,6 +57,6 @@ plot(GHSL.test, ext=extent, col=colors)
 # reproject
 
 # save as tif file
-writeRaster(GHSL.test, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif", overwrite=TRUE)
+writeRaster(GHSL.test, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif", overwrite=TRUE)
 
 

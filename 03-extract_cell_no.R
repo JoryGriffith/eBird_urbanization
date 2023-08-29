@@ -8,7 +8,7 @@ library(lubridate)
 library(beepr)
 
 # load global raster script
-GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif") # load raster that is filtered
+GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
 
 names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
@@ -50,10 +50,10 @@ for (j in 1:length(years)){
 
   for (i in 1:length(names)){
 #  tryCatch(
-  dat <- read.delim(paste("/Volumes/Backup/eBird/eBird_2017_data/custom_bbox/", names[i], "_2017_filt.txt", sep=""), header=TRUE, na.strings="")
+  dat <- read.table(paste("/Volumes/Backup/eBird/eBird_",years[j], "_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), header=TRUE, na.strings="")
   # turn into spatvector
   
-  vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
+  vect <- vect(dat, crs=crs(GHSL),geom=c("LONGITUDE","LATITUDE"))
   
   xy=geom(vect)
   

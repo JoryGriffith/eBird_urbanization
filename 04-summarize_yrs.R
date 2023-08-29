@@ -10,12 +10,12 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r3c1", "r3c2", "r3c3", "r3c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
 
-# loop for each square (skipped 5(r2c1), did 6 and 7)
-for (j in 1:length(names)){
+# loop for each square (skipped 5 because it's too big)
+for (j in 5:5){
 datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
-    dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
+    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
                       header=TRUE) # load data
   
     dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
@@ -56,7 +56,7 @@ dat_summary2$square=names[j]
 write.csv(dat_summary2, paste("5yr_summary/", names[j], "_SR.csv", sep=""))
 print(paste("finished", names[j]))
 }
-# skipped r4c3
+
 
 
 

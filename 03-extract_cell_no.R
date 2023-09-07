@@ -8,7 +8,9 @@ library(lubridate)
 library(beepr)
 
 # load global raster script
-GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
+#GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
+plot(GHSL)
 
 names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
@@ -50,15 +52,17 @@ for (j in 1:length(years)){
 
   for (i in 1:length(names)){
 #  tryCatch(
-  dat <- read.table(paste("/Volumes/Backup/eBird/eBird_",years[j], "_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), header=TRUE, na.strings="")
+  dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_",years[1], "_data/custom_bbox/", names[1], "_", years[1], "_filt.txt", sep=""), header=TRUE, na.strings="")
   # turn into spatvector
   
-  vect <- vect(dat, crs=crs(GHSL),geom=c("LONGITUDE","LATITUDE"))
+  vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+  vect2 <- st_transform(vect, crs=crs(GHSL))
   
-  xy=geom(vect)
+ 
+  xy=st_coordinates(vect2)
   
   # get cell number that each point is in
-  dat$cell<-cellFromXY(GHSL, xy[,3:4])
+  dat$cell<-cellFromXY(GHSL, xy)
   # also get coordinates for the midpoint of each cell
   write.table(dat, paste("/Volumes/Backup/eBird/eBird_",years[j],"_data/custom_bbox/", names[i], "_",years[j], "_filt.txt", sep=""), row.names=FALSE)
   print(paste("finished", names[i]))
@@ -70,5 +74,11 @@ for (j in 1:length(years)){
 }
   print(paste("finished", years[j]))
 }
+
+
+
+
+
+
 
 

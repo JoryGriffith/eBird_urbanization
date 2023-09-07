@@ -1,7 +1,7 @@
 ##### Combining GHM and GHSL layers
 library(terra)
 library(tidyverse)
-?project
+
 # Load GHSL layer
 GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
 plot(GHSL)

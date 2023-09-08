@@ -3,10 +3,10 @@ library(terra)
 library(tidyverse)
 
 # Load GHSL layer
-GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 plot(GHSL)
 # Load GHM layer
-GHM <- rast("/Volumes/Expansion/eBird/gHM/gHM.tif")
+GHM <- rast("/Volumes/Backup/eBird/gHM/gHM.tif")
 plot(GHM)
 
 # assign values more than 0.5 an NA 

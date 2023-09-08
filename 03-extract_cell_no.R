@@ -2,14 +2,12 @@
 
 library(terra)
 library(sf)
-library(auk)
 library(tidyverse)
-library(lubridate)
-library(beepr)
+
 
 # load global raster script
 #GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
-GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
+GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif") # load raster that is filtered
 plot(GHSL)
 
 names <- c("r1c1", "r1c2", "r1c3", "r1c4",
@@ -48,11 +46,11 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
-for (j in 1:length(years)){
+for (j in 6:length(years)){
 
   for (i in 1:length(names)){
 #  tryCatch(
-  dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_",years[1], "_data/custom_bbox/", names[1], "_", years[1], "_filt.txt", sep=""), header=TRUE, na.strings="")
+  dat <- read.table(paste("/Volumes/Backup/eBird/eBird_",years[j], "_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), header=TRUE, na.strings="")
   # turn into spatvector
   
   vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
@@ -69,7 +67,9 @@ for (j in 1:length(years)){
   
 #  error = function(e){
  #   message(paste("An error occurred for item", i, ":\n"), e)
-    
+    rm(dat)
+    rm(vect)
+    rm(vect2)
   #})
 }
   print(paste("finished", years[j]))

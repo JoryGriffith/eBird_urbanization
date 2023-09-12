@@ -7,6 +7,7 @@ library(beepr)
 library(scales)
 library(rnaturalearth)
 library(rnaturalearthdata)
+library(iNEXT)
 
 # First I want to load and look at the top cells so that I know where they are coming from
 top_cells <- read.csv("top_500_cells.csv") 
@@ -29,7 +30,7 @@ for (j in 1:length(names)) {
    datalist = vector("list", length = length(years))
 
 for (i in 1:length(years)) {
-  dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), header=TRUE)
+  dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), header=TRUE)
   # filter out cells that are in the top cell
   dat_filt <- dat %>% filter(cell %in% top_cell$cell)
   # add to list
@@ -63,7 +64,7 @@ for (j in 1:length(names)) {
   # make data frame for output
   output <- data.frame(matrix(NA,
                               nrow=length(ebird.split),
-                              ncol=13))
+                              ncol=19))
   
   # make column names for output
   names(output)<-c("cell_ID", "SC_obs", "obs.richness", "sampsize_obs", "SC_80", "richness_80", "sampsize_80", "SC_90", "richness_90", 
@@ -143,30 +144,38 @@ write.csv(coverage, "thresholding/coverage_top500.csv", row.names=FALSE)
 
 ###############################
 # Look at coverage threshold
-coverage <- read.csv("thresholding/coverage_top500.csv")
+coverage2 <- read.csv("thresholding/coverage_top500.csv")
 summary(coverage)
 # look at distribution of sample sizes
 hist(coverage$obs.richness)
+hist(coverage$richness_80)
+hist(coverage$richness_90)
 hist(coverage$richness_95)
 hist(coverage$richness_97)
 hist(coverage$richness_98)
 
 # look at mean richness at different coverages
-mean(coverage$obs.richness) # 363.9464
-mean(coverage$richness_95) # 204.684
-mean(coverage$richness_97) # 232.3299
+mean(coverage$obs.richness) # 364
+mean(coverage$richness_80) # 126
+mean(coverage$richness_90) # 164
+mean(coverage$richness_95) # 204
+mean(coverage$richness_97) # 232
 mean(coverage$richness_98) # 254
 
 # look at the mean of sample size at different coverages
-mean(coverage$sampsize_obs) # 2310.851
-mean(coverage$sampsize_95) # 46
-mean(coverage$sampsize_97) # 75
-mean(coverage$sampsize_98) # 111
+mean(coverage$sampsize_obs) # 2255
+mean(coverage$sampsize_80) # 12
+mean(coverage$sampsize_90) # 23
+mean(coverage$sampsize_95) # 45
+mean(coverage$sampsize_97) # 74
+mean(coverage$sampsize_98) # 110
 
 # look at 95th quantile
-quantile(coverage$sampsize_95, 0.95) # 87
-quantile(coverage$sampsize_97, 0.95) # 139
-quantile(coverage$sampsize_98, 0.95) # 203
+quantile(coverage$sampsize_80, 0.95) # 23
+quantile(coverage$sampsize_90, 0.95) # 44
+quantile(coverage$sampsize_95, 0.95) # 83
+quantile(coverage$sampsize_97, 0.95) # 134
+quantile(coverage$sampsize_98, 0.95) # 198
 
 
 
@@ -176,12 +185,13 @@ quantile(coverage$sampsize_98, 0.95) # 203
 # load summary data
 summary <- read.csv("global_richness_summary.csv") # 2.1 mil
 
+summary_filt90 <- summary %>% filter(number_checklists >= 44) # 143,762
 # threshold for 95 coverage
-summary_filt95 <- summary %>% filter(number_checklists >= 87) # 79,768
+summary_filt95 <- summary %>% filter(number_checklists >= 83) # 87,117
 # threshold for 97 coverage
-summary_filt97 <- summary %>% filter(number_checklists >= 139) # 53,066
+summary_filt97 <- summary %>% filter(number_checklists >= 134) # 57,892
 # threshold for 98 coverage
-summary_filt98 <- summary %>% filter(number_checklists >= 203) # 37,081
+summary_filt98 <- summary %>% filter(number_checklists >= 198) # 40,298
 
 # Going to use the 95% coverage filter for now
 

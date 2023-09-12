@@ -6,9 +6,19 @@
 *.png
 *.pdf
 # ignore some files
-thresholding/
-5yr_summary/
 global_richness_summary.csv
+thresholding/r1c1_topcells.csv
+thresholding/r1c2_topcells.csv
+thresholding/r2c1_topcells.csv
+thresholding/r2c2AA_topcells.csv
+thresholding/r2c2ABA_topcells.csv
+thresholding/r2c2ABB_topcells.csv
+thresholding/r2c2B_topcells.csv
+thresholding/r2c3_topcells.csv
+thresholding/r2c4_topcells.csv
+thresholding/r3c2_topcells.csv
+thresholding/r3c3_topcells.csv
+5yr_summary/
 5yr_summary/._r1c1_SR.csv
 5yr_summary/._r1c1_SR.csv
 5yr_summary/._r1c1_SR.csv

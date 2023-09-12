@@ -11,7 +11,7 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
 
 # loop for each square (skipped 5 because it's too big)
-for (j in 1:length(names)){
+for (j in 8:length(names)){
 datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
@@ -55,6 +55,11 @@ dat_summary2$square=names[j]
 # save as csv
 write.csv(dat_summary2, paste("5yr_summary/", names[j], "_SR.csv", sep=""))
 print(paste("finished", names[j]))
+
+rm(dat)
+rm(dat2)
+rm(dat_summary)
+rm(dat_summary2)
 }
 
 

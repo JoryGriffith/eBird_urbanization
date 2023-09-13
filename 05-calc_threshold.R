@@ -7,6 +7,8 @@ library(beepr)
 library(scales)
 library(rnaturalearth)
 library(rnaturalearthdata)
+library(elevatr)
+library(rgdal)
 library(iNEXT)
 
 # First I want to load and look at the top cells so that I know where they are coming from
@@ -144,7 +146,7 @@ write.csv(coverage, "thresholding/coverage_top500.csv", row.names=FALSE)
 
 ###############################
 # Look at coverage threshold
-coverage2 <- read.csv("thresholding/coverage_top500.csv")
+coverage <- read.csv("thresholding/coverage_top500.csv")
 summary(coverage)
 # look at distribution of sample sizes
 hist(coverage$obs.richness)
@@ -200,7 +202,8 @@ summary_filt98 <- summary %>% filter(number_checklists >= 198) # 40,298
 
 # now need to put this in raster form and merge with the urbanization raster
 # this raster layer has the places with high human impact removed
-GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif.tif")
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+plot(GHSL)
 
 # need to extract cell numbers, urbanization scores, and x and y coordinates from the raster
 summary_filt95$x <- xFromCell(GHSL, summary_filt95$cell) # extract the coordinates from the cells
@@ -211,7 +214,7 @@ summary_filt95$urban <- as.data.frame(terra::extract(GHSL, summary_filt95[,c(21:
 summary_filt95 %>% group_by(urban) %>% summarise(n=n())
 
 # remove ones with NaN urbanization score
-summary_filt <- summary_filt95 %>% filter(!is.nan(urban)) # 70749 datapoints now
+summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # 66,667 datapoints now
 # save the thresholded data
 write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 
@@ -219,19 +222,17 @@ write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 ###############################################################################################
 #### Prepare data for modelling
 
-world <- ne_countries(scale = "medium", returnclass = "sf")
-
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+plot(GHSL)
 
 # load thresholded summary data
 dat <- read.csv("5yr_summary/summary_thresholded.csv")
-dat <- rename(dat, lat = y, long = x)
 
 # First I need to get the other data that I want to include in the model
 
 ######## Assign hemisphere
-dat <- dat %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
+dat <- dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
 
 ######### Assign continent
 #dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(world))
@@ -250,50 +251,46 @@ dat <- dat %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
 ##################
 # Trying new way to do continent
 continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
+continents_moll <- st_transform(continents, crs=crs(GHSL)) 
+
 #plot(continents)
 
-dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(continents))
+dat_sf <- st_as_sf(dat, coords=c("x", "y"), crs=st_crs(GHSL))
 
-dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
+dat_cont <- st_join(dat_sf, continents_moll[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
 
 
 #########################
 # Extract biome
 # Classifying points into biomes using a terrestrial biomes shapefile
 biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
+biomes_moll <- st_transform(biomes, crs=crs(GHSL)) 
+
 class(biomes) # sf and data frame
 # look at how many biomes there are
 length(unique(biomes$REALM)) # 9 of these
 length(unique(biomes$BIOME)) # 16 biomes
 length(unique(biomes$ECO_NAME)) # 827 ecoregion names
-
 # plot biome
 #plot(biomes["BIOME"])
 
 # want to extract biomes
-dat_withbiome <- st_join(dat_cont, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
+dat_withbiome <- st_join(dat_cont, biomes_moll[,c("REALM", "BIOME")], left=TRUE, join=st_nearest_feature)
 
-
-# create seperate columns for lat long again
-datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
-                                                        lat = sf::st_coordinates(.)[,2]))
-
-summary(datFINAL)
-# save as csv
-
-#write_csv(datFINAL, "modeling_data.csv")
 
 ################################
 ## Add elevation
-#dat.mod <- read_csv("modeling_data.csv")
-dat.mod2 <- datFINAL[,c(25,26,1:24)] # reorder because lat and long need to be the first and second column
+# need to convert the points back to lat long
+class(dat_withbiome)
+dat_latlong <- st_transform(dat_withbiome, crs=st_crs(4326))
 
-dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
+dat_latlong$elevation <- as.data.frame(get_elev_point(dat_latlong, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
 
-dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
-
-write_csv(dat, "modeling_data.csv")
-
+datFINAL <- as.data.frame(st_transform(dat_latlong, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
+                                                                               y = sf::st_coordinates(.)[,2]))
+datFINAL <- datFINAL[,-1]
+  
+write_csv(datFINAL, "modeling_data.csv")
 
 
 

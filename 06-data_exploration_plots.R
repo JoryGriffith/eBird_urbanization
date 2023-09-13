@@ -53,7 +53,7 @@ summary_plot <- ggplot(data=world)+
 summary_filt <- read.csv("5yr_summary/summary_thresholded.csv")
 
 summary95_plot <- ggplot(data=world)+
-  geom_sf() +
+  geom_sf(lwd=2) +
   geom_point(data=summary_filt, aes(x=x, y=y, color=total_SR), size=0.03) +
   coord_sf(crs = 4326, expand = FALSE) +
   scale_color_viridis_c(na.value = NA, option="C")+
@@ -129,7 +129,6 @@ ggplot(summary_filt, aes(x=abs(y), y=log(total_SR)))+
   geom_point()+
   geom_smooth(method="lm")+
   facet_wrap(~urban)
-
 
 
 ###########################

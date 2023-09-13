@@ -35,7 +35,7 @@ hist(dat$total_SR, breaks=50)
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
-dat$abslat <- abs(dat$lat)
+dat$abslat <- abs(dat$x)
 
 dat %>% group_by(BIOME) %>% summarise(n=n())
 
@@ -46,7 +46,7 @@ dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
 dat$urban2 <- as.factor(dat$urban2)
 
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
-                     labels = c("Natural n = 40,490", "Suburban n = 17,623", "Urban n = 12,636"))
+                     labels = c("Natural", "Suburban", "Urban"))
 
 # Divide globe into 4 quadrants at the prime meridian and antimeridian
 dat$quadrant <- NA
@@ -77,14 +77,14 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 
 
 # try a bumch of different models
-mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), dat) # latitude and hemisphere interaction
+mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                   BIOME + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
 
 mod1.hemisphere.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists), dat) # urban, latitude, and hemisphere triple interaction
+                   BIOME + log(number_checklists) + elevation, dat) # urban, latitude, and hemisphere triple interaction
 
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
-                        BIOME + log(number_checklists), dat) # continent and latitude interaction
+                        BIOME + log(number_checklists)+ elevation, dat) # continent and latitude interaction
 
 mod1.trans.wele <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
                    BIOME + log(number_checklists) + elevation, dat) # hemisphere and latitude interaction with elevation
@@ -106,7 +106,7 @@ mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant +
 
 mod <-lm(sqrt(total_SR) ~ abslat * urban2, dat)
 
-predicted <- ggpredict(mod, terms = c("abslat", "urban2")) 
+predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
 
 results.plot <-
@@ -117,16 +117,16 @@ results.plot <-
   theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
 results.plot
+# same results ! This is good
 
 
-
-summary(mod1.trans.wele)
+summary(mod1.trans)
 AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn, mod1.quadrant) 
 # last one with continent urbanization latitude interaction is best
 # The model with quadrant is better than the model with only hemisphere but not as good as the model with continent
 
 # Plot model results for talk
-predicted <- ggpredict(mod1.quadrant , terms = c("abslat", "urban2", "quadrant")) 
+predicted <- ggpredict(mod1.trans , terms = c("abslat", "urban2", "quadrant")) 
 # looks the same whether sqrt included in model or not
 
 

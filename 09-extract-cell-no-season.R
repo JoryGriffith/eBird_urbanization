@@ -21,18 +21,22 @@ years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 for (j in 1:length(years)){
   for (i in 1:length(names)){
    
-     dat <- read.delim(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
+     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
     # turn into spatvector
-    vect <- vect(dat, crs=crs(GHSL),geom=c("LONGITUDE","LATITUDE"))
+     
+     vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+     vect2 <- st_transform(vect, crs=crs(GHSL))
     
-    xy=geom(vect)
+     xy=st_coordinates(vect2)
     
     # get cell number that each point is in
-    dat$cell<-cellFromXY(GHSL, xy[,3:4])
+    dat$cell<-cellFromXY(GHSL, xy)
     # also get coordinates for the midpoint of each cell
     write.table(dat, paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), row.names=FALSE)
     print(paste("finished", names[i]))
-    
+    rm(dat)
+    rm(vect)
+    rm(vect2)
   }
   print(paste("finished", years[j]))
 }
@@ -42,18 +46,21 @@ for (j in 1:length(years)){
 for (j in 1:length(years)){
   for (i in 1:length(names)){
     
-    dat <- read.delim(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
+    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
     # turn into spatvector
-    vect <- vect(dat, crs=crs(GHSLreproj),geom=c("LONGITUDE","LATITUDE"))
+    vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+    vect2 <- st_transform(vect, crs=crs(GHSL))
     
-    xy=geom(vect)
+    xy=st_coordinates(vect2)
     
     # get cell number that each point is in
-    dat$cell<-cellFromXY(GHSLreproj, xy[,3:4])
+    dat$cell<-cellFromXY(GHSL, xy)
     # also get coordinates for the midpoint of each cell
     write.table(dat, paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), row.names=FALSE)
     print(paste("finished", names[i]))
-    
+    rm(dat)
+    rm(vect)
+    rm(vect2)
   }
   print(paste("finished", years[j]))
 }

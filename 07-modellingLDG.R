@@ -35,7 +35,7 @@ hist(dat$total_SR, breaks=50)
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
-dat$abslat <- abs(dat$x)
+dat$abslat <- abs(dat$lat)
 
 dat %>% group_by(BIOME) %>% summarise(n=n())
 
@@ -440,70 +440,76 @@ dat %>% group_by(CONTINENT) %>% summarise(n=n())
 library(spThin)
 # I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
 # it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
-dat.samp <- dat[sample(nrow(dat), 1000), ]
+dat.samp <- dat[sample(nrow(dat), 10000), ]
+dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
+lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                   BIOME + log(number_checklists) + elevation, dat.samp)
+dat.samp$residuals <- residuals(lm.samp)
+# Look at distance at which autocorrelation stops so I know how much I need to thin data
+moran_I <- c()
+for (d in seq(1, 200, 20)) {
+  #foreach  (d = seq(0, 200, 10),
+  #                       .combine = 'c') %dopar% {
+  dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
+  dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
+  moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+  moran_I <- c(moran_I, moran$statistic)
+} # THIS TAKES A REALLY LONG TIME
+beep()
+moran_I <- data.frame(moran = moran_I, 
+                      distance = seq(1, 200, 20))
 
-dat.thinned <- thin.algorithm(dat.samp[,c(25:26)], thin.par=10, 
-               rep=10)
+
+moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+
+ggplot(moran_I, aes(x = distance, y = moran)) + 
+  geom_point() +
+  geom_line()
+beep()
+
+dat.thinned <- thin.algorithm(dat.samp[,c(27:28)], thin.par=200, 
+               rep=1) # this spits out a list of lat long points (list length is # of reps), which I then need to merge back with other data
 
 da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
 
 dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
 
+ggplot(dat.samp, aes(x=long, y=lat))+
+  geom_point(size=0.2)
+
+ggplot(dat.thinned.new, aes(x=long, y=lat))+
+  geom_point(size=0.2)
+
 # run model with thinned data and check for autocorrelation
-gls1.thinned <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.thinned.new)
-dat.thinned.new$gls1.thinned <- residuals(gls1.thinned)
-hist(dat.thinned.new$gls1.thinned)
-residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$gls1.thinned, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-beep()
+lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                  BIOME + log(number_checklists) + elevation, dat.thinned.new)
 
-# test Moran's I
-w <-as.matrix(1/dist(cbind(dat.thinned.new$long, dat.thinned.new$lat))) # make inverse distance matrix - weights things that are close together higher
-?dist
-wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
-# this quickly becomes very large because it is pairwise distances
-moran.test(dat.thinned.new$gls1.thinned, wlist)
-beep()
-# still spatially autocorrelated
+predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
+# looks the same whether sqrt included in model or not
+
+results.plot2 <-
+  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+  theme_bw()+
+  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+  theme(text = element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+  guides(fill = guide_legend(byrow = TRUE))
+results.plot2
 
 
-# what if I add a correlation structure
-glsSpher <- update(gls1.thinned, correlation=csSpher)
-dat.thinned.new$glsSpher <- residuals(glsSpher)
-hist(dat.thinned.new$glsSpher)
-residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$glsSpher, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-beep()
-
-w <-as.matrix(1/dist(cbind(dat.thinned.new$long, dat.thinned.new$lat))) # make inverse distance matrix - weights things that are close together higher
-wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
-# this quickly becomes very large because it is pairwise distances
-moran.test(dat.thinned.new$glsSpher, wlist)
-beep()
-# this is not working for some reason - all the residuals are the same
-
-# try another correlation structure
-glsGaus <- update(gls1.thinned, correlation=csGaus)
-dat.thinned.new$glsGaus <- residuals(glsGaus)
-hist(dat.thinned.new$glsGaus)
-residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$glsGaus, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-beep()
-
-glsExp <- update(gls1.thinned, correlation=csExp)
-dat.thinned.new$glsExp <- residuals(glsExp)
-hist(dat.thinned.new$glsGaus)
-residsI <- spline.correlog(x=dat.thinned.new$long, y=dat.thinned.new$lat, z=dat.thinned.new$glsExp, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-beep()
+dat.thinned.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
+dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+# supplements a neighbors list with spatial weights for the chosen coding scheme
+#?nb2listw
+# Moran's I test
+lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 
 
 # look at variogram with and without correlation structure
-plot(nlme::Variogram(gls1.thinned, form =~lat + long, resType="normalized"))
-plot(nlme::Variogram(glsSpher, form =~lat + long, resType="normalized"))
-AIC(gls1.thinned, glsSpher, glsExp)
+plot(nlme::Variogram(lm.thinned, form =~lat + long, resType="normalized"))
+?nlme:Variogram
 # better with the correlation structure
 beep()
 

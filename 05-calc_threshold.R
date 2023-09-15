@@ -143,7 +143,6 @@ coverage %>% group_by(square) %>% summarise(n=n())
 write.csv(coverage, "thresholding/coverage_top500.csv", row.names=FALSE)
 
 
-
 ###############################
 # Look at coverage threshold
 coverage <- read.csv("thresholding/coverage_top500.csv")
@@ -283,15 +282,16 @@ dat_withbiome <- st_join(dat_cont, biomes_moll[,c("REALM", "BIOME")], left=TRUE,
 # need to convert the points back to lat long
 class(dat_withbiome)
 dat_latlong <- st_transform(dat_withbiome, crs=st_crs(4326))
+latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
+                            lat = sf::st_coordinates(.)[,2])
 
-dat_latlong$elevation <- as.data.frame(get_elev_point(dat_latlong, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
 
-datFINAL <- as.data.frame(st_transform(dat_latlong, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
+datFINAL <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                y = sf::st_coordinates(.)[,2]))
 datFINAL <- datFINAL[,-1]
   
 write_csv(datFINAL, "modeling_data.csv")
-
 
 
 

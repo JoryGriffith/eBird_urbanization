@@ -139,9 +139,9 @@ summer <- read.csv("summer_richness_summary.csv")
 winter <- read.csv("winter_richness_summary.csv")
 # similar number of data points
 
-# extract urbanization values for each
+# extract urbanization values for each ##### Do this later!!!!
 # summer
-GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
 
 summer$x <- xFromCell(GHSL, summer$cell) # extract the coordinates from the cells
 summer$y <- yFromCell(GHSL, summer$cell)

@@ -12,21 +12,22 @@ summer <- read.csv("summer_richness_summary.csv")
 summer_top_cells <- summer %>% slice_max(total_SR, n=500) # find top 500 cells
 unique(summer_top_cells$square)
 
-names <- c("r2c2") # figure out names
+names <- c("r1c1", "r1c2", "r1c3", "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2", "r3c3", "r3c4") # figure out names
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # filter out cells that I want
 for (j in 1:length(names)) {
   
-  top_cell <- top_cells %>% filter(square==names[j])
+  top_cell <- summer_top_cells %>% filter(square==names[j])
   # make list
   datalist = vector("list", length = length(years))
   
   for (i in 1:length(years)) {
-    read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/summer/", names[j], "_", years[i], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
+    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/summer/", names[j], "_", years[i], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
     # filter out cells that are in the top cell
     dat_filt <- dat %>% filter(cell %in% top_cell$cell)
+    dat_filt$cell <- as.integer(dat_filt$cell)
     # add to list
     datalist[[i]] <- dat_filt
   }
@@ -39,6 +40,7 @@ for (j in 1:length(names)) {
   rm(datalist)
   rm(data)
 }
+
 
 #########
 # calculate sample size needed to reach certain coverage
@@ -136,19 +138,19 @@ winter <- read.csv("winter_richness_summary.csv")
 winter_top_cells <- winter %>% slice_max(total_SR, n=500) # find top 500 cells
 unique(winter_top_cells$square)
 
-names <- c("r2c2") # figure out names
+names <- c("r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2", "r3c3") # figure out names
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # filter out cells that I want
 for (j in 1:length(names)) {
   
-  top_cell <- top_cells %>% filter(square==names[j])
+  top_cell <- winter_top_cells %>% filter(square==names[j])
   # make list
   datalist = vector("list", length = length(years))
   
   for (i in 1:length(years)) {
-    read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/winter/", names[j], "_", years[i], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
+    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/winter/", names[j], "_", years[i], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
     # filter out cells that are in the top cell
     dat_filt <- dat %>% filter(cell %in% top_cell$cell)
     # add to list

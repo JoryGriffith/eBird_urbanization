@@ -47,10 +47,10 @@ LDG <- ggplot(dat, aes(x=abs(lat), y=total_SR, color=urban2)) +
   labs(x="Absolute Latitude", y="Species Richness")+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000")) +
   theme_bw() +
-  facet_wrap(~season)# has the expected relationship!
+  facet_wrap(~season) # has the expected relationship!
 
 # Plot data coverage
-dat.wint  <- dat %>% filter(season=="winter") # 20,942
+dat.wint  <- dat %>% filter(season=="winter") 
 plot.wint <-  ggplot(data=world)+
   geom_sf() +
   geom_point(data=dat.wint, aes(x=long, y=lat), color="cornflowerblue", size=0.03) +
@@ -60,7 +60,7 @@ plot.wint <-  ggplot(data=world)+
   theme_bw()
 ggsave(plot.wint, file="winter.coverage.png", height=8, width=6)
 
-dat.sum  <- dat %>% filter(season=="summer") # 16,116
+dat.sum  <- dat %>% filter(season=="summer") 
 plot.sum <-  ggplot(data=world)+
   geom_sf() +
   geom_point(data=dat.sum, aes(x=long, y=lat), color="orange", size=0.03) +
@@ -76,8 +76,7 @@ dat$season <- factor(dat$season, levels = c("winter", "summer"),
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural", "Suburban", "Urban"))
 # model
-mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere +
-                   abslat:hemisphere + BIOME + log(number_checklists), dat)
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere + BIOME + log(number_checklists) + elevation, dat)
 summary(mod1)
 anova(mod1) # triple interaction is significant
 

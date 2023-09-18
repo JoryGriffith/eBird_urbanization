@@ -3,6 +3,7 @@ library(terra)
 library(tidyverse)
 library(sf)
 library(iNEXT)
+library(elevatr)
 
 # here I will calculate the threshold I need seperately for summer and winter months using the iNEXT package
 
@@ -255,4 +256,99 @@ coverage <- dplyr::bind_rows(coverage_list)
 coverage %>% group_by(square) %>% summarise(n=n()) 
 
 write.csv(coverage, "thresholding/winter/winter_coverage_top500.csv", row.names=FALSE)
+
+
+#############################
+### Prepare data for modelling
+sum_threshold <- read.csv("thresholding/summer/summer_coverage_top500.csv")
+
+sum_dat <- read.csv("summer_richness_summary.csv")
+hist(sum_threshold$obs.richness)
+hist(sum_threshold$richness_80)
+hist(sum_threshold$richness_90)
+hist(sum_threshold$richness_95)
+hist(sum_threshold$richness_97)
+hist(sum_threshold$richness_98)
+
+# look at 95th quantile
+quantile(sum_threshold$sampsize_80, 0.95) # 16
+quantile(sum_threshold$sampsize_90, 0.95) # 33
+quantile(sum_threshold$sampsize_95, 0.95) # 62
+quantile(sum_threshold$sampsize_97, 0.95) # 99
+quantile(sum_threshold$sampsize_98, 0.95) # 144
+# they are lower than the full year which is good
+
+### Winter
+wint_threshold <- read.csv("thresholding/winter/winter_coverage_top500.csv")
+
+wint_dat <- read.csv("winter_richness_summary.csv")
+hist(wint_threshold$obs.richness)
+hist(wint_threshold$richness_80)
+hist(wint_threshold$richness_90)
+hist(wint_threshold$richness_95)
+hist(wint_threshold$richness_97)
+hist(wint_threshold$richness_98)
+
+# look at 95th quantile
+quantile(wint_threshold$sampsize_80, 0.95) # 18
+quantile(wint_threshold$sampsize_90, 0.95) # 38
+quantile(wint_threshold$sampsize_95, 0.95) # 73
+quantile(wint_threshold$sampsize_97, 0.95) # 117
+quantile(wint_threshold$sampsize_98, 0.95) # 175
+# they are lower than the full year which is good, but not really that different. Interesting that winter is higher than summer.
+
+# I will threshold them at their respective thresholds (might as well)
+summer_filt95 <- sum_dat %>% filter(number_checklists >= 62) # 26644
+winter_filt95 <- wint_dat %>% filter(number_checklists >= 73) # 28257
+
+## Extract urbanization values for each
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+# Summer
+summer_filt95$x <- xFromCell(GHSL, summer_filt95$cell) # extract the coordinates from the cells
+summer_filt95$y <- yFromCell(GHSL, summer_filt95$cell)
+
+summer_filt95$urban <- as.data.frame(terra::extract(GHSL, summer_filt95[,c(9:10)]))$SMOD_global
+summer_filt95$season <- "summer" # add season
+summer_filt95 <- summer_filt95 %>% filter(!is.na(urban)) # remove NAs for urbanization - 20,611
+# Winter
+winter_filt95$x <- xFromCell(GHSL, winter_filt95$cell) # extract the coordinates from the cells
+winter_filt95$y <- yFromCell(GHSL, winter_filt95$cell)
+
+winter_filt95$urban <- as.data.frame(terra::extract(GHSL, winter_filt95[,c(9:10)]))$SMOD_global
+winter_filt95$season <- "winter" # add season
+winter_filt95 <- winter_filt95 %>% filter(!is.na(urban)) # remove NAs for urbanization - 21,658
+
+## Put them together 
+season_dat <- rbind(summer_filt95, winter_filt95)
+
+## Assign hemisphere
+season_dat <- season_dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
+
+## Add continent
+continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
+continents_moll <- st_transform(continents, crs=crs(GHSL)) 
+
+season_dat_sf <- st_as_sf(season_dat, coords=c("x", "y"), crs=st_crs(GHSL))
+
+dat_cont <- st_join(season_dat_sf, continents_moll[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
+
+## Extract biome
+biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
+biomes_moll <- st_transform(biomes, crs=crs(GHSL)) 
+dat_withbiome <- st_join(dat_cont, biomes_moll[,c("REALM", "BIOME")], left=TRUE, join=st_nearest_feature)
+
+## Extract elevation
+dat_latlong <- st_transform(dat_withbiome, crs=st_crs(4326)) # get lat long coordinates as well for the elevation extraction
+latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
+                                     lat = sf::st_coordinates(.)[,2])
+
+latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+
+datFINAL <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
+                                                                             y = sf::st_coordinates(.)[,2]))
+datFINAL <- datFINAL[,-1]
+
+write_csv(datFINAL, "season_modeling_data.csv")
+
+
 

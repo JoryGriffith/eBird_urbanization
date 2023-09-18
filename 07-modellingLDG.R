@@ -507,14 +507,7 @@ lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 # it's not autocorrelated! 
 
 
-# look at variogram with and without correlation structure
-plot(nlme::Variogram(lm.thinned, form =~lat + long, resType="normalized"))
-?nlme:Variogram
-# better with the correlation structure
-beep()
-
-anova(gls1.thinned)
-anova(glsSpher)
+##### Trying different thinning method
 
 
 

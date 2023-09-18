@@ -440,7 +440,7 @@ dat %>% group_by(CONTINENT) %>% summarise(n=n())
 library(spThin)
 # I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
 # it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
-dat.samp <- dat[sample(nrow(dat), 10000), ]
+dat.samp <- dat[sample(nrow(dat), 33000), ]
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
 lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
                    BIOME + log(number_checklists) + elevation, dat.samp)
@@ -467,7 +467,7 @@ ggplot(moran_I, aes(x = distance, y = moran)) +
   geom_line()
 beep()
 
-dat.thinned <- thin.algorithm(dat.samp[,c(27:28)], thin.par=200, 
+dat.thinned <- thin.algorithm(dat.samp[,c(27:28)], thin.par=100, 
                rep=1) # this spits out a list of lat long points (list length is # of reps), which I then need to merge back with other data
 
 da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
@@ -498,13 +498,13 @@ results.plot2
 
 
 dat.thinned.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
-dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=1000) # calculate distances
 dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
 # supplements a neighbors list with spatial weights for the chosen coding scheme
 #?nb2listw
 # Moran's I test
 lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-
+# it's not autocorrelated! 
 
 
 # look at variogram with and without correlation structure

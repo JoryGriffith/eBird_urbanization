@@ -202,8 +202,8 @@ interact_plot(mod1.abslat, abslat, hemisphere)
 # LOOK AT SPATIAL AUTOCORRELATION
 
 # rerun using gls (same as linear model when no spatial autocorrelation included)
-gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban * quadrant + 
-              BIOME + log(number_checklists), dat)
+gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban * hemisphere + 
+              BIOME + log(number_checklists) + elevation, dat)
 
 anova(gls1) # everything very significant
 
@@ -223,8 +223,7 @@ hist(dat$gls1Resids) # looking very normally distributed, that's good
 # this uses too much memory
 
 # try a different function
-datSPDF <- dat
-dat.sf <- st_as_sf(datSPDF, coords=c("long", "lat")) 
+dat.sf <- st_as_sf(dat, coords=c("long", "lat")) 
 
 plot(gstat::variogram(residuals(gls1, "normalized") ~
                  1, data = dat.sf, cutoff = 100))
@@ -437,56 +436,128 @@ dat %>% group_by(CONTINENT) %>% summarise(n=n())
 # I could try to subsample in just north america and see if that reduces the spatial autocorrelation
 
 # right now there are 70,749 points, lets see if I thinned that to 50,000
-library(spThin)
-# I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
-# it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
-dat.samp <- dat[sample(nrow(dat), 33000), ]
-dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
-lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                   BIOME + log(number_checklists) + elevation, dat.samp)
-dat.samp$residuals <- residuals(lm.samp)
-# Look at distance at which autocorrelation stops so I know how much I need to thin data
-moran_I <- c()
-for (d in seq(1, 200, 20)) {
-  #foreach  (d = seq(0, 200, 10),
-  #                       .combine = 'c') %dopar% {
-  dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
-  dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
-  moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-  moran_I <- c(moran_I, moran$statistic)
-} # THIS TAKES A REALLY LONG TIME
-beep()
-moran_I <- data.frame(moran = moran_I, 
-                      distance = seq(1, 200, 20))
+#library(spThin)
+## I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
+## it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
+#dat.samp <- dat[sample(nrow(dat), 33000), ]
+#dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
+#lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+#                   BIOME + log(number_checklists) + elevation, dat.samp)
+#dat.samp$residuals <- residuals(lm.samp)
+## Look at distance at which autocorrelation stops so I know how much I need to thin data
+#moran_I <- c()
+#for (d in seq(1, 200, 20)) {
+#  #foreach  (d = seq(0, 200, 10),
+#  #                       .combine = 'c') %dopar% {
+#  dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
+#  dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
+#  moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+#  moran_I <- c(moran_I, moran$statistic)
+#} # THIS TAKES A REALLY LONG TIME
+#beep()
+#moran_I <- data.frame(moran = moran_I, 
+#                      distance = seq(1, 200, 20))
+#
+#
+#moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
+#
+#ggplot(moran_I, aes(x = distance, y = moran)) + 
+#  geom_point() +
+#  geom_line()
+#beep()
+#
+#dat.thinned <- thin.algorithm(dat.samp[,c(27:28)], thin.par=100, 
+#               rep=1) # this spits out a list of lat long points (list length is # of reps), which I then need to merge back with other data
+#
+#da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
+#
+#dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
+#
+#ggplot(dat.samp, aes(x=long, y=lat))+
+#  geom_point(size=0.2)
+#
+#ggplot(dat.thinned.new, aes(x=long, y=lat))+
+#  geom_point(size=0.2)
+#
+## run model with thinned data and check for autocorrelation
+#lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+#                  BIOME + log(number_checklists) + elevation, dat.thinned.new)
+#
+#predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
+## looks the same whether sqrt included in model or not
+#
+#results.plot2 <-
+#  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+#       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+#  theme_bw()+
+#  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
+#  theme(text = element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
+#  guides(fill = guide_legend(byrow = TRUE))
+#results.plot2
+#
+#
+#dat.thinned.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
+#dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=1000) # calculate distances
+#dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+## supplements a neighbors list with spatial weights for the chosen coding scheme
+##?nb2listw
+## Moran's I test
+#lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
+## it's not autocorrelated! 
+#
+#
+#gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+#                   BIOME + log(number_checklists) + elevation, dat.thinned.new)
+#
+#
+#plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
+#                        1, data = dat.thinned.sf, cutoff = 100)) # no spatial pattern really, this is good!
+#plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
+#                        1, data = dat.thinned.sf, cutoff = 100, alpha = c(0, 45, 90, 135))) # hmm I am not sure I totally understand this
+#
+#
+#w <-as.matrix(1/dist(cbind(dat$long, dat$lat))) # this is too much for my computer or the lab computer to handle
+##wlist<-mat2listw(w)
+##moran.test(dat$gls1Resids, wlist)
+#
 
 
-moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
 
-ggplot(moran_I, aes(x = distance, y = moran)) + 
-  geom_point() +
-  geom_line()
-beep()
+##### Trying different thinning method #####
+# Create raster grid and overlay and then randomly sample points from the grid
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+nrow(GHSL)
+ncol(GHSL)
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(20000, 20000), extent = spat.extent, crs=crs(GHSL)) # sample grid
 
-dat.thinned <- thin.algorithm(dat.samp[,c(27:28)], thin.par=100, 
-               rep=1) # this spits out a list of lat long points (list length is # of reps), which I then need to merge back with other data
+# assign cell number to each point in my data
+vect <- st_as_sf(dat, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat$cell.subsample<-cellFromXY(sample.grid, xy)
 
-da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
+# randomly sample one point within each cell
+dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
 
-dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
 
-ggplot(dat.samp, aes(x=long, y=lat))+
-  geom_point(size=0.2)
 
-ggplot(dat.thinned.new, aes(x=long, y=lat))+
-  geom_point(size=0.2)
-
-# run model with thinned data and check for autocorrelation
+# run model
 lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                  BIOME + log(number_checklists) + elevation, dat.thinned.new)
+                   BIOME + log(number_checklists) + elevation, dat.thinned)
+dat.thinned$residuals <- residuals(lm.thinned)
+
+dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
+dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+# supplements a neighbors list with spatial weights for the chosen coding scheme
+#?nb2listw
+# Moran's I test
+
+moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
-# looks the same whether sqrt included in model or not
-
+#
 results.plot2 <-
   plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
        show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
@@ -494,21 +565,30 @@ results.plot2 <-
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
   theme(text = element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
+
 results.plot2
 
+summary(lm.thinned)
 
-dat.thinned.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
-dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=1000) # calculate distances
-dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
-# supplements a neighbors list with spatial weights for the chosen coding scheme
-#?nb2listw
-# Moran's I test
-lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-# it's not autocorrelated! 
+plot(lm.thinned)
 
 
-##### Trying different thinning method
 
+###### Start looping model and store results
+thinned.results <- list()
+moransI <- list()
+
+for (i in 1:100){
+  dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     BIOME + log(number_checklists) + elevation, dat.thinned)
+  dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
+  dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+  moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
+  thinned.results[[i]] <- summary(lm.thinned)
+  moransI[[i]] <- 
+}
 
 
 

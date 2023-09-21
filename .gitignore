@@ -48,3 +48,8 @@ thresholding_5km/
 50K_samp_lmmod.rds
 50K_samp_slxmod.rds
 global_unique_species.csv
+._global_unique_species.csv
+global_unique_sp.txt
+unique_sp_dietspec.txt
+unique_sp_habitatbreadth.txt
+._global_unique_sp.txt

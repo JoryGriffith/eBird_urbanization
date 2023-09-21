@@ -7,7 +7,6 @@ library(tidyverse)
 library(nlme)
 library(ncf)
 #library(automap)
-library(spdep)
 library(gstat)
 library(beepr)
 library(jtools)
@@ -80,8 +79,6 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    BIOME + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
 
-mod1.hemisphere.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, dat) # urban, latitude, and hemisphere triple interaction
 
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
                         BIOME + log(number_checklists)+ elevation, dat) # continent and latitude interaction
@@ -929,3 +926,55 @@ ggplot(dat, aes(y=total_SR, x=abslat, color=urban2)) +
   theme(text=element_text(), legend.spacing.y = unit(1, 'cm'))+
   geom_smooth(method="gam")
 # there is not a peak
+
+
+
+
+
+###################################################
+### Calculate prediction interval for my model
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2, dat) 
+
+# creating new data
+abslat <- sample(1:90, 60000, replace=TRUE)
+urban2 <- as.factor(sample(c('Natural', 'Suburban', 'Urban'), 60000, replace=TRUE))
+hemisphere <- sample(c('northern', 'southern'), 60000, replace=TRUE)
+BIOME <- as.factor(sample(1:14, 60000, replace=TRUE))
+number_checklists <- sample(4:11, 60000, replace=TRUE)
+elevation <- sample(-900:4900, 60000, replace=TRUE)
+newdata <- data.frame(lat, urban2, hemisphere, biome, number_checklists, elevation)
+newdata2 <- data.frame(lat, urban2)
+
+prediction_interval <- predict(mod1, newdata=newdata2, interval="prediction")
+
+confidence_interval <- predict(mod1, newdata=newdata2, interval="confidence") # also do confidence to compare
+
+# Try with simpler model of just latitude and urbanization
+
+
+# plot prediction intervals
+prediction_df <- cbind(newdata2, prediction_interval)
+
+ggplot(prediction_df, aes(x=abslat, y=fit))+
+  geom_smooth(method="lm") +
+  geom_line(data = prediction_df, aes(x = abslat, y = lwr), linetype = "dashed", color = "grey") +
+  geom_line(data = prediction_df, aes(x = abslat, y = upr), linetype = "dashed", color = "grey") +
+  facet_wrap(urban2)
+# is it bad that they are so large and overlapping?
+
+# plot confidence intervals
+confidence_df <- cbind(newdata2, confidence_interval)
+
+ggplot(confidence_df, aes(x=abslat, y=fit))+
+  geom_smooth(method="lm") +
+  geom_line(data = confidence_df, aes(x = abslat, y = lwr), linetype = "dashed", color = "grey") +
+  geom_line(data = confidence_df, aes(x = abslat, y = upr), linetype = "dashed", color = "grey") +
+  facet_wrap(urban2)
+# these are sooooo much smaller
+
+## I should try this with my covariates as random effects maybe? 
+# I'm not sure what to do because these are pretty messed up
+
+
+
+

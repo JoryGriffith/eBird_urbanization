@@ -522,7 +522,7 @@ dat %>% group_by(CONTINENT) %>% summarise(n=n())
 
 ##### Trying different thinning method #####
 # Create raster grid and overlay and then randomly sample points from the grid
-GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
 nrow(GHSL)
 ncol(GHSL)
 spat.extent <- ext(GHSL)
@@ -573,20 +573,32 @@ plot(lm.thinned)
 
 ###### Start looping model and store results
 thinned.results <- list()
-moransI <- list()
+predicted <- list()
 
-for (i in 1:100){
+for (i in 1:1000){
   dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
   lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
                      BIOME + log(number_checklists) + elevation, dat.thinned)
-  dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
-  dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
-  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
-  moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
+ # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
+  #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+#  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+ # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
   thinned.results[[i]] <- summary(lm.thinned)
-  moransI[[i]] <- 
+  predicted[[i]] <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
 }
 
+predicted_df <- bind_rows(predicted)
+
+# plot each predicted value as a point and the confidence intervals as lines
+predicted_df <- predicted_df %>% group_by(x, group) %>% mutate(max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+ggplot(predicted_df, aes(x=x, y=predicted, color=group)) +
+  geom_point()+
+  geom_smooth(method="lm") +
+  geom_errorbar(aes(ymin=min.conf.low, ymax=max.conf.high))
+#  geom_point(aes(x=x, y=conf.high), color="grey40")+
+#  geom_point(aes(x=x, y=conf.low), color="grey40")
+# natural is definitely different, suburban and urban look the same
 
 
 ###################################
@@ -942,8 +954,8 @@ hemisphere <- sample(c('northern', 'southern'), 60000, replace=TRUE)
 BIOME <- as.factor(sample(1:14, 60000, replace=TRUE))
 number_checklists <- sample(4:11, 60000, replace=TRUE)
 elevation <- sample(-900:4900, 60000, replace=TRUE)
-newdata <- data.frame(lat, urban2, hemisphere, biome, number_checklists, elevation)
-newdata2 <- data.frame(lat, urban2)
+newdata <- data.frame(abslat, urban2, hemisphere, BIOME, number_checklists, elevation)
+newdata2 <- data.frame(abslat, urban2)
 
 prediction_interval <- predict(mod1, newdata=newdata2, interval="prediction")
 

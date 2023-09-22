@@ -115,9 +115,6 @@ hist(log(sp_habitat$Habitat_breadth_IUCN)) # definitely looks pretty log normal
 
 ggplot(sp_habitat)+
   geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=urban2))
-
-ggplot(sp_habitat)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN, color=urban2)))
 # looks like there could be a pattern here - habitat breadth decreases at 
 # low latitude bins in natural but not urban areas
 
@@ -154,7 +151,7 @@ birds_test %>% group_by(category) %>% count()
 
 # make boxplot of habitat breadth for each latitude bin with habitat breadth and urbanization
 ggplot(birds_test)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
+  geom_boxplot(aes(x=lat_bin, y=Habitat_breadth_IUCN, fill=category))
 
 # run anova
 habitat.aov2 <- aov(Habitat_breadth_IUCN ~ lat_bin * category, data = birds_test)
@@ -171,12 +168,12 @@ sp_diet <- read.table("unique_sp_dietspec.txt", header=T)
 sp_diet %>% group_by(lat_bin) %>% summarise(mean_diet = mean(gini.index))
 # boxplot of specialization
 ggplot(sp_diet)+
-  geom_boxplot(aes(x=lat_bin, y=gini.index))+
-  facet_wrap(~urban2)
+  geom_boxplot(aes(x=lat_bin, y=gini.index, fill=urban2))
+
 # ok they look pretty similar lol
 # anova
 diet.aov <- aov(gini.index ~ lat_bin * urban2, data = sp_diet)
-summary(res.aov) # interaction is significant
+summary(diet.aov) # interaction is significant
 # look at contrasts
 
 ## Group by whether they are found in urban, non-urban, etc.

@@ -4,6 +4,7 @@ library(terra)
 library(taxize)
 library(sf)
 library(terra)
+library(emmeans)
 
 ##### Winter #################
 
@@ -54,58 +55,6 @@ length(unique(winter_unique_sp$SCIENTIFIC.NAME)) # 8,724 species
 write.table(winter_unique_sp, "winter_unique_species.txt", row.names=FALSE)
 
 
-# Merge with trait data
-# Add lat long coordinates to make it easier to bin by latitude
-winter_uniquesp <- read.table("winter_unique_species.txt", header=TRUE)
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
-
-length(unique(winter_uniquesp$SCIENTIFIC.NAME))
-
-
-# add in lat long points to more easily bin by latitude
-dat_latlong <- st_as_sf(winter_uniquesp, coords=c("x", "y"), crs=st_crs(GHSL))
-dat_latlong <- st_transform(dat_latlong, crs=st_crs(4326)) # get lat long coordinates as well for the elevation extraction
-latlong_df <- as.data.frame(dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
-                                                   lat = sf::st_coordinates(.)[,2]))
-
-# bind this with data in other crs
-winter_uniquesp <- cbind(winter_uniquesp, latlong_df[,5:6])
-
-#### Extract urban scores
-winter_uniquesp$urban <- as.data.frame(terra::extract(GHSL, winter_uniquesp[,c(3:4)]))$SMOD_global
-test <- winter_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is good
-# turn urban into 3 categories
-winter_uniquesp <- winter_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
-
-########## Merge with trait data
-habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
-winter_sp_habitat <- merge(winter_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
-length(unique(winter_sp_habitat$SCIENTIFIC.NAME)) # 8,498 species
-
-winter_sp_habitat$abslat <- abs(winter_sp_habitat$lat)
-# Try with habitat data
-winter_sp_habitat <- winter_sp_habitat %>% mutate(lat_bin = cut(abslat, breaks=abs(c(0, 10, 20, 30, 40, 50, 60, 70, 80))))                                             
-# save data with habitat breadth
-write.table(winter_sp_habitat, "winter_habitatbreadth.txt", row.names=F)
-
-######## Diet data 
-diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
-winter_sp_diet <- merge(winter_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
-length(unique(winter_sp_diet$SCIENTIFIC.NAME)) # 6,904 species
-
-# Bin latitude by 10 degrees
-winter_sp_diet$abslat <- abs(winter_sp_diet$lat)
-winter_sp_diet <- sp_diet %>% mutate(lat_bin = cut(abslat, breaks=c(0, 10, 20, 30, 40, 50, 60, 70, 80)))
-# save data with diet
-write.table(winter_sp_diet, "winter_dietspec.txt", row.names=F)
-
-
-
-
-
-
-
-
 
 
 
@@ -149,49 +98,192 @@ write.table(summer_unique_sp, "summer_unique_species.txt", row.names=FALSE)
 ##########################
 
 # Merge with trait data
-# Add lat long coordinates to make it easier to bin by latitude
+# Combine summer and winter dataframes
+winter_uniquesp <- read.table("winter_unique_species.txt", header=TRUE)
+winter_uniquesp$season <- "winter"
 summer_uniquesp <- read.table("summer_unique_species.txt", header=TRUE)
+summer_uniquesp$season <- "summer"
+# merge
+
+season_uniquesp <- rbind(winter_uniquesp, summer_uniquesp)
+
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
 
-length(unique(summer_uniquesp$SCIENTIFIC.NAME))
+length(unique(season_uniquesp$SCIENTIFIC.NAME)) #9373 species
 
 
 # add in lat long points to more easily bin by latitude
-dat_latlong <- st_as_sf(summer_uniquesp, coords=c("x", "y"), crs=st_crs(GHSL))
+dat_latlong <- st_as_sf(season_uniquesp, coords=c("x", "y"), crs=st_crs(GHSL))
 dat_latlong <- st_transform(dat_latlong, crs=st_crs(4326)) # get lat long coordinates as well for the elevation extraction
 latlong_df <- as.data.frame(dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                                    lat = sf::st_coordinates(.)[,2]))
 
 # bind this with data in other crs
-summer_uniquesp <- cbind(summer_uniquesp, latlong_df[,5:6])
+season_uniquesp <- cbind(season_uniquesp, latlong_df[,6:7])
 
 #### Extract urban scores
-summer_uniquesp$urban <- as.data.frame(terra::extract(GHSL, summer_uniquesp[,c(3:4)]))$SMOD_global
-test <- summer_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is good
+season_uniquesp$urban <- as.data.frame(terra::extract(GHSL, season_uniquesp[,c(3:4)]))$SMOD_global
+test <- season_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is good
 # turn urban into 3 categories
-summer_uniquesp <- summer_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
+season_uniquesp <- season_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
 
 ########## Merge with trait data
 habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
-summer_sp_habitat <- merge(summer_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
-length(unique(summer_sp_habitat$SCIENTIFIC.NAME)) # 8,498 species
+season_sp_habitat <- merge(season_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
+length(unique(season_sp_habitat$SCIENTIFIC.NAME)) # 8,498 species
 
-summer_sp_habitat$abslat <- abs(summer_sp_habitat$lat)
+season_sp_habitat$abslat <- abs(season_sp_habitat$lat)
 # Try with habitat data
-summer_sp_habitat <- summer_sp_habitat %>% mutate(lat_bin = cut(abslat, breaks=abs(c(0, 10, 20, 30, 40, 50, 60, 70, 80))))                                             
+season_sp_habitat <- season_sp_habitat %>% mutate(lat_bin = cut(abslat, breaks=abs(c(0, 10, 20, 30, 40, 50, 60, 70, 80))))                                             
 # save data with habitat breadth
-write.table(summer_sp_habitat, "summer_habitatbreadth.txt", row.names=F)
+write.table(season_sp_habitat, "season_habitatbreadth.txt", row.names=F)
 
 ######## Diet data 
 diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
-summer_sp_diet <- merge(summer_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
-length(unique(summer_sp_diet$SCIENTIFIC.NAME)) # 6,904 species
+season_sp_diet <- merge(season_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
+length(unique(season_sp_diet$SCIENTIFIC.NAME)) # 6,904 species
 
 # Bin latitude by 10 degrees
-summer_sp_diet$abslat <- abs(summer_sp_diet$lat)
-summer_sp_diet <- sp_diet %>% mutate(lat_bin = cut(abslat, breaks=c(0, 10, 20, 30, 40, 50, 60, 70, 80)))
+season_sp_diet$abslat <- abs(season_sp_diet$lat)
+season_sp_diet <- season_sp_diet %>% mutate(lat_bin = cut(abslat, breaks=c(0, 10, 20, 30, 40, 50, 60, 70, 80)))
 # save data with diet
-write.table(summer_sp_diet, "summer_dietspec.txt", row.names=F)
+write.table(season_sp_diet, "season_dietspec.txt", row.names=F)
+
+
+############################################
+
+#### Modeling winter habitat
+winter_sp_habitat <- read.table("season_habitatbreadth.txt", header=TRUE) %>% filter(season=="winter")
+
+# Plot of habitat breadth and urbanization by latitude bin
+ggplot(winter_sp_habitat)+
+  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=urban2))
+
+# Divide into urban only, both, and natural only
+winter_categories <- winter_sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+winter_categories <- winter_categories %>% replace(is.na(.), 0)
+
+winter_categories$category <- NA
+# to make it simpler I will take out surburban for now
+for (i in 1:nrow(winter_categories)){
+  if (winter_categories$natural[i] > 0 & winter_categories$urban[i] > 0) {
+    winter_categories$category[i] <- "both"
+  }
+  else if (winter_categories$natural[i] > 0 & winter_categories$urban[i] == 0) {
+    winter_categories$category[i] <- "natural.only"
+  }
+  else if (winter_categories$natural[i] == 0 & winter_categories$urban[i] > 0) {
+    winter_categories$category[i] <- "urban.only"
+  }
+}
+
+# make boxplot
+ggplot(winter_categories)+
+  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
+
+#### Try binning by larger categories
+winter_sp_habitat <- winter_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
+
+winter_zones <- winter_sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+winter_zones <- winter_zones %>% replace(is.na(.), 0)
+
+winter_zones$category <- NA
+# to make it simpler I will take out surburban for now
+for (i in 1:nrow(winter_zones)){
+  if (winter_zones$natural[i] > 0 & winter_zones$urban[i] > 0) {
+    winter_zones$category[i] <- "both"
+  }
+  else if (winter_zones$natural[i] > 0 & winter_zones$urban[i] == 0) {
+    winter_zones$category[i] <- "natural.only"
+  }
+  else if (winter_zones$natural[i] == 0 & winter_zones$urban[i] > 0) {
+    winter_zones$category[i] <- "urban.only"
+  }
+}
+
+
+ggplot(winter_zones)+
+  geom_boxplot(aes(x=zone_bin, y=log(Habitat_breadth_IUCN), fill=category))
+
+# run an anova
+winter.habitat.aov <- aov(Habitat_breadth_IUCN ~ zone_bin * category, data = winter_zones)
+emmeans.results <- emmeans(winter.habitat.aov, specs="category", by="zone_bin")
+plot(emmeans.results)
+
+
+
+
+########## Modelling summer habitat
+summer_sp_habitat <- read.table("season_habitatbreadth.txt", header=TRUE) %>% filter(season=="summer")
+
+# Plot of habitat breadth and urbanization by latitude bin
+ggplot(summer_sp_habitat)+
+  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=urban2))
+
+# Divide into urban only, both, and natural only
+summer_categories <- summer_sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+summer_categories <- summer_categories %>% replace(is.na(.), 0)
+
+summer_categories$category <- NA
+# to make it simpler I will take out surburban for now
+for (i in 1:nrow(summer_categories)){
+  if (summer_categories$natural[i] > 0 & summer_categories$urban[i] > 0) {
+    summer_categories$category[i] <- "both"
+  }
+  else if (summer_categories$natural[i] > 0 & summer_categories$urban[i] == 0) {
+    summer_categories$category[i] <- "natural.only"
+  }
+  else if (summer_categories$natural[i] == 0 & summer_categories$urban[i] > 0) {
+    summer_categories$category[i] <- "urban.only"
+  }
+}
+
+# make boxplot
+ggplot(summer_categories)+
+  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
+
+#### Try binning by larger categories
+summer_sp_habitat <- summer_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
+
+summer_zones <- summer_sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+summer_zones <- summer_zones %>% replace(is.na(.), 0)
+
+summer_zones$category <- NA
+# to make it simpler I will take out surburban for now
+for (i in 1:nrow(summer_zones)){
+  if (summer_zones$natural[i] > 0 & summer_zones$urban[i] > 0) {
+    summer_zones$category[i] <- "both"
+  }
+  else if (summer_zones$natural[i] > 0 & summer_zones$urban[i] == 0) {
+    summer_zones$category[i] <- "natural.only"
+  }
+  else if (summer_zones$natural[i] == 0 & summer_zones$urban[i] > 0) {
+    summer_zones$category[i] <- "urban.only"
+  }
+}
+
+
+ggplot(summer_zones)+
+  geom_boxplot(aes(x=zone_bin, y=log(Habitat_breadth_IUCN), fill=category))
+
+# run an anova
+summer.habitat.aov <- aov(Habitat_breadth_IUCN ~ zone_bin * category, data = summer_zones)
+emmeans.results <- emmeans(summer.habitat.aov, specs="category", by="zone_bin")
+plot(emmeans.results)
+#### Looks pretty similar to winter and overall
+
+
+### Would be interesting to see if there is a difference between habitat breadth of species in winter and summer in the same vaetgory
+
+
+
+
 
 
 

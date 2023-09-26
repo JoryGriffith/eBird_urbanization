@@ -55,3 +55,6 @@ unique_sp_habitatbreadth.txt
 ._global_unique_sp.txt
 summer_unique_species.txt
 winter_unique_species.txt
+season_dietspec.txt
+season_habitatbreadth.txt
+winter_habitatbreadth.txt

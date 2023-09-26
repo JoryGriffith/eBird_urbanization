@@ -105,7 +105,7 @@ write.table(sp_diet, "unique_sp_dietspec.txt", row.names=F)
 
 
 
-##############################
+###########################################
 
 ## Habitat data
 sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T)
@@ -154,12 +154,42 @@ ggplot(birds_test)+
   geom_boxplot(aes(x=lat_bin, y=Habitat_breadth_IUCN, fill=category))
 
 # run anova
-habitat.aov2 <- aov(Habitat_breadth_IUCN ~ lat_bin * category, data = birds_test)
-summary(habitat.aov2)
+habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * category, data = birds_zones)
+summary(habitat.aov3)
 
 library(emmeans)
-TukeyHSD(habitat.aov2)
-?TukeyHSD
+emmeans.results <- emmeans(habitat.aov3, specs="category", by="zone_bin")
+plot(emmeans.results)
+# same pattern!! This is exciting
+
+
+##### Bin by larger groupings
+sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
+
+birds_zones <- sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+birds_zones <- birds_zones %>% replace(is.na(.), 0)
+
+birds_zones$category <- NA
+# to make it simpler I will take out surburban for now
+for (i in 1:nrow(birds_zones)){
+  if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
+    birds_zones$category[i] <- "both"
+  }
+  else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
+    birds_zones$category[i] <- "natural.only"
+  }
+  else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0) {
+    birds_zones$category[i] <- "urban.only"
+  }
+}
+
+
+ggplot(birds_zones)+
+  geom_boxplot(aes(x=zone_bin, y=Habitat_breadth_IUCN, fill=category))
+
+
 
 ###########################################
 ### Diet specialization

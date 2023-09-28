@@ -112,8 +112,8 @@ write.table(sp_diet, "unique_sp_dietspec.txt", row.names=F)
 
 
 
-## Habitat data 
-sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T)
+## Habitat data, filter out NAs for habitat
+sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T) %>% filter(!is.na(Habitat_breadth_IUCN))
 # see if there are more specialists at low latitudes
 # boxplot of habitat specialization
 hist(log(sp_habitat$Habitat_breadth_IUCN)) # definitely looks pretty log normal
@@ -137,7 +137,7 @@ plot(emmeans.results1)
 # anova
 habitat.aov <- aov(Habitat_breadth_IUCN ~ lat_bin * urban2, data = sp_habitat)
 summary(habitat.aov)
-plot(habitat.aov)
+#plot(habitat.aov)
 # there does seem to be a significant difference
 emmeans.results1 <- emmeans(habitat.aov, specs="urban2", by="lat_bin")
 plot(emmeans.results1) # wow this is super interesting too! The difference definitely decreases
@@ -153,10 +153,10 @@ birds_test$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(birds_test)){
   if (birds_test$natural[i] >= 0 & birds_test$urban[i] > 0) {
-    birds_test$category[i] <- "urban"
+    birds_test$category[i] <- "in.urban"
   }
   else if (birds_test$natural[i] > 0 & birds_test$urban[i] == 0) {
-    birds_test$category[i] <- "natural.only"
+    birds_test$category[i] <- "not.in.urban"
 }
 }
 
@@ -177,7 +177,7 @@ plot(emmeans.results2)
 
 
 ##### Bin by larger groupings
-sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
+sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
 
 # run anova on the raw habitat breadth with these larger zones
 habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * urban2, data = sp_habitat)
@@ -196,24 +196,25 @@ birds_zones$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(birds_zones)){
   if (birds_zones$natural[i] >= 0 & birds_zones$urban[i] > 0) {
-    birds_zones$category[i] <- "urban"
+    birds_zones$category[i] <- "in.urban"
   }
   else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
-    birds_zones$category[i] <- "lost.in.urban"
+    birds_zones$category[i] <- "not.in.urban"
   }
+#  else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0) {
+ #   birds_zones$category[i] <- "urban.only"
+  #}
 }
 
 habitat.aov4 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = birds_zones)
 summary(habitat.aov4)
 
 emmeans.results4 <- emmeans(habitat.aov4, specs="category", by="zone_bin")
-plot(emmeans.results4)
-
+plot(emmeans.results4) # now that I fixed that error there is a significant interaction
 # Plot of richness of different categories
-richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
-ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
-  geom_bar(position="stack", stat="identity")
+
 # this is exactly what I was trying to show! Didn't know it would be so clear
+# when I add in urban only it doesn't really change anything because there are so few species that are urban only
 
 # Make ridgeline plot
 # Jenn asked me to do this but it is not telling that much to be honest
@@ -222,8 +223,26 @@ ggplot(birds_zones, aes(y = zone_bin, x = Habitat_breadth_IUCN, fill = category)
   geom_density_ridges() +
   theme_ridges() 
 
+ggplot(birds_zones, aes(y = zone_bin, x = log(Habitat_breadth_IUCN), fill = category)) +
+  geom_violin() +
+  theme_ridges() 
 
 
+### Plot emmeans using ggplot
+emmeans.df <- as.data.frame(emmeans.results4)
+ggplot(emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
+  geom_point(size=2)+
+  geom_line(size=0.5)+
+  scale_color_manual(labels=c('In Urban', 'Not in Urban'), values=c("#000000","#009E73"))+
+  labs(y="Log habitat breadth")+
+  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
+  theme_bw()+
+  theme(axis.title.x=element_blank(), legend.title=element_blank())
+
+richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
+ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('In Urban', 'Not in Urban'), values=c("#000000","#009E73"))+
+  geom_bar(position="stack", stat="identity")
 
 ###########################################
 
@@ -280,7 +299,8 @@ plot(emmeans.results2)
 
 ####### Bin by larger categories
 
-sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
+sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("tropical", "subtropical", "temperate", "arctic")))
+?cut
 
 # run anova on the raw habitat breadth with these larger zones
 diet.aov3 <- aov(gini.index ~ zone_bin * urban2, data = sp_diet)
@@ -299,30 +319,39 @@ diet_zones$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(diet_zones)){
   if (diet_zones$natural[i] >= 0 & diet_zones$urban[i] > 0) {
-    diet_zones$category[i] <- "urban"
+    diet_zones$category[i] <- "in urban"
   }
   else if (diet_zones$natural[i] > 0 & diet_zones$urban[i] == 0) {
-    diet_zones$category[i] <- "natural.only"
+    diet_zones$category[i] <- "not in urban"
   }
 }
 
+
+unique(diet_zones$zone_bin)
 diet.aov4 <- aov(gini.index ~ zone_bin * category, data = diet_zones)
 summary(diet.aov4)
 
 emmeans.results4 <- emmeans(diet.aov4, specs="category", by="zone_bin")
 plot(emmeans.results4)
 
+##### Stacked bar plot of overall species loss
+richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
+ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
+  geom_bar(position="stack", stat="identity") + # higher proportion of species being lost at the equator
+labs(y="richness")
+
+library(ggridges)
+ggplot(diet_zones, aes(y = zone_bin, x = gini.index, fill = category)) +
+  geom_density_ridges() +
+  theme_ridges() 
+
+ggplot(diet_zones, aes(y = zone_bin, x = gini.index, fill = category)) +
+  geom_violin() +
+  theme_ridges()
 
 
 
 
-###########################
-# Change databases so that generalist and specialist are discrete so I can merge it with other data and plot
-habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
-hist(habitat$Habitat_breadth_IUCN)
-
-
-# Let's say everything under 4 is a specialist (this is completely arbitrary)
 
 
 

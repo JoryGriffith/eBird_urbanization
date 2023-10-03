@@ -5,6 +5,9 @@ library(taxize)
 library(sf)
 library(terra)
 library(emmeans)
+library(ggpubr)
+library(grid)
+library(cowplot)
 ## First I want to thin the data so that for each cell, there is only one row for each species 
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
@@ -129,9 +132,6 @@ ggplot(sp_habitat)+
 habitat.aov <- aov(Habitat_breadth_IUCN ~ lat_bin, data = sp_habitat)
 summary(habitat.aov)
 # there does seem to be a significant difference
-library(emmeans)
-emmeans.results1 <- emmeans(habitat.aov, specs="lat_bin")
-plot(emmeans.results1)
 
 
 # anova
@@ -139,8 +139,8 @@ habitat.aov <- aov(Habitat_breadth_IUCN ~ lat_bin * urban2, data = sp_habitat)
 summary(habitat.aov)
 #plot(habitat.aov)
 # there does seem to be a significant difference
-emmeans.results1 <- emmeans(habitat.aov, specs="urban2", by="lat_bin")
-plot(emmeans.results1) # wow this is super interesting too! The difference definitely decreases
+emmeans.habitat1 <- emmeans(habitat.aov, specs="urban2", by="lat_bin")
+plot(emmeans.habitat1) # wow this is super interesting too! The difference definitely decreases
 
 ## Do a big grouping by species and latitude bin and label by both urban and non-urban, just urban, or just non-urban
 # to make it simpler I will take out suburban for now
@@ -171,8 +171,8 @@ ggplot(birds_test)+
 habitat.aov2 <- aov(Habitat_breadth_IUCN ~ lat_bin * category, data = birds_test)
 summary(habitat.aov2)
 
-emmeans.results2 <- emmeans(habitat.aov2, specs="category", by="lat_bin")
-plot(emmeans.results2)
+emmeans.habitat2 <- emmeans(habitat.aov2, specs="category", by="lat_bin")
+plot(emmeans.habitat2)
 # this is super cool!
 
 
@@ -183,8 +183,8 @@ sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621,
 habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * urban2, data = sp_habitat)
 summary(habitat.aov3) # significant interaction
 
-emmeans.results3 <- emmeans(habitat.aov3, specs="urban2", by="zone_bin")
-plot(emmeans.results3)
+emmeans.habitat3 <- emmeans(habitat.aov3, specs="urban2", by="zone_bin")
+plot(emmeans.habitat3)
 # the difference is way larger in the tropics!
 
 birds_zones <- sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
@@ -209,8 +209,8 @@ for (i in 1:nrow(birds_zones)){
 habitat.aov4 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = birds_zones)
 summary(habitat.aov4)
 
-emmeans.results4 <- emmeans(habitat.aov4, specs="category", by="zone_bin")
-plot(emmeans.results4) # now that I fixed that error there is a significant interaction
+emmeans.habitat4 <- emmeans(habitat.aov4, specs="category", by="zone_bin")
+plot(emmeans.habitat4) # now that I fixed that error there is a significant interaction
 # Plot of richness of different categories
 
 # this is exactly what I was trying to show! Didn't know it would be so clear
@@ -227,22 +227,55 @@ ggplot(birds_zones, aes(y = zone_bin, x = log(Habitat_breadth_IUCN), fill = cate
   geom_violin() +
   theme_ridges() 
 
+# Stacked bar plot of birds in urban and not in urban
+richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
+
+habitat_bar <- ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('In Urban', 'Not in urban'), values=c("black","deepskyblue3"))+
+  labs(y="Number of Species")+
+#  coord_flip()+
+  geom_bar(position="dodge", stat="identity")+
+  theme_bw()+
+  theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
+        legend.justification = c("right", "bottom"),
+       legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6))
+habitat_bar
+#  theme(axis.title.x=element_blank(), legend.position="none")
 
 ### Plot emmeans using ggplot
-emmeans.df <- as.data.frame(emmeans.results4)
-ggplot(emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
+emmeans.df.habitat <- as.data.frame(emmeans.habitat4)
+
+
+habitat_point <-ggplot(emmeans.df.habitat, aes(x=zone_bin, y=emmean, group=category, color=category))+
   geom_point(size=2)+
   geom_line(size=0.5)+
-  scale_color_manual(labels=c('In Urban', 'Not in Urban'), values=c("#000000","#009E73"))+
+  scale_color_manual(labels=c('In Urban', 'Not in urban'), values=c("black","deepskyblue3"))+
   labs(y="Log habitat breadth")+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
+  annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
+  annotate("text", x=0.7, y=1.4, label="Specialist", angle=90)+
+  annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+  coord_cartesian(clip = "off")+
   theme_bw()+
-  theme(axis.title.x=element_blank(), legend.title=element_blank())
+  theme(axis.title.x=element_blank(), legend.position="none")
+habitat_point
+ # theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .1),
+  #      legend.justification = c("right", "bottom"),
+   #     legend.box.just = "right",
+    #    legend.margin = margin(6, 6, 6, 6))
 
-richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
-ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('In Urban', 'Not in Urban'), values=c("#000000","#009E73"))+
-  geom_bar(position="stack", stat="identity")
+habitat_plot <- ggarrange(habitat_bar, habitat_point, ncol=1)
+habitat_plot
+ggsave(habitat_plot, file="pecialistHabitatResults.png")
+# Try it as an inset
+#ggdraw(habitat_point)+
+#  draw_plot({habitat_bar}, width=0.4, height=0.4, x=0.58, y=0.05)
+
+
 
 ###########################################
 
@@ -250,8 +283,10 @@ ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) +
 
 
 
+
+
 ### Diet specialization
-sp_diet <- read.table("unique_sp_dietspec.txt", header=T)
+sp_diet <- read.table("unique_sp_dietspec.txt", header=T) %>% filter(!is.na(gini.index))
 # see if there are more specialists at low latitudes
 sp_diet %>% group_by(lat_bin) %>% summarise(mean_diet = mean(gini.index))
 # boxplot of specialization
@@ -264,8 +299,8 @@ diet.aov1 <- aov(gini.index ~ lat_bin * urban2, data = sp_diet)
 summary(diet.aov1) # interaction is significant
 # look at contrasts
 
-emmeans.results1 <- emmeans(diet.aov1, specs="urban2", by="lat_bin")
-plot(emmeans.results1)
+emmeans.diet1 <- emmeans(diet.aov1, specs="urban2", by="lat_bin")
+plot(emmeans.diet1)
 
 
 ## Group by whether they are found in urban, non-urban, etc.
@@ -293,21 +328,21 @@ diet.aov2 <- aov(gini.index ~ lat_bin * category, data = birds_diet)
 summary(diet.aov2) # interaction is not significant
 # look at contrasts
 
-emmeans.results2 <- emmeans(diet.aov2, specs="category", by="lat_bin")
-plot(emmeans.results2)
+emmeans.diet2 <- emmeans(diet.aov2, specs="category", by="lat_bin")
+plot(emmeans.diet2)
 
 
 ####### Bin by larger categories
 
-sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("tropical", "subtropical", "temperate", "arctic")))
-?cut
+sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+
 
 # run anova on the raw habitat breadth with these larger zones
 diet.aov3 <- aov(gini.index ~ zone_bin * urban2, data = sp_diet)
 summary(diet.aov3) # significant interaction
 
-emmeans.results3 <- emmeans(diet.aov3, specs="urban2", by="zone_bin")
-plot(emmeans.results3)
+emmeans.diet3 <- emmeans(diet.aov3, specs="urban2", by="zone_bin")
+plot(emmeans.diet3)
 # the difference is way larger in the tropics!
 
 diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index) %>% count(.drop=FALSE) %>% 
@@ -331,8 +366,8 @@ unique(diet_zones$zone_bin)
 diet.aov4 <- aov(gini.index ~ zone_bin * category, data = diet_zones)
 summary(diet.aov4)
 
-emmeans.results4 <- emmeans(diet.aov4, specs="category", by="zone_bin")
-plot(emmeans.results4)
+emmeans.diet4 <- emmeans(diet.aov4, specs="category", by="zone_bin")
+plot(emmeans.diet4)
 
 ##### Stacked bar plot of overall species loss
 richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
@@ -349,9 +384,42 @@ ggplot(diet_zones, aes(y = zone_bin, x = gini.index, fill = category)) +
   geom_violin() +
   theme_ridges()
 
+#####
+
+richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
+diet_bar <-ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  geom_bar(position="dodge", stat="identity")+
+  labs(y="Number of Species")+
+#  coord_flip()+
+  theme_bw()+
+#  theme(axis.title.x=element_blank(), legend.position="none")
+  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.text=element_text(size=15), legend.position = c(.95, .75),
+        legend.justification = c("right", "bottom"),
+        legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6))
 
 
+emmeans.df.diet <- as.data.frame(emmeans.diet4)
+diet_point <- ggplot(emmeans.df.diet, aes(x=zone_bin, y=emmean, group=category, color=category))+
+  geom_point(size=2)+
+  geom_line(linewidth=0.5)+
+  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  labs(y="Diet specialization")+
+  scale_y_reverse()+
+  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
+  annotate("text", x=0.7, y=0.86, label="Generalist", angle=90)+
+  annotate("text", x=0.7, y=0.915, label="Specialist", angle=90)+
+  annotate("segment", x = 0.7, y = 0.835, xend = 0.7, yend = 0.845, size=0.5,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+  annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  theme_bw()+
+  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.position="none")
+# annotations not showing up for some reason rip
 
+
+ggarrange(habitat_bar, diet_bar, habitat_point, diet_point)
 
 
 

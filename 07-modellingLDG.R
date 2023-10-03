@@ -111,10 +111,11 @@ results.plot <-
        show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
   theme_bw()+
   labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-  guides(fill = guide_legend(byrow = TRUE))
+  theme(text=element_text(size=15), legend.spacing.y = unit(1, 'cm'), legend.title=element_blank())
 results.plot
 # same results ! This is good
+# save results plot
+ggsave(results.plot, file="LDGMainResults.png", height=5, width=8)
 
 
 summary(mod1.trans)

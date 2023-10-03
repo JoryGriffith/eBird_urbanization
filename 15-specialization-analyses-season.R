@@ -152,140 +152,92 @@ write.table(season_sp_diet, "season_dietspec.txt", row.names=F)
 
 ############################################
 
-#### Modeling winter habitat
-winter_sp_habitat <- read.table("season_habitatbreadth.txt", header=TRUE) %>% filter(season=="winter")
+
+
+
+########## Modelling season habitat
+season_sp_habitat <- read.table("season_habitatbreadth.txt", header=TRUE) %>% filter(!is.na(Habitat_breadth_IUCN))
 
 # Plot of habitat breadth and urbanization by latitude bin
-ggplot(winter_sp_habitat)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=urban2))
 
 # Divide into urban only, both, and natural only
-winter_categories <- winter_sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
-  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
-winter_categories <- winter_categories %>% replace(is.na(.), 0)
+#summer_categories <- summer_sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+ # filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+#summer_categories <- summer_categories %>% replace(is.na(.), 0)
 
-winter_categories$category <- NA
+#summer_categories$category <- NA
 # to make it simpler I will take out surburban for now
-for (i in 1:nrow(winter_categories)){
-  if (winter_categories$natural[i] > 0 & winter_categories$urban[i] > 0) {
-    winter_categories$category[i] <- "both"
-  }
-  else if (winter_categories$natural[i] > 0 & winter_categories$urban[i] == 0) {
-    winter_categories$category[i] <- "natural.only"
-  }
-  else if (winter_categories$natural[i] == 0 & winter_categories$urban[i] > 0) {
-    winter_categories$category[i] <- "urban.only"
-  }
-}
+#for (i in 1:nrow(summer_categories)){
+ # if (summer_categories$natural[i] > 0 & summer_categories$urban[i] > 0) {
+#    summer_categories$category[i] <- "both"
+ # }
+#  else if (summer_categories$natural[i] > 0 & summer_categories$urban[i] == 0) {
+ #   summer_categories$category[i] <- "natural.only"
+#  }
+ # else if (summer_categories$natural[i] == 0 & summer_categories$urban[i] > 0) {
+#    summer_categories$category[i] <- "urban.only"
+ # }
+#}
 
 # make boxplot
-ggplot(winter_categories)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
+#ggplot(summer_categories)+
+ # geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
 
 #### Try binning by larger categories
-winter_sp_habitat <- winter_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
+season_sp_habitat <- season_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
 
-winter_zones <- winter_sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+season_zones <- season_sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN, season) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
 
-winter_zones <- winter_zones %>% replace(is.na(.), 0)
+season_zones <- season_zones %>% replace(is.na(.), 0)
 
-winter_zones$category <- NA
+season_zones$category <- NA
 # to make it simpler I will take out surburban for now
-for (i in 1:nrow(winter_zones)){
-  if (winter_zones$natural[i] > 0 & winter_zones$urban[i] > 0) {
-    winter_zones$category[i] <- "both"
+for (i in 1:nrow(season_zones)){
+  if (season_zones$natural[i] >= 0 & season_zones$urban[i] > 0) {
+    season_zones$category[i] <- "In urban"
   }
-  else if (winter_zones$natural[i] > 0 & winter_zones$urban[i] == 0) {
-    winter_zones$category[i] <- "natural.only"
+  else if (season_zones$natural[i] > 0 & season_zones$urban[i] == 0) {
+    season_zones$category[i] <- "Not in urban"
   }
-  else if (winter_zones$natural[i] == 0 & winter_zones$urban[i] > 0) {
-    winter_zones$category[i] <- "urban.only"
-  }
+ # else if (season_zones$natural[i] == 0 & season_zones$urban[i] > 0) {
+  #  season_zones$category[i] <- "urban.only"
+  #}
 }
 
 
-ggplot(winter_zones)+
+ggplot(season_zones)+
   geom_boxplot(aes(x=zone_bin, y=log(Habitat_breadth_IUCN), fill=category))
 
 # run an anova
-winter.habitat.aov <- aov(Habitat_breadth_IUCN ~ zone_bin * category, data = winter_zones)
-emmeans.results <- emmeans(winter.habitat.aov, specs="category", by="zone_bin")
-plot(emmeans.results)
-
-
-
-
-########## Modelling summer habitat
-summer_sp_habitat <- read.table("season_habitatbreadth.txt", header=TRUE) %>% filter(season=="summer")
-
-# Plot of habitat breadth and urbanization by latitude bin
-ggplot(summer_sp_habitat)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=urban2))
-
-# Divide into urban only, both, and natural only
-summer_categories <- summer_sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
-  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
-summer_categories <- summer_categories %>% replace(is.na(.), 0)
-
-summer_categories$category <- NA
-# to make it simpler I will take out surburban for now
-for (i in 1:nrow(summer_categories)){
-  if (summer_categories$natural[i] > 0 & summer_categories$urban[i] > 0) {
-    summer_categories$category[i] <- "both"
-  }
-  else if (summer_categories$natural[i] > 0 & summer_categories$urban[i] == 0) {
-    summer_categories$category[i] <- "natural.only"
-  }
-  else if (summer_categories$natural[i] == 0 & summer_categories$urban[i] > 0) {
-    summer_categories$category[i] <- "urban.only"
-  }
-}
-
-# make boxplot
-ggplot(summer_categories)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
-
-#### Try binning by larger categories
-summer_sp_habitat <- summer_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90)))
-
-summer_zones <- summer_sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
-  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
-
-summer_zones <- summer_zones %>% replace(is.na(.), 0)
-
-summer_zones$category <- NA
-# to make it simpler I will take out surburban for now
-for (i in 1:nrow(summer_zones)){
-  if (summer_zones$natural[i] > 0 & summer_zones$urban[i] > 0) {
-    summer_zones$category[i] <- "both"
-  }
-  else if (summer_zones$natural[i] > 0 & summer_zones$urban[i] == 0) {
-    summer_zones$category[i] <- "natural.only"
-  }
-  else if (summer_zones$natural[i] == 0 & summer_zones$urban[i] > 0) {
-    summer_zones$category[i] <- "urban.only"
-  }
-}
-
-
-ggplot(summer_zones)+
-  geom_boxplot(aes(x=zone_bin, y=log(Habitat_breadth_IUCN), fill=category))
-
-# run an anova
-summer.habitat.aov <- aov(Habitat_breadth_IUCN ~ zone_bin * category, data = summer_zones)
-emmeans.results <- emmeans(summer.habitat.aov, specs="category", by="zone_bin")
+season.habitat.aov <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category * season, data = season_zones)
+summary(season.habitat.aov)
+emmeans.results <- emmeans(season.habitat.aov, specs=c("season", "category"), by="zone_bin", facet=TRUE)
 plot(emmeans.results)
 #### Looks pretty similar to winter and overall
 
+richness_category <- season_zones %>% group_by(zone_bin, category, season) %>% count()
+season_bar <-ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  geom_bar(position="dodge", stat="identity")+
+  labs(y="Number of Species")+
+  #  coord_flip()+
+  theme_bw()+
+  facet_wrap(~season)
+season_bar
 
-### Would be interesting to see if there is a difference between habitat breadth of species in winter and summer in the same vaetgory
+# Plot of habitat breadth means
+season.emmeans.df <- as.data.frame(emmeans.results)
 
-
-
-
-
-
+ggplot(season.emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
+  geom_point(size=2)+
+  geom_line(linewidth=0.5)+
+  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
+  facet_wrap(~season)+
+  theme_bw()
+# specialization measures for urban and not urban are the same for summer and winter
+# difference between specialization are definitely decreasing with latitude
 
 
 

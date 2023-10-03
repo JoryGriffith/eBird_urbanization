@@ -46,6 +46,7 @@ h2.plot <- ggplot(dat, aes(x=x, y=y))+
   theme_bw()+
   theme(text=element_text(size=15), axis.text.y = element_blank(), 
  axis.ticks.y=element_blank(), axis.title.y=element_blank(), axis.title.x=element_blank(), legend.position="none")
+h2.plot
 #ggsave(h2.plot, file="Desktop/h2.plot.png", height=4.5, width=6)
 
 hypothesis.fig <- ggarrange(h1.plot, h2.plot, labels=c("A","B"), common.legend=TRUE, align="v", legend="right")
@@ -68,10 +69,13 @@ winter.plot <- ggplot(dat, aes(x=x, y=y))+
  # annotate("Text", size=5, label="Winter", x=45, y=470, color="grey30") +
   theme_bw() +
   theme(text=element_text(size=15), axis.text.y = element_blank(), 
-        axis.ticks.y=element_blank(), axis.title.x=element_blank(), legend.position="none") +
+        axis.ticks.y=element_blank(), axis.title.x=element_blank(), legend.title=element_blank()) +
   scale_color_manual(name="Urbanization", breaks=c('Natural', 'Suburban', 'Urban'),
-                     values=c('Natural'='#009E73', 'Suburban'='#CC79A7', 'Urban'='#000000'))
-ggsave(winter.plot, file="committee_meeting_figs/pres_winter_hypothesis_fig.png", height=4, width=6)
+                     values=c('Natural'='#009E73', 'Suburban'='#CC79A7', 'Urban'='#000000'))+
+  annotate("Text", size=5, label="Winter", color="grey20", x=45, y=470)
+winter.plot
+
+#ggsave(winter.plot, file="committee_meeting_figs/pres_winter_hypothesis_fig.png", height=4, width=6)
 
 
 # Summer
@@ -84,18 +88,19 @@ summer.plot <- ggplot(dat, aes(x=x, y=y))+
   scale_x_continuous(expand=c(0,0))+
   scale_y_continuous(limits=c(0,500), expand=c(0,0))+
   labs(x="Absolute Latitude", y="Species Richness") +
-#  annotate("Text", size=5, label="Summer", color="grey30", x=45, y=470) +
+  annotate("Text", size=5, label="Summer", color="grey20", x=45, y=470)+
   theme_bw() +
   theme(text=element_text(size=15), axis.text.y = element_blank(), 
         axis.ticks.y=element_blank(), axis.title.y=element_blank(), axis.title.x=element_blank(), legend.position="none")
-ggsave(summer.plot, file="committee_meeting_figs/pres_summer_hypothesis_fig.png", height=4, width=6)
+summer.plot
+#ggsave(summer.plot, file="committee_meeting_figs/pres_summer_hypothesis_fig.png", height=4, width=6)
 
 
 seasonal.hypothesis.fig <- ggarrange(winter.plot, summer.plot, common.legend=TRUE, align="hv", legend="right")
 
 seasonal.hypothesis.fig<-annotate_figure(seasonal.hypothesis.fig, bottom=text_grob("Absolute latitude", size = 15, hjust=.9))
 seasonal.hypothesis.fig
-ggsave(seasonal.hypothesis.fig, file="committee_meeting_figs/seasonal_hypothesis_fig.png", height=4, width=8)
+ggsave(seasonal.hypothesis.fig, file="seasonal_hypothesis_fig.png", height=4, width=8)
 
 #### Intermediates
 winter.plot2 <- ggplot(dat, aes(x=x, y=y))+

@@ -127,6 +127,8 @@ test <- season_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is 
 # turn urban into 3 categories
 season_uniquesp <- season_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
 
+
+
 ########## Merge with trait data
 habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
 season_sp_habitat <- merge(season_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
@@ -217,12 +219,12 @@ plot(emmeans.results)
 #### Looks pretty similar to winter and overall
 
 richness_category <- season_zones %>% group_by(zone_bin, category, season) %>% count()
-season_bar <-ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
-  geom_bar(position="dodge", stat="identity")+
+season_bar <-ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('Absent from urban', 'Found in urban'), values=c("deepskyblue3", "black"))+
+  geom_bar(position="stack", stat="identity")+
   labs(y="Number of Species")+
   #  coord_flip()+
-  theme_bw()+
+  theme_classic()+
   facet_wrap(~season)
 season_bar
 
@@ -241,5 +243,87 @@ ggplot(season.emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=catego
 
 
 
+##############################################
+
+## Diet
+season_sp_diet <- read.table("season_dietspec.txt", header=TRUE) %>% filter(!is.na(gini.index))
+
+# Plot of habitat breadth and urbanization by latitude bin
+
+# Divide into urban only, both, and natural only
+#summer_categories <- summer_sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+# filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+#summer_categories <- summer_categories %>% replace(is.na(.), 0)
+
+#summer_categories$category <- NA
+# to make it simpler I will take out surburban for now
+#for (i in 1:nrow(summer_categories)){
+# if (summer_categories$natural[i] > 0 & summer_categories$urban[i] > 0) {
+#    summer_categories$category[i] <- "both"
+# }
+#  else if (summer_categories$natural[i] > 0 & summer_categories$urban[i] == 0) {
+#   summer_categories$category[i] <- "natural.only"
+#  }
+# else if (summer_categories$natural[i] == 0 & summer_categories$urban[i] > 0) {
+#    summer_categories$category[i] <- "urban.only"
+# }
+#}
+
+# make boxplot
+#ggplot(summer_categories)+
+# geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
+
+#### Try binning by larger categories
+season_sp_diet <- season_sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+
+season_zones_diet <- season_sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index, season) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+season_zones_diet <- season_zones_diet %>% replace(is.na(.), 0)
+
+season_zones_diet$category <- NA
+# to make it simpler I will take out surburban for now
+for (i in 1:nrow(season_zones_diet)){
+  if (season_zones_diet$natural[i] >= 0 & season_zones_diet$urban[i] > 0) {
+    season_zones_diet$category[i] <- "In urban"
+  }
+  else if (season_zones_diet$natural[i] > 0 & season_zones_diet$urban[i] == 0) {
+    season_zones_diet$category[i] <- "Not in urban"
+  }
+  # else if (season_zones_diet$natural[i] == 0 & season_zones_diet$urban[i] > 0) {
+  #  season_zones_diet$category[i] <- "urban.only"
+  #}
+}
 
 
+ggplot(season_zones_diet)+
+  geom_boxplot(aes(x=zone_bin, y=gini.index, fill=category))
+
+# run an anova
+season.diet.aov <- aov(gini.index ~ zone_bin * category * season, data = season_zones_diet)
+summary(season.diet.aov)
+emmeans.results <- emmeans(season.diet.aov, specs=c("season", "category"), by="zone_bin", facet=TRUE)
+plot(emmeans.results)
+#### Looks pretty similar to winter and overall
+
+richness_category <- season_zones_diet %>% group_by(zone_bin, category, season) %>% count()
+season_bar <-ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('Absent from urban', 'Found in urban'), values=c("deepskyblue3", "black"))+
+  geom_bar(position="stack", stat="identity")+
+  labs(y="Number of Species")+
+  #  coord_flip()+
+  theme_classic()+
+  facet_wrap(~season)
+season_bar
+
+# Plot of diet breadth means
+season.emmeans.df <- as.data.frame(emmeans.results)
+
+ggplot(season.emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
+  geom_point(size=2)+
+  geom_line(linewidth=0.5)+
+  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
+  facet_wrap(~season)+
+  theme_bw()
+# this looks wrong because they are negative? but maybe because it

@@ -12,7 +12,7 @@ library(spatialreg)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 # Load data
-dat <- read.csv("season_model_data.csv")
+dat <- read.csv("season_modeling_data.csv")
 dat$urban<-as.factor(dat$urban)
 dat$BIOME <- as.factor(dat$BIOME)
 
@@ -129,9 +129,16 @@ anova(mod1)
 library(emmeans)
 library(ggeffects)
 
+####### Results
+emmeans(mod1, specs=c("urban2", "season")) 
 emmeans(mod1, specs=c("abslat", "urban2", "season")) 
-lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Winter")) # comapre slopes in winter
+lstrends(mod1, pairwise ~ season, var="abslat", by="urban2")
+
+lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Winter")) # compare slopes in winter
 lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Summer")) # compare slopes in summer
+
+
+
 
 predicted <- ggpredict(mod1, terms = c("abslat", "urban2", "season")) # looks the same whether sqrt included in model or not
 

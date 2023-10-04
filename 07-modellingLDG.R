@@ -17,6 +17,7 @@ library(foreach)
 library(doParallel)
 library(spatialreg)
 library(elevatr)
+library(emmeans)
 
 
 ######################################
@@ -75,7 +76,7 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 
 
 
-# try a bumch of different models
+# try a bunch of different models
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    BIOME + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
 
@@ -116,6 +117,17 @@ results.plot
 # same results ! This is good
 # save results plot
 ggsave(results.plot, file="LDGMainResults.png", height=5, width=8)
+
+
+######## Look at results
+emmeans(mod1.trans, specs="urban2")
+12^2 # 137.12
+11^2 # 121
+10.2^2 # 10
+emtrends(mod1.trans, pairwise ~ urban2, var="abslat")
+summary(mod1.trans)
+
+emtrends(mod1.trans, pairwise ~ urban2, var="abslat", by="hemisphere")
 
 
 summary(mod1.trans)

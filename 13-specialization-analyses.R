@@ -55,7 +55,7 @@ for (i in 16:16){ # come back to 16, 18
 
 global_unique_sp <- dplyr::bind_rows(datalist.names) # put all sections together
 length(unique(global_unique_sp$SCIENTIFIC.NAME)) # 10,723 species
-write.table(global_unique_sp, "global_unique_species.txt", row.names=FALSE)
+#write.table(global_unique_sp, "global_unique_species.txt", row.names=FALSE)
 
 
 ###################################################################################################
@@ -80,7 +80,8 @@ test <- global_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is 
 # turn urban into 3 categories
 global_uniquesp <- global_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
 
-
+write.table(global_uniquesp, "global_unique_species.txt", row.names=FALSE)
+?write.table
 
 ### Merge with trait data
 
@@ -117,6 +118,7 @@ write.table(sp_diet, "unique_sp_dietspec.txt", row.names=F)
 
 ## Habitat data, filter out NAs for habitat
 sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T) %>% filter(!is.na(Habitat_breadth_IUCN))
+length(unique(sp_habitat$SCIENTIFIC.NAME))
 # see if there are more specialists at low latitudes
 # boxplot of habitat specialization
 hist(log(sp_habitat$Habitat_breadth_IUCN)) # definitely looks pretty log normal
@@ -176,12 +178,15 @@ plot(emmeans.habitat2)
 # this is super cool!
 
 
-##### Bin by larger groupings
+######### Bin by larger groupings
 sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
 
 # run anova on the raw habitat breadth with these larger zones
 habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * urban2, data = sp_habitat)
 summary(habitat.aov3) # significant interaction
+
+# look at just difference in specialization with latitude
+emmeans(habitat.aov3, specs="zone_bin")
 
 emmeans.habitat3 <- emmeans(habitat.aov3, specs="urban2", by="zone_bin")
 plot(emmeans.habitat3)
@@ -210,6 +215,9 @@ habitat.aov4 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = bird
 summary(habitat.aov4)
 
 emmeans.habitat4 <- emmeans(habitat.aov4, specs="category", by="zone_bin")
+emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
+
+emmeans.habitat4
 plot(emmeans.habitat4) # now that I fixed that error there is a significant interaction
 # Plot of richness of different categories
 
@@ -228,15 +236,16 @@ ggplot(birds_zones, aes(y = zone_bin, x = log(Habitat_breadth_IUCN), fill = cate
   theme_ridges() 
 
 # Stacked bar plot of birds in urban and not in urban
+birds_zones %>% group_by(zone_bin) %>% count()
 richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
 
-habitat_bar <- ggplot(richness_category, aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('In Urban', 'Not in urban'), values=c("black","deepskyblue3"))+
+habitat_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('Absent from urban', 'Found in urban'), values=c("deepskyblue3", "black"))+
   labs(y="Number of Species")+
 #  coord_flip()+
-  geom_bar(position="dodge", stat="identity")+
-  theme_bw()+
-  theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
+  geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
         legend.justification = c("right", "bottom"),
        legend.box.just = "right",
         legend.margin = margin(6, 6, 6, 6))
@@ -260,8 +269,8 @@ habitat_point <-ggplot(emmeans.df.habitat, aes(x=zone_bin, y=emmean, group=categ
   annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
            arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
   coord_cartesian(clip = "off")+
-  theme_bw()+
-  theme(axis.title.x=element_blank(), legend.position="none")
+  theme_classic()+
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.position="none")
 habitat_point
  # theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .1),
   #      legend.justification = c("right", "bottom"),
@@ -280,13 +289,10 @@ ggsave(habitat_plot, file="pecialistHabitatResults.png")
 ###########################################
 
 
-
-
-
-
-
 ### Diet specialization
 sp_diet <- read.table("unique_sp_dietspec.txt", header=T) %>% filter(!is.na(gini.index))
+
+length(unique(sp_diet$SCIENTIFIC.NAME))
 # see if there are more specialists at low latitudes
 sp_diet %>% group_by(lat_bin) %>% summarise(mean_diet = mean(gini.index))
 # boxplot of specialization
@@ -367,6 +373,7 @@ diet.aov4 <- aov(gini.index ~ zone_bin * category, data = diet_zones)
 summary(diet.aov4)
 
 emmeans.diet4 <- emmeans(diet.aov4, specs="category", by="zone_bin")
+emmeans(diet.aov4, pairwise~zone_bin, by="category")
 plot(emmeans.diet4)
 
 ##### Stacked bar plot of overall species loss
@@ -404,7 +411,7 @@ emmeans.df.diet <- as.data.frame(emmeans.diet4)
 diet_point <- ggplot(emmeans.df.diet, aes(x=zone_bin, y=emmean, group=category, color=category))+
   geom_point(size=2)+
   geom_line(linewidth=0.5)+
-  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("black","deepskyblue3"))+
   labs(y="Diet specialization")+
   scale_y_reverse()+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
@@ -414,7 +421,7 @@ diet_point <- ggplot(emmeans.df.diet, aes(x=zone_bin, y=emmean, group=category, 
            arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
   annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
            arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
-  theme_bw()+
+  theme_classic()+
   theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.position="none")
 # annotations not showing up for some reason rip
 
@@ -444,6 +451,58 @@ for (i in 347:length(res)){
 
 
 
+
+######################################
+##### Look at proportional richness loss in latitude bins with full data
+global_uniquesp <- read.table("global_unique_species.txt", header=TRUE)
+length(unique(global_uniquesp$SCIENTIFIC.NAME))
+global_uniquesp$abslat <- abs(global_uniquesp$lat)
+
+# Bin by latitude
+global_uniquesp <- global_uniquesp %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), 
+                                             labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+
+total_zone <- global_uniquesp %>% group_by(zone_bin, SCIENTIFIC.NAME) %>% count()
+
+# number of species in each zone
+total_zone %>% group_by(zone_bin) %>% count()
+# 9106 tripical, 5204 subtropical, 3041 temperate, 376 arctic
+
+total_zones <- global_uniquesp %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+total_zones <- total_zones %>% replace(is.na(.), 0)
+
+total_zones$category <- NA
+
+# label by urban and not urban
+for (i in 1:nrow(total_zones)){
+  if (total_zones$natural[i] >= 0 & total_zones$urban[i] > 0) {
+    total_zones$category[i] <- "urban"
+  }
+  else if (total_zones$natural[i] > 0 & total_zones$urban[i] == 0) {
+    total_zones$category[i] <- "not.urban"
+  }
+}
+
+zzz <- total_zones %>% group_by(zone_bin, category) %>% count() %>% pivot_wider(names_from="category", values_from="n") %>% 
+  mutate(total=sum(urban, not.urban), fraction=not.urban/total)
+richness_category <- total_zones %>% group_by(zone_bin, category) %>% count()
+## Make plot with overall results of species being lost (because some species lost when merged with habitat or diet data)
+total_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
+  scale_fill_manual(labels=c('Absent from urban', 'Found in urban'), values=c("deepskyblue3", "black"))+
+  labs(y="Number of Species")+
+  #  coord_flip()+
+  geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
+        legend.justification = c("right", "bottom"),
+        legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6))
+total_bar
+
+##### This will probably be the final figure?
+ggarrange(total_bar, habitat_point, diet_point, nrow=3, align="hv")
 
 
 

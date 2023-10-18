@@ -322,7 +322,7 @@ winter_filt95 <- winter_filt95 %>% filter(!is.na(urban)) # remove NAs for urbani
 season_dat <- rbind(summer_filt95, winter_filt95)
 
 ## Assign hemisphere
-season_dat <- season_dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
+#season_dat <- season_dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
 
 ## Add continent
 continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")

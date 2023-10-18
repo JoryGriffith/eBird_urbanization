@@ -196,15 +196,15 @@ season_zones <- season_zones %>% replace(is.na(.), 0)
 season_zones$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(season_zones)){
-  if (season_zones$natural[i] >= 0 & season_zones$urban[i] > 0) {
+  if (season_zones$natural[i] > 0 & season_zones$urban[i] > 0) {
     season_zones$category[i] <- "In urban"
   }
   else if (season_zones$natural[i] > 0 & season_zones$urban[i] == 0) {
     season_zones$category[i] <- "Not in urban"
   }
- # else if (season_zones$natural[i] == 0 & season_zones$urban[i] > 0) {
-  #  season_zones$category[i] <- "urban.only"
-  #}
+  else if (season_zones$natural[i] == 0 & season_zones$urban[i] > 0) {
+    season_zones$category[i] <- "urban.only"
+  }
 }
 
 

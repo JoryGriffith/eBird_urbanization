@@ -59,4 +59,20 @@ plot(GHSL.test, col=colors) # compare the two to make sure it worked, yes looks 
 # save as tif file
 writeRaster(GHSL.test, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif", overwrite=TRUE)
 
+GHSL.test2 <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+
+GHSL.test2 <- subst(GHSL.test2, 10, NA) # turn water into NA
+GHSL.test2 <- subst(GHSL.test2, 30, 3) # turn urban into 3
+GHSL.test2 <- subst(GHSL.test2, 11, 1)
+GHSL.test2 <- subst(GHSL.test2, 12, 1) 
+GHSL.test2 <- subst(GHSL.test2, 13, 1) # turn 11,12, and 13 into natural
+GHSL.test2 <- subst(GHSL.test2, 21, 2)
+GHSL.test2 <- subst(GHSL.test2, 22, 2)
+GHSL.test2 <- subst(GHSL.test2, 23, 2)
+
+plot(GHSL.test2)
+
+writeRaster(GHSL.test2, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filt_3cat.tif")
+
+
 

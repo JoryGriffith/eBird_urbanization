@@ -218,8 +218,11 @@ summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # 66,667 datapoints now
 write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 
 
+
+
+
 ###############################################################################################
-#### Prepare data for modelling
+#### PREPARE DATA FOR MODELLING
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
@@ -230,25 +233,9 @@ dat <- read.csv("5yr_summary/summary_thresholded.csv")
 
 # First I need to get the other data that I want to include in the model
 
-######## Assign hemisphere
-dat <- dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
-
-######### Assign continent
-#dat_sf <- st_as_sf(dat, coords=c('long', "lat"), crs=st_crs(world))
-
-#joined <- st_join(dat_sf, world)
-
-
-#dat_joined <- as.data.frame(joined[,c(1:22,41)] %>% mutate(long = sf::st_coordinates(.)[,1],
-#         lat = sf::st_coordinates(.)[,2]))# just keep country name
-# extract continent using country name
-#dat_joined$continent <- countrycode(sourcevar = dat_joined[,"name_long"],
-#                                    origin = "country.name",
-#                                     destination = "continent")
-
 
 ##################
-# Trying new way to do continent
+# Add continent
 continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
 continents_moll <- st_transform(continents, crs=crs(GHSL)) 
 
@@ -260,7 +247,7 @@ dat_cont <- st_join(dat_sf, continents_moll[,"CONTINENT"], left=TRUE, join=st_ne
 
 
 #########################
-# Extract biome
+# Add biome - downloaded from WWF ecoregions of the world
 # Classifying points into biomes using a terrestrial biomes shapefile
 biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
 biomes_moll <- st_transform(biomes, crs=crs(GHSL)) 
@@ -289,9 +276,69 @@ latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), 
 
 datFINAL <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                y = sf::st_coordinates(.)[,2]))
-datFINAL <- datFINAL[,-1]
-  
-write_csv(datFINAL, "modeling_data.csv")
+dat <- datFINAL[,-1]
+
+
+#### assign hemisphere
+dat$hemisphere <- "northern"
+dat$hemisphere[dat$lat<0]<-"southern"
+
+# turn biome and urban into a factor
+dat$BIOME <- as.factor(dat$BIOME)
+dat$urban <- as.factor(dat$urban)
+
+
+dat$abslat <- abs(dat$lat) # add column for absolute latitude
+
+
+# make another column with only 3 categories of urbanization
+dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
+dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
+dat$urban2 <- as.factor(dat$urban2) # turn into factor for modelling
+
+dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
+                     labels = c("Natural", "Suburban", "Urban")) # rename as natural, suburban, and urban
+
+# Divide globe into 4 quadrants at the prime meridian and antimeridian
+dat$quadrant <- NA
+
+for (i in 1:nrow(dat)){
+  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+    dat$quadrant[i] <- 1
+  }
+  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+    dat$quadrant[i] <- 2
+  }
+  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+    dat$quadrant[i] <- 3 
+  }
+  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+}
+dat$quadrant <- as.factor(dat$quadrant)
+
+### Seeing what the highest latitude is for urbanand suburban and removing points above that latitude (so they are comparable)
+urb <- dat %>% filter(urban2=="Urban")
+range(urb$lat) # the highest latitude is 69.67 and the lowest is -54.84
+
+suburb <- dat %>% filter(urban2=="Suburban")
+range(suburb$lat) # highest latitude is 70.07 and lowest latitude is -54.84
+
+nat <- dat %>% filter(urban2=="Natural")
+range(nat$lat) # highest latitude is 78 and the lowest is -54.92
+# not really a discrepancy between the southern latitudes
+
+# either cutoff at 70 or 71 degrees of latitude?
+suburb2 <- suburb %>% filter(lat > 70) # only losing one suburban point if we filter for greater than or equal to 70
+## Filter out points with a latitude greater than 70 degrees
+
+dat <- dat %>% filter(lat <= 70 & lat >=-55) # didn't lose too many points
+# 66,639
+unique(dat$CONTINENT)
+
+###### Save data
+write.csv(dat, "modeling_data.csv", row.names=FALSE)
+
+
 
 
 

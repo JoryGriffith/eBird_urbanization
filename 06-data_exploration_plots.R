@@ -7,6 +7,8 @@ library(tidyterra)
 library(rnaturalearth)
 library(rnaturalearthdata)
 
+
+
 world <- ne_countries(scale = "medium", returnclass = "sf")
 #####################################
 # Data exploration of the filtered data
@@ -27,7 +29,7 @@ summary <- read.csv("global_richness_summary.csv")
 
 # add the lat and long values
 
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 plot(GHSL)
 
 summary$x <- xFromCell(GHSL, summary$cell) # extract the coordinates from the cells
@@ -318,7 +320,6 @@ dev.off()
 
 
 
-
 ###### Plots of species richness but only in highly urbanized areas
 summary_urb <- summary_filt %>% filter(urban==30)
 for (i in 1:nrow(bbox)){
@@ -375,14 +376,15 @@ summary_filt %>% group_by(urban) %>% summarise(n=n())
 
 
 #####################################################
-# Try to figure out what cities the urban sites are in
-
-# load shapefile of cities
+# LOOK AT WHAT CITIES URBAN AREAS ARE IN
+dat.urb <- read.csv("modeling_data.csv") %>% filter(urban2=="Urban")
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+# load cities - just point data
 cities <- read.csv("/Volumes/Expansion/eBird/World_Cities.csv")
 # turn into spatvector
 cities_vect <- vect(cities, crs=crs(GHSL), geom=c("X","Y"))
 # turn data with high urbanization into spatvector
-urb_vect <- vect(summary_urb, crs=crs(GHSL), geom=c("x","y"))
+urb_vect <- vect(dat.urb, crs=crs(GHSL), geom=c("long","lat"))
 
 urb_cities <- as.data.frame(nearest(urb_vect, cities_vect))
 
@@ -390,16 +392,40 @@ urb_cities <- as.data.frame(nearest(urb_vect, cities_vect))
 cities_in_df <-merge(urb_cities, cities, by.x="to_id", by.y="FID", all.x=TRUE)
 
 length(unique(cities_in_df$CITY_NAME))
-# 609 cities
+# 624 cities
 # not all of these are totally accurate because they don't have some smaller cities 
  # (e.g. labelled bellingham as vancouver)
 # but gives somewhat of an idea
 
 length(unique(cities_in_df$CNTRY_NAME))
-# 125 countries
+# 123 countries
 
 countries <- cities_in_df %>% group_by(CNTRY_NAME) %>% summarise(n=n())
 cities <- cities_in_df %>% group_by(CITY_NAME) %>% summarise(n=n())
+
+
+
+
+### Maps with urbanization score
+dat <- read.csv("modeling_data.csv")
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+ggplot(data=world)+
+  geom_sf() +
+  geom_point(data=dat, aes(x=long, y=lat, color=urban2), size=0.05) +
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  coord_sf(crs = 4326, expand = FALSE) +
+  labs(x="Longitude", y="Latitude")+
+  geom_hline(yintercept=c(23.4, -23.4, 35, -35, 66.5, -66.5), alpha=0.8, lty=3)+ # geographic zones
+  geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
+  theme_void()+
+  theme(legend.title=element_blank(), legend.position = c(.85, .15), text=element_text(size=15))+
+  facet_wrap(~urban2, ncol=2)
+# there are like 2 points in the arctic zone
+
+
+
+
 
 
 

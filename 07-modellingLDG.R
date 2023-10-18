@@ -20,53 +20,30 @@ library(elevatr)
 library(emmeans)
 
 
-######################################
-# Start running models
 
+############################################
+# Load data
 dat <- read.csv("modeling_data.csv")
-# turn biome and urban into a factor
-dat$BIOME <- as.factor(dat$BIOME)
-dat$urban <- as.factor(dat$urban)
+dat %>% filter(CONTINENT=="Antarctica") # there is one point in antarctica, latitude is -54.05 so it just misses the cutoff
+# this point is in the south sandwich islands
 
-dat %>% group_by(urban) %>% summarise(n=n())
-summary(dat)
-hist(dat$total_SR, breaks=50)
+# look at everything above 65 degrees N
+test <- dat %>% filter(lat >=65)
+# there are 60 observations above 65 degrees N
 
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
-dat$abslat <- abs(dat$lat)
 
-dat %>% group_by(BIOME) %>% summarise(n=n())
+dat %>% group_by(BIOME) %>% summarise(n=n()) # look at how many observations per biome
 
-# make another columbn with only 3 categories
-# try model with only 3 categories
-dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
-dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
-dat$urban2 <- as.factor(dat$urban2)
 
-dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
-                     labels = c("Natural", "Suburban", "Urban"))
 
-# Divide globe into 4 quadrants at the prime meridian and antimeridian
-dat$quadrant <- NA
 
-for (i in 1:nrow(dat)){
-  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
-    dat$quadrant[i] <- 1
-  }
-  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
-    dat$quadrant[i] <- 2
-  }
-  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
-    dat$quadrant[i] <- 3 
-  }
-  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
-}
-dat$quadrant <- as.factor(dat$quadrant)
 
-dat <- dat %>% filter(!CONTINENT == "Antarctica")
-######
+###################################
+# START MODELLING
+
 
 dat %>% group_by(CONTINENT) %>% summarise(n=n()) # most are in quadrant 2 which includes north america
 # Try a simple linear model with absolute latitude
@@ -121,14 +98,14 @@ ggsave(results.plot, file="LDGMainResults.png", height=5, width=8)
 
 ######## Look at results
 emmeans(mod1.trans, specs="urban2")
-12^2 # 137.12
-11^2 # 121
-10.2^2 # 10
+11.6^2 # 134.56
+10.5^2 # 110
+9.6^2 # 92
 emtrends(mod1.trans, pairwise ~ urban2, var="abslat")
 summary(mod1.trans)
 
 emtrends(mod1.trans, pairwise ~ urban2, var="abslat", by="hemisphere")
-
+# all significantly negative
 
 summary(mod1.trans)
 AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn, mod1.quadrant) 
@@ -208,57 +185,6 @@ interact_plot(mod1.trans, abslat, urban, interval=TRUE)
 interact_plot(mod1.trans, abslat, urban)
 interact_plot(mod1.abslat, abslat, hemisphere)
 
-###########################
-# LOOK AT SPATIAL AUTOCORRELATION
-
-# rerun using gls (same as linear model when no spatial autocorrelation included)
-gls1 <- gls(sqrt(total_SR) ~ abs(lat) * urban * hemisphere + 
-              BIOME + log(number_checklists) + elevation, dat)
-
-anova(gls1) # everything very significant
-
-# check for spatial autocorrelation
-dat$gls1Resids <- residuals(gls1)
-hist(dat$gls1Resids) # looking very normally distributed, that's good
-
-#residsI <- spline.correlog(x=dat$long, y=dat$lat,
-                     #      z=dat$gls1Resids, resamp=100, quiet=TRUE) # this takes up too much memory in R because there are so many data points
-
-#plot(residsI,xlim=c(0,50))
-
-
-#### Variogram
-#plot(nlme:::Variogram(gls1, form = ~lat +
-#                        long, resType = "normalized"))
-# this uses too much memory
-
-# try a different function
-dat.sf <- st_as_sf(dat, coords=c("long", "lat")) 
-
-plot(gstat::variogram(residuals(gls1, "normalized") ~
-                 1, data = dat.sf, cutoff = 100))
-
-# try with directional
-plot(gstat::variogram(residuals(gls1, "normalized") ~
-                        1, data = datSPDF, cutoff = 100, alpha = c(0, 45, 90, 135)))
-# it likely looks like this at 0 because it becomes more similar as you move toward the equator again 
-
-#### Moran's I
-# make distance matrix
-#w <-as.matrix(1/dist(cbind(dat$long, dat$lat))) # this is too much for my computer or the lab computer to handle
-#wlist<-mat2listw(w)
-#moran.test(dat$gls1Resids, wlist)
-
-# Fit all possible autocorrelation structures and see which is the best fit
-csSpher <- corSpher(form=~lat+long,nugget=TRUE) # sperical
-csExp <- corExp(form=~lat+long,nugget=TRUE) # exponential
-csGaus <- corGaus(form=~lat+long,nugget=TRUE) # gaussian
-csLin <- corLin(form=~lat+long,nugget=TRUE) # linear
-csRatio <- corRatio(form=~lat+long,nugget=TRUE) # ratio
-# update models
-glsGaus <- update(gls1, correlation=csLin) # gaussian
-# This takes forever to run
-
 
 
 #####################
@@ -301,91 +227,6 @@ interact_plot(mod1.abslat, abslat, urban2, interval=TRUE)
 
 
 
-
-
-##########################
-### SUBSAMPLING
-
-# since some things are not working, going to see if it is a problem with the sample size (and my computer memory)
-# going to subsample within my data
-dat.samp <- dat[sample(nrow(dat), 1000), ]
-# try to run a correlog
-
-gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp)
-
-
-# Make a correlogram
-dat.samp$gls1.samp <- residuals(gls1.samp)
-hist(dat.samp$gls1.samp)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$gls1.samp, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20)) # there is some autocorrelation at small distances
-
-
-# calculate Moran's I
-w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distance matrix - weights things that are close together higher
-wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
-# this quickly becomes very large because it is pairwise distances
-moran.test(dat.samp$gls1.samp, wlist)
-# it is significant
-
-# update with gaussian
-glsGaus <- update(gls1.samp, correlation=csGaus) # gaussian
-dat.samp$glsGaus <- residuals(glsGaus)
-hist(dat.samp$glsGaus)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsGaus, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-beep()
-# still spatially autocorrelated
-
-# update with spherical
-glsSpher <- update(gls1.samp, correlation=csSpher)
-dat.samp$glsSpher <- residuals(glsSpher)
-hist(dat.samp$glsSpher)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsSpher, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-
-# update with exponential 
-glsExp <- update(gls1.samp, correlation=csExp)
-dat.samp$glsExp <- residuals(glsExp)
-hist(dat.samp$glsExp)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsExp, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20))
-
-# update with linear
-glsLin <- update(gls1.samp, correlation=csLin)
-dat.samp$glsLin <- residuals(glsLin)
-hist(dat.samp$glsLin)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsLin, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20)) # now the whole thing is autocorrelated, definitely not that
-
-# update with ratio
-glsRatio <- update(gls1.samp, correlation=csRatio)
-dat.samp$glsRatio <- residuals(glsRatio)
-hist(dat.samp$glsRatio)
-residsI <- spline.correlog(x=dat.samp$long, y=dat.samp$lat, z=dat.samp$glsRatio, resamp=100, quiet=TRUE) 
-plot(residsI,xlim=c(0,20)) 
-
-# compare AIC
-AIC(gls1.samp, glsExp, glsGaus, glsLin, glsSpher, glsRatio)
-# glsExp was the best
-
-# plot variograms
-plot(nlme::Variogram(gls1.samp, form =~lat + long, resType="normalized")) # plot original model
-plot(nlme::Variogram(glsSpher, form =~lat + long, resType="normalized")) # plot model with spherical autocorrelation structure
-plot(nlme::Variogram(glsGaus, form =~lat + long, resType="normalized")) # gaussian
-plot(nlme::Variogram(glsExp, form =~lat + long, resType="normalized")) # exponential
-plot(nlme::Variogram(glsLin, form =~lat + long, resType="normalized")) # linear
-plot(nlme::Variogram(glsSpher, form =~lat + long, resType="normalized")) # gaussian
-# these all look very similar
-
-# test moran's I
-w <-as.matrix(1/dist(cbind(dat.samp$long, dat.samp$lat))) # make inverse distance matrix - weights things that are close together higher
-wlist<-mat2listw(w) # assign weights based on inverse distances (converts square spatial weights matrix to a weights list object)
-# this quickly becomes very large because it is pairwise distances
-moran.test(dat.samp$glsSpher, wlist)
-# all of the models with the spatial autocorrelation structures still have significant autocorrelation
-# this is a problem
 
 
 ##########################################
@@ -438,181 +279,6 @@ AIC(mod.poisson, mod.poisson.poly)
 
 
 ############################
-# TRYING THINNING
-
-# look at the spread of the data between continents
-dat %>% group_by(CONTINENT) %>% summarise(n=n())
-# there are 55,000 in North America compared to much less everywhere else
-# I could try to subsample in just north america and see if that reduces the spatial autocorrelation
-
-# right now there are 70,749 points, lets see if I thinned that to 50,000
-#library(spThin)
-## I will try to run spThin to a distance where there is no spatial autocorrelation, based on the correlogram of the sample data
-## it looks like the autocorrelation ends at about 5 km so I am going to try thinning by that and see what happens
-#dat.samp <- dat[sample(nrow(dat), 33000), ]
-#dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
-#lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-#                   BIOME + log(number_checklists) + elevation, dat.samp)
-#dat.samp$residuals <- residuals(lm.samp)
-## Look at distance at which autocorrelation stops so I know how much I need to thin data
-#moran_I <- c()
-#for (d in seq(1, 200, 20)) {
-#  #foreach  (d = seq(0, 200, 10),
-#  #                       .combine = 'c') %dopar% {
-#  dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
-#  dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
-#  moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-#  moran_I <- c(moran_I, moran$statistic)
-#} # THIS TAKES A REALLY LONG TIME
-#beep()
-#moran_I <- data.frame(moran = moran_I, 
-#                      distance = seq(1, 200, 20))
-#
-#
-#moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-#
-#ggplot(moran_I, aes(x = distance, y = moran)) + 
-#  geom_point() +
-#  geom_line()
-#beep()
-#
-#dat.thinned <- thin.algorithm(dat.samp[,c(27:28)], thin.par=100, 
-#               rep=1) # this spits out a list of lat long points (list length is # of reps), which I then need to merge back with other data
-#
-#da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
-#
-#dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
-#
-#ggplot(dat.samp, aes(x=long, y=lat))+
-#  geom_point(size=0.2)
-#
-#ggplot(dat.thinned.new, aes(x=long, y=lat))+
-#  geom_point(size=0.2)
-#
-## run model with thinned data and check for autocorrelation
-#lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-#                  BIOME + log(number_checklists) + elevation, dat.thinned.new)
-#
-#predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
-## looks the same whether sqrt included in model or not
-#
-#results.plot2 <-
-#  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-#       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-#  theme_bw()+
-#  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-#  theme(text = element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-#  guides(fill = guide_legend(byrow = TRUE))
-#results.plot2
-#
-#
-#dat.thinned.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
-#dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=1000) # calculate distances
-#dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
-## supplements a neighbors list with spatial weights for the chosen coding scheme
-##?nb2listw
-## Moran's I test
-#lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-## it's not autocorrelated! 
-#
-#
-#gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-#                   BIOME + log(number_checklists) + elevation, dat.thinned.new)
-#
-#
-#plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
-#                        1, data = dat.thinned.sf, cutoff = 100)) # no spatial pattern really, this is good!
-#plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
-#                        1, data = dat.thinned.sf, cutoff = 100, alpha = c(0, 45, 90, 135))) # hmm I am not sure I totally understand this
-#
-#
-#w <-as.matrix(1/dist(cbind(dat$long, dat$lat))) # this is too much for my computer or the lab computer to handle
-##wlist<-mat2listw(w)
-##moran.test(dat$gls1Resids, wlist)
-#
-
-
-
-##### Trying different thinning method #####
-# Create raster grid and overlay and then randomly sample points from the grid
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
-nrow(GHSL)
-ncol(GHSL)
-spat.extent <- ext(GHSL)
-sample.grid <- rast(resolution=c(20000, 20000), extent = spat.extent, crs=crs(GHSL)) # sample grid
-
-# assign cell number to each point in my data
-vect <- st_as_sf(dat, crs=st_crs(GHSL), coords=c("x","y"))
-xy=st_coordinates(vect)
-# get cell number that each point is in
-dat$cell.subsample<-cellFromXY(sample.grid, xy)
-
-# randomly sample one point within each cell
-dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
-
-
-
-# run model
-lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                   BIOME + log(number_checklists) + elevation, dat.thinned)
-dat.thinned$residuals <- residuals(lm.thinned)
-
-dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
-dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
-dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
-# supplements a neighbors list with spatial weights for the chosen coding scheme
-#?nb2listw
-# Moran's I test
-
-moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-
-predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
-#
-results.plot2 <-
-  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text = element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-  guides(fill = guide_legend(byrow = TRUE))
-
-results.plot2
-
-summary(lm.thinned)
-
-plot(lm.thinned)
-
-
-
-###### Start looping model and store results
-thinned.results <- list()
-predicted <- list()
-
-for (i in 1:1000){
-  dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
-  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                     BIOME + log(number_checklists) + elevation, dat.thinned)
- # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
-  #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
-#  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
- # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  thinned.results[[i]] <- summary(lm.thinned)
-  predicted[[i]] <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
-}
-
-predicted_df <- bind_rows(predicted)
-
-# plot each predicted value as a point and the confidence intervals as lines
-predicted_df <- predicted_df %>% group_by(x, group) %>% mutate(max.conf.high = max(conf.high), min.conf.low = min(conf.low))
-
-ggplot(predicted_df, aes(x=x, y=predicted, color=group)) +
-  geom_point()+
-  geom_smooth(method="lm") +
-  geom_errorbar(aes(ymin=min.conf.low, ymax=max.conf.high))
-#  geom_point(aes(x=x, y=conf.high), color="grey40")+
-#  geom_point(aes(x=x, y=conf.low), color="grey40")
-# natural is definitely different, suburban and urban look the same
-
 
 ###################################
 #### USING SPATIALREG PACKAGE TO RUN MODELS
@@ -788,9 +454,6 @@ ggplot(dat.samp2.test, aes(x=abs(lat), y=fit^2, color=urban2))+
   geom_smooth(method="lm") # plot model fits yay!
 # the model results still look the same
 
-saveRDS(dat.samp2.sem, "spatialmod30k.rds")
-saveRDS(dat.samp2.lw, "spatial.lw.30k.rds")
- 
 ################ Try running model on full data
 GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
 dat.sf <- st_as_sf(dat, coords=c("long", "lat"), crs=st_crs(GHSL)) 
@@ -903,16 +566,20 @@ moran.mc(samps$residuals.slx, samps.lw, nsim = 999, zero.policy = TRUE)
 
 
 
+
+
+
+
 ####################################
 # TRY RUNNING SOME NON-LINEAR MODELS ON THE FULL DATASET TO SEE IF THERE IS A NON-LINEAR TREND
 library(mgcv)
 # model with regular latitude
-mod.gam1 <- gam(total_SR ~ s(lat, by=urban2) + CONTINENT + BIOME + log(number_checklists) + elevation, data = dat)
+mod.gam1 <- gam(total_SR ~ s(lat, by=c(urban2)) + hemisphere + BIOME + log(number_checklists) + elevation, data = dat)
 
 summary(mod.gam1)
 
 plot(ggeffects::ggpredict(mod.gam1, terms = c("lat", "urban2")), facets = FALSE) 
-gratia::draw(mod.gam1)
+#gratia::draw(mod.gam1)
 
 #predictions = predict(
  # mod.gam1,
@@ -929,9 +596,9 @@ gratia::draw(mod.gam1)
  # geom_smooth(method="gam")
 
 # model with absolute latitude
-mod.gam2 <- gam(total_SR ~ s(abslat, by=urban2) + CONTINENT +
+mod.gam2 <- gam(total_SR ~ s(abslat, by=urban2) +
                   BIOME + log(number_checklists) + elevation, data = dat) # couldn't do hemisphere intrxn for some reason
-summary(mod.gam2)
+
 plot(ggeffects::ggpredict(mod.gam2, terms=c("abslat", "urban2"), facets = TRUE))
 plot(ggeffects::ggpredict(mod.gam2, terms=c("elevation"), facets = TRUE))
 # SR generally decreases by elevation
@@ -951,6 +618,30 @@ ggplot(dat, aes(y=total_SR, x=abslat, color=urban2)) +
   theme(text=element_text(), legend.spacing.y = unit(1, 'cm'))+
   geom_smooth(method="gam")
 # there is not a peak
+
+###### Look at the trends by hemisphere
+dat.n <- dat %>% filter(hemisphere=="northern") 
+
+mod.gam4 <- gam(total_SR ~ s(lat, by=urban2) +
+                  BIOME + log(number_checklists) + elevation, data=dat.n)
+plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE)) # linear terms
+# not a hump in the middle, that's good
+
+dat.s <- dat %>% filter(hemisphere=="southern") 
+
+mod.gam5 <- gam(total_SR ~ s(lat, by=urban2) +
+                  BIOME + log(number_checklists) + elevation, data=dat.s)
+plot(ggeffects::ggpredict(mod.gam5, terms=c("lat", "urban2"), facets = TRUE))
+# who southern pattern is crazy but still not hump, that is good
+
+
+
+
+
+
+
+
+
 
 
 

@@ -9,10 +9,16 @@ library(rnaturalearthdata)
 library(spdep)
 library(sf)
 library(spatialreg)
+library(mgcv)
+library(ggeffects)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 # Load data
 dat <- read.csv("season_modeling_data.csv")
+# assign hemisphere
+dat$hemisphere <- "northern"
+dat$hemisphere[dat$lat<0]<-"southern"
+
 dat$urban<-as.factor(dat$urban)
 dat$BIOME <- as.factor(dat$BIOME)
 
@@ -37,7 +43,22 @@ for (i in 1:nrow(dat)){
 }
 dat$quadrant <- as.factor(dat$quadrant)
 
-dat <- dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
+#dat <- dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
+
+
+urb <- dat %>% filter(urban2==3)
+range(urb$lat) # the highest latitude is 64.15 and the lowest is -54.84
+
+suburb <- dat %>% filter(urban2==2)
+range(suburb$lat) # highest latitude is 65.76 and lowest latitude is -53.11
+
+nat <- dat %>% filter(urban2==1)
+range(nat$lat) # highest latitude is 65.76 and lowest latitude is -53.11
+# 42266 - 42243
+dat <- dat %>% filter(lat <= 66 & lat >= -55) # cut off data at the highest latitude range
+
+nrow(dat %>% filter(season=="winter"))
+
 
 # Plot relationship 
 
@@ -83,7 +104,6 @@ anova(mod1) # triple interaction is significant
 # look at model residuals
 plot(mod1)
 # looking pretty good
-
 
 # run a gls
 gls1 <- gls(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere +
@@ -136,7 +156,7 @@ lstrends(mod1, pairwise ~ season, var="abslat", by="urban2")
 
 lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Winter")) # compare slopes in winter
 lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Summer")) # compare slopes in summer
-
+# still significantly positive!
 
 
 
@@ -256,6 +276,39 @@ dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * season + qu
                                          BIOME + log(number_checklists), data = dat.samp, listw = dat.lw, zero.policy = TRUE) # run spatial error model
 
 
+
+########################
+### Try non-linear models
+
+## Northern hemisphere winter
+dat.nw <- dat %>% filter(hemisphere=="northern" & season=="Winter") 
+
+mod.gam1 <- gam(total_SR ~ s(lat, by=urban2) +
+                  BIOME + log(number_checklists) + elevation, data=dat.nw)
+plot(ggeffects::ggpredict(mod.gam1, terms=c("lat", "urban2"), facets = TRUE))
+
+
+#### N hemsiphere summer
+dat.ns <- dat %>% filter(hemisphere=="northern" & season=="Summer") 
+
+mod.gam2 <- gam(total_SR ~ s(lat, by=urban2) +
+                  BIOME + log(number_checklists) + elevation, data=dat.ns)
+plot(ggeffects::ggpredict(mod.gam2, terms=c("lat", "urban2"), facets = TRUE, add.data=TRUE))
+
+
+### South hemisphere winter
+dat.sw <- dat %>% filter(hemisphere=="southern" & season=="Winter") 
+
+mod.gam3 <- gam(total_SR ~ s(lat, by=urban2) +
+                  BIOME + log(number_checklists) + elevation, data=dat.sw)
+plot(ggeffects::ggpredict(mod.gam3, terms=c("lat", "urban2"), facets = TRUE))
+
+#### S hemisphere summer
+dat.sn <- dat %>% filter(hemisphere=="southern" & season=="Summer") 
+mod.gam4 <- gam(total_SR ~ s(lat, by=urban2) +
+                  BIOME + log(number_checklists) + elevation, data=dat.sn)
+plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE), add.data=TRUE)
+# pretty much the same pattern
 
 
 

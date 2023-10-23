@@ -263,14 +263,17 @@ lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 
 
+
+
+
+
+
 ##### 3b. Trying much faster thinning method
 # Create raster grid and overlay and then randomly sample points from the grid
-GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
-nrow(GHSL)
-ncol(GHSL)
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
 spat.extent <- ext(GHSL)
 sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
-plot(sample.grid)
+
 
 
 # assign cell number to each point in my data
@@ -299,6 +302,7 @@ moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 moran
 # thinned by a spatial grid of 20, the p value is 1, the observed Moran's I is very small. 14269 observations.
+# Tried by a spatial grid of 10, still not significantly autocorrelated. This is what I will use
 
 #gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
 #                  BIOME + log(number_checklists) + elevation, dat.thinned)
@@ -306,16 +310,6 @@ gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere + BIOME + log(n
 plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
                         1, data = dat.thinned.sf, cutoff = 200))
 
-p10
-p20
-p30
-p40
-p50
-p60
-p70
-p80
-p90
-p100
 plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
                         1, data = dat.thinned.sf, cutoff = 200, alpha = c(0, 45, 90, 135)))
 
@@ -331,19 +325,6 @@ moran <- lm.morantest(lm.samp, dat.samp.lw, zero.policy = T)
 moran # yes this is autocorrelated, so the other one is accurate
 
 
-### Try new way of calculating Moran's I
-# Make inverse distance matrix
-library(ape)
-dat.dists <- as.matrix(dist(cbind(dat.thinned$long, dat.thinned$lat)))
-hist(dat.dists)
-dat.dists.inv <- 1/dat.dists
-diag(dat.dists.inv) <- 0
-
-# I am still getting data points that are close to one another
-dat.dists
-
-resids.thinned <- residuals(gls.thinned, "normalized")
-Moran.I(resids.thinned, dat.dists.inv)
 
 
 

@@ -15,6 +15,7 @@ library(ggeffects)
 world <- ne_countries(scale = "medium", returnclass = "sf")
 # Load data
 dat <- read.csv("season_modeling_data.csv")
+
 # assign hemisphere
 dat$hemisphere <- "northern"
 dat$hemisphere[dat$lat<0]<-"southern"
@@ -59,7 +60,7 @@ dat <- dat %>% filter(lat <= 66 & lat >= -55) # cut off data at the highest lati
 
 nrow(dat %>% filter(season=="winter"))
 
-
+dat %>% group_by(season, urban2) %>% count()
 # Plot relationship 
 
 LDG <- ggplot(dat, aes(x=abs(lat), y=total_SR, color=urban2)) +
@@ -97,7 +98,10 @@ dat$season <- factor(dat$season, levels = c("winter", "summer"),
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural", "Suburban", "Urban"))
 # model
-mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere + BIOME + log(number_checklists) + elevation, dat)
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + BIOME + log(number_checklists) + elevation, dat)
+
+#mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + BIOME + log(number_checklists) + elevation, dat)
+AIC(mod1, mod2) # better with the interaction
 summary(mod1)
 anova(mod1) # triple interaction is significant
 
@@ -106,7 +110,7 @@ plot(mod1)
 # looking pretty good
 
 # run a gls
-gls1 <- gls(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere +
+gls1 <- gls(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere +
               abslat:hemisphere + BIOME + log(number_checklists), dat)
 
 
@@ -310,6 +314,80 @@ mod.gam4 <- gam(total_SR ~ s(lat, by=urban2) +
 plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE), add.data=TRUE)
 # pretty much the same pattern
 
+
+
+############################
+## Iterative thinned models to get rid of spatial autocorrelation
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+dat.thinned <- dat %>% group_by(cell.subsample, season) %>% sample_n(1) 
+
+
+# run model
+lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere +
+                   BIOME + log(number_checklists) + elevation, dat.thinned)
+dat.thinned$residuals <- residuals(lm.thinned)
+
+dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
+dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+# supplements a neighbors list with spatial weights for the chosen coding scheme
+# trying with B instead of W
+
+
+# Moran's I test
+moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
+
+moran
+# thinned by a spatial grid of 20, the p value is 1, the observed Moran's I is very small. 14269 observations.
+# Tried by a spatial grid of 10, still not significantly autocorrelated. This is what I will use
+
+#gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+#                  BIOME + log(number_checklists) + elevation, dat.thinned)
+gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + BIOME + log(number_checklists) + elevation, dat.thinned)
+plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
+                        1, data = dat.thinned.sf, cutoff = 200))
+
+plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
+                        1, data = dat.thinned.sf, cutoff = 200, alpha = c(0, 45, 90, 135)))
+
+## might need to thin within season
+
+thinned.results <- list()
+predicted <- list()
+
+for (i in 1:1000){
+  dat.thinned <- dat %>% group_by(cell.subsample, season) %>% sample_n(1) # try subsampling within season
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     BIOME + log(number_checklists) + elevation, dat.thinned)
+  # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
+  #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+  #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+  # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
+  thinned.results[[i]] <- summary(lm.thinned)
+  predicted[[i]] <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
+}
+
+predicted_df <- bind_rows(predicted)
+
+# plot each predicted value as a point and the confidence intervals as lines
+predicted_df <- predicted_df %>% group_by(x, group) %>% mutate(max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+ggplot(predicted_df, aes(x=x, y=predicted, color=group)) +
+  geom_point()+
+  geom_smooth(method="lm") +
+  geom_errorbar(aes(ymin=min.conf.low, ymax=max.conf.high))
 
 
 

@@ -37,6 +37,7 @@ hist(dat$number_checklists) # this is super log normal, used the log in the resp
 
 dat %>% group_by(BIOME) %>% summarise(n=n()) # look at how many observations per biome
 
+dat %>% group_by(urban2) %>% count()
 
 
 
@@ -57,29 +58,25 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    BIOME + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
 
+mod1.hemsiphere <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + 
+                   BIOME + log(number_checklists) + elevation, dat) # no interaction with hemisphere
 
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
-                        BIOME + log(number_checklists)+ elevation, dat) # continent and latitude interaction
+                        BIOME + log(number_checklists) + elevation, dat) # continent as a fixed effect
 
-mod1.trans.wele <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                   BIOME + log(number_checklists) + elevation, dat) # hemisphere and latitude interaction with elevation
-
-mod1.trans.cont.wele <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
-                        BIOME + log(number_checklists) + elevation, dat) # continent and latitude interaction with elevation
 
 mod1.trans.cont.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * CONTINENT + 
                              BIOME + log(number_checklists) + elevation, dat) # triple interaction between continent, latitude, and urbanization
 
 
+AIC(mod1.trans, mod1.hemsiphere, mod1.trans.cont, mod1.trans.cont.intrxn)
+# model with continent interaction is best, but I don't think I want to use this one
+# I think I will do the hemisphere one with the interaction
+
+#mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
+ #                     BIOME + log(number_checklists) + elevation, dat) # model with quadrant instead
 
 
-
-
-mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                      BIOME + log(number_checklists) + elevation, dat) # model with quadrant instead
-
-
-mod <-lm(sqrt(total_SR) ~ abslat * urban2, dat)
 
 predicted <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
@@ -97,36 +94,16 @@ ggsave(results.plot, file="LDGMainResults.png", height=5, width=8)
 
 
 ######## Look at results
-emmeans(mod1.trans, specs="urban2")
-11.6^2 # 134.56
-10.5^2 # 110
-9.6^2 # 92
+means.df <- as.data.frame(emmeans(mod1.trans, specs="urban2"))
+means.df$emmean.sq <- means.df$emmean^2
+135-112
+111-93
+
 emtrends(mod1.trans, pairwise ~ urban2, var="abslat")
 summary(mod1.trans)
 
 emtrends(mod1.trans, pairwise ~ urban2, var="abslat", by="hemisphere")
 # all significantly negative
-
-summary(mod1.trans)
-AIC(mod1.trans, mod1.hemisphere.intrxn, mod1.trans.cont, mod1.trans.wele, mod1.trans.cont.wele, mod1.trans.cont.intrxn, mod1.quadrant) 
-# last one with continent urbanization latitude interaction is best
-# The model with quadrant is better than the model with only hemisphere but not as good as the model with continent
-
-# Plot model results for talk
-predicted <- ggpredict(mod1.trans , terms = c("abslat", "urban2", "quadrant")) 
-# looks the same whether sqrt included in model or not
-
-
-results.plot <-
-  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-  guides(fill = guide_legend(byrow = TRUE))
-results.plot
-ggsave(results.plot, file="results.plot.quadrant.png", height=5, width=9)
-
 
 # Compare slopes
 lstrends(mod1.trans, pairwise ~ urban2, var="abslat")
@@ -147,7 +124,7 @@ results.plot2
 ggsave(results.plot2, file="results.bycontient.png")
 
 # Compare between hemispheres
-predicted3 <- ggpredict(mod1.hemisphere.intrxn, terms = c("abslat", "urban2", "hemisphere")) 
+predicted3 <- ggpredict(mod1.trans, terms = c("abslat", "urban2", "hemisphere")) 
 # looks the same whether sqrt included in model or not
 
 results.plot3 <-
@@ -279,197 +256,6 @@ AIC(mod.poisson, mod.poisson.poly)
 
 
 ############################
-
-###################################
-#### USING SPATIALREG PACKAGE TO RUN MODELS
-
-# sample data
-set.seed(10)
-dat.samp <- dat[sample(nrow(dat), 5000), ]
-# turn into sf object
-GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
-dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat"), crs=st_crs(GHSL)) 
-
-mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, dat.samp) # here is the model that I am working with
-summary(mod1.trans)
-dat.samp$residuals <- residuals(mod1.trans)
-dat.samp$fitted <- fitted(mod1.trans)
-#saveRDS(mod1.trans, "50K_samp_lmmod.rds")
-
-dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # make list of nearest neighbors
-test <- as.data.frame(card(dat.samp.nb)) # this gives how many neighbors there are. 
-
-class(dat.samp.sf)
-# This function identifies neighbours of region points by euclidean distance
-# it returns a list of integer vectors giving the region id numbers for neighbors satisfying the distance criteria
-class(dat.samp.nb) # this is an nb object
-
-dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
-beep()
-
-# Moran's I test
-moran.results <- lm.morantest(mod1.trans, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
-moran.results
-
-LMtests.results <- lm.LMtests(mod1.trans, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
-LMtests.results
-
-
-
-Inc.lag <- lag.listw(dat.samp.lw, dat.samp$residuals, zero.policy = T)
-plot(Inc.lag)
-moran.plot(dat.samp$residuals, dat.samp.lw)
-# slope of the regression line between spatially lagged values and observed values
-
-# to assess if the slope is significantly diff from 0, can permute values across samples
-moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE) # moran monte carlo
-moran
-# significant
-
-# look at how it changes with distance of nearest neighbors used
-moran_I <- c()
-
-
-# set up parallelization
-n.cores <- parallel::detectCores() - 4
-
-#create the cluster
-my.cluster <- parallel::makeCluster(
-  n.cores, 
-  type = "FORK"
-)
-
-print(my.cluster)
-
-#register it to be used by %dopar%
-doParallel::registerDoParallel(cl = my.cluster)
-
-#check if it is registered (optional)
-foreach::getDoParRegistered()
-# loop d through a sequence ranging from 50 to 2000 ( in parallel)
-
-for (d in seq(1, 200, 10)) {
-#foreach  (d = seq(0, 200, 10),
-#                       .combine = 'c') %dopar% {
-  dat.samp.nb <- dnearneigh(dat.samp.sf, d1 = 0, d2 = d)
-  dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
-  moran <- moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-  moran_I <- c(moran_I, moran$statistic)
-} # THIS TAKES A REALLY LONG TIME
-beep()
-moran_I <- data.frame(moran = moran_I, 
-                      distance = seq(0, 200, 10))
-
-ggplot(moran_I, aes(x = distance, y = moran)) + 
-  geom_point() +
-  geom_line()
-beep()
-
-
-
-##### Try running models  with sample data
-# Spatially lagged X model
-dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                       BIOME + log(number_checklists) + elevation, data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
-beep()
-summary(dat.samp.slx) # R2 is 0.38 (higher than without the lag)
-summary(mod1.trans)
-summary(impacts(dat.samp.slx, listw=dat.samp.lw), zstats=TRUE) 
-#saveRDS(dat.samp.slx, "50K_samp_slxmod.rds")
-# interaction effect no longer significant hmmm
-
-# test model
-dat.samp$residuals.slx <- residuals(dat.samp.slx)
-moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-# no more spatial autocorrelation!
-
-
-# Spatial lag model
-dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                       BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
-beep()
-summary(dat.samp.slm)
-
-# Spatial error model
-dat.samp.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-           BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
-summary(dat.samp.sem)
-beep()
-
-
-AIC(dat.samp.slx, dat.samp.sem, dat.samp.slm)
-# the slx model is best
-
-# run moran test
-dat.samp$residuals.slx <- residuals(dat.samp.slx)
-dat.samp$residuals.slm <- residuals(dat.samp.slm)
-dat.samp$residuals.sem <- residuals(dat.samp.sem)
-
-moran.mc(dat.samp$residuals, dat.samp.lw, nsim = 999, zero.policy = TRUE) # significant p = 0.001
-moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE) # still autocorrelated
-moran.mc(dat.samp$residuals.slm, dat.samp.lw, nsim = 999, zero.policy = TRUE) # still autocorrelated
-moran.mc(dat.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE) # not autocorrelated! Spatial error model could be the answer!
-beep()
-# the spatial error model is the best!
-
-
-####### Try different distances
-set.seed(15)
-dat.samp2 <- dat[sample(nrow(dat), 5000), ]
-
-# run regular model
-dat.samp2.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                          BIOME + log(number_checklists), data = dat.samp2)
-
-# turn into sf object
-dat.samp2.sf <- st_as_sf(dat.samp2, coords=c("long", "lat"), crs=st_crs(GHSL)) 
-
-dat.samp2.nb <- dnearneigh(dat.samp2.sf, d1=0, d2=5)
-dat.samp2.lw <- nb2listw(dat.samp2.nb, style = "W", zero.policy = TRUE)
-
-dat.samp2.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                         BIOME + log(number_checklists), data = dat.samp2, listw = dat.samp2.lw, zero.policy = TRUE)
-
-dat.samp2$residuals.lm <- residuals(dat.samp2.lm)
-moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)
-
-
-dat.samp2$residuals.sem <- residuals(dat.samp2.sem)
-moran.mc(dat.samp2$residuals.sem, dat.samp2.lw, nsim = 999, zero.policy = TRUE) # 100 km still gets rid of autocorrelation
-# still works with a distance of 50 and 10 and 1!
-beep()
-
-plot(ggeffects::ggpredict(dat.samp2.sem, terms=c("abslat"), listw=dat.samp2.lw, facets = TRUE))
-
-summary(dat.samp2.sem)
-# don't use impacts function on error models
-
-plot(predict(dat.samp2.sem, interval='confidence')[1:25])
-predicted <- predict(dat.samp2.sem, interval='confidence')
-dat.samp2.test <- cbind(dat.samp2, predicted)
-
-ggplot(dat.samp2.test, aes(x=abs(lat), y=fit^2, color=urban2))+
-  geom_point(alpha=0.1)+
-  geom_smooth(method="lm") # plot model fits yay!
-# the model results still look the same
-
-################ Try running model on full data
-GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
-dat.sf <- st_as_sf(dat, coords=c("long", "lat"), crs=st_crs(GHSL)) 
-
-dat.nb <- dnearneigh(dat.sf, d1=0, d2=1)
-dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
-
-dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                          BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
-# can't run, sample size too large
-dat.samp2$residuals.lm <- residuals(dat.samp2.lm)
-moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)
-
-
-
-
 
 
 

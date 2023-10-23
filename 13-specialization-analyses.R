@@ -151,9 +151,9 @@ for (i in 1:nrow(birds_zones)){
     if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
       birds_zones$category[i] <- "both"
     }
-    else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
-      birds_zones$category[i] <- "urban.only"
-    }
+ #   else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+  #    birds_zones$category[i] <- "urban.only"
+   # }
     else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
       birds_zones$category[i] <- "natural.only"
     }
@@ -286,26 +286,15 @@ ggplot(data=world)+
 ### Diet specialization
 sp_diet <- read.table("unique_sp_dietspec.txt", header=T) %>% filter(!is.na(gini.index))
 
-length(unique(sp_diet$SCIENTIFIC.NAME))
+length(unique(sp_diet$SCIENTIFIC.NAME)) # 
 # see if there are more specialists at low latitudes
-sp_diet %>% group_by(lat_bin) %>% summarise(mean_diet = mean(gini.index))
+
 
 sp_diet$abslat <- abs(sp_diet$lat)
 # boxplot of specialization
-ggplot(sp_diet)+
-  geom_boxplot(aes(x=lat_bin, y=gini.index, fill=urban2))
-
-# ok they look pretty similar lol
-# anova
-diet.aov1 <- aov(gini.index ~ lat_bin * urban2, data = sp_diet)
-summary(diet.aov1) # interaction is significant
-# look at contrasts
-
-emmeans.diet1 <- emmeans(diet.aov1, specs="urban2", by="lat_bin")
-plot(emmeans.diet1)
 
 
-####### Bin by larger categories
+####### Bin by geographical zone
 
 sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 70), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
@@ -327,12 +316,12 @@ diet_zones <- diet_zones %>% replace(is.na(.), 0)
 diet_zones$category <- NA
 
 for (i in 1:nrow(diet_zones)){
-  if (diet_zones$natural[i] > 0  & diet_zones$urban[i] > 0) {
+  if (diet_zones$natural[i] >= 0  & diet_zones$urban[i] > 0) {
    diet_zones$category[i] <- "both"
  }
-  else if (diet_zones$natural[i] == 0 & diet_zones$urban[i] > 0) {
-   diet_zones$category[i] <- "urban.only"
- }
+ # else if (diet_zones$natural[i] == 0 & diet_zones$urban[i] > 0) {
+  # diet_zones$category[i] <- "urban.only"
+ #}
 else if (diet_zones$natural[i] > 0 & diet_zones$urban[i] == 0) {
    diet_zones$category[i] <- "natural.only"
   }

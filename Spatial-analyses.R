@@ -265,11 +265,11 @@ lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 ##### 3b. Trying much faster thinning method
 # Create raster grid and overlay and then randomly sample points from the grid
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 nrow(GHSL)
 ncol(GHSL)
 spat.extent <- ext(GHSL)
-sample.grid <- rast(resolution=c(20000, 20000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
 plot(sample.grid)
 
 
@@ -298,7 +298,7 @@ dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # tu
 moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 moran
-# this takes way too long, going to look at the variogram instead
+# thinned by a spatial grid of 20, the p value is 1, the observed Moran's I is very small. 14269 observations.
 
 #gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
 #                  BIOME + log(number_checklists) + elevation, dat.thinned)

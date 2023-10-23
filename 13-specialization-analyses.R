@@ -81,36 +81,31 @@ test <- global_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is 
 # turn urban into 3 categories
 global_uniquesp <- global_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
 
-write.table(global_uniquesp, "global_unique_species.txt", row.names=FALSE)
+global_uniquesp2 <- global_uniquesp %>% filter(lat <= 70 & lat >=-55) # filter for latitudes included in my analysis
+length(unique(global_uniquesp$SCIENTIFIC.NAME)) 
+length(unique(global_uniquesp2$SCIENTIFIC.NAME)) # only lost 3 species with the latitude cutoff
 
-
+write.table(global_uniquesp2, "global_unique_species.txt", row.names=FALSE)
 
 
 ### Merge with trait data
 
 ############ Habitat data
 habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
-sp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
-length(unique(sp_habitat$SCIENTIFIC.NAME)) # 8,498 species
 
-sp_habitat$abslat <- abs(sp_habitat$lat)
-# Try with habitat data
-sp_habitat <- sp_habitat %>% mutate(lat_bin = cut(abslat, breaks=abs(c(0, 10, 20, 30, 40, 50, 60, 70, 80))))                                             
+sp_habitat <- merge(global_uniquesp2, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
+length(unique(sp_habitat$SCIENTIFIC.NAME)) # 8,496 species
+
 # save data with habitat breadth
 write.table(sp_habitat, "unique_sp_habitatbreadth.txt", row.names=F)
 
 ######## Diet data 
 diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
-sp_diet <- merge(global_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
-length(unique(sp_diet$SCIENTIFIC.NAME)) # 6,904 species
+sp_diet <- merge(global_uniquesp2, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
+length(unique(sp_diet$SCIENTIFIC.NAME)) # 6,902 species
 
-# Bin latitude by 10 degrees
-sp_diet$abslat <- abs(sp_diet$lat)
-sp_diet <- sp_diet %>% mutate(lat_bin = cut(abslat, breaks=c(0, 10, 20, 30, 40, 50, 60, 70, 80)))
 # save data with diet
 write.table(sp_diet, "unique_sp_dietspec.txt", row.names=F)
-
-
 
 
 
@@ -118,74 +113,18 @@ write.table(sp_diet, "unique_sp_dietspec.txt", row.names=F)
 
 
 ## Habitat data, filter out NAs for habitat
-sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T) %>% filter(!is.na(Habitat_breadth_IUCN))
-length(unique(sp_habitat$SCIENTIFIC.NAME))
+sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T) %>% filter(!is.na(Habitat_breadth_IUCN)) # some species have NA values for habitat breadth
+length(unique(sp_habitat$SCIENTIFIC.NAME)) # 8367
+
 # see if there are more specialists at low latitudes
 # boxplot of habitat specialization
 hist(log(sp_habitat$Habitat_breadth_IUCN)) # definitely looks pretty log normal
 hist(sp_habitat$Habitat_breadth_IUCN)
-
-ggplot(sp_habitat)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=urban2))
-# looks like there could be a pattern here - habitat breadth decreases at 
-# low latitude bins in natural but not urban areas
-ggplot(sp_habitat)+
-  geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN)))
-
-habitat.aov <- aov(Habitat_breadth_IUCN ~ lat_bin, data = sp_habitat)
-summary(habitat.aov)
-# there does seem to be a significant difference
-
-################ Analyses with the 10 degree habitat bins
-# anova
-#habitat.aov <- aov(Habitat_breadth_IUCN ~ lat_bin * urban2, data = sp_habitat)
-#summary(habitat.aov)
-##plot(habitat.aov)
-## there does seem to be a significant difference
-#emmeans.habitat1 <- emmeans(habitat.aov, specs="urban2", by="lat_bin")
-#plot(emmeans.habitat1) # wow this is super interesting too! The difference definitely decreases
-#
-### Do a big grouping by species and latitude bin and label by both urban and non-urban, just urban, or just non-urban
-## to make it simpler I will take out suburban for now
-#birds_test <- sp_habitat %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
-##  filter(!urban2=="suburban") %>% 
-#  pivot_wider(names_from="urban2", values_from="n")  
-#
-#birds_test <- birds_test %>% replace(is.na(.), 0)
-#
-#birds_test$category <- NA
-## to make it simpler I will take out surburban for now
-#for (i in 1:nrow(birds_test)){
-#  if (birds_test$natural[i] >= 0 & birds_test$suburban[i] >= 0 & birds_test$urban[i] > 0) {
-#    birds_test$category[i] <- "in.urban"
-#  }
-#  else if (birds_test$natural[i] >= 0 & birds_test$suburban[i] > 0 & birds_test$urban[i] == 0){
-#    birds_test$category[i] <- "in.suburban"
-#  }
-#  else if (birds_test$natural[i] > 0 & birds_test$suburban[i] == 0 & birds_test$urban[i] == 0) {
-#    birds_test$category[i] <- "natural.only"
-#  }
-#  
-#}
-#
-#birds_test %>% group_by(category) %>% count()
-## there are less species that are natural only
-#
-## make boxplot of habitat breadth for each latitude bin with habitat breadth and urbanization
-#ggplot(birds_test)+
-#  geom_boxplot(aes(x=lat_bin, y=Habitat_breadth_IUCN, fill=category))
-#
-## run anova
-#habitat.aov2 <- aov(Habitat_breadth_IUCN ~ lat_bin * category, data = birds_test)
-#summary(habitat.aov2)
-#
-#emmeans.habitat2 <- emmeans(habitat.aov2, specs="category", by="lat_bin")
-#plot(emmeans.habitat2)
-# this is super cool!
+sp_habitat$abslat <- abs(sp_habitat$lat) # add in absolute latitude
 
 
-######### Bin by larger groupings
-sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+######### Bin by biogeographical zone
+sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 70), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 # run anova on the raw habitat breadth with these larger zones
 habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * urban2, data = sp_habitat)
@@ -201,25 +140,42 @@ plot(emmeans.habitat3)
 
 
 birds_zones <- sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
- # filter(!urban2=="suburban") %>% 
+  filter(!urban2=="suburban") %>% 
   pivot_wider(names_from="urban2", values_from="n")  
 
 birds_zones <- birds_zones %>% replace(is.na(.), 0)
 
 birds_zones$category <- NA
-# to make it simpler I will take out surburban for now
+
 for (i in 1:nrow(birds_zones)){
-  if (birds_zones$natural[i] >= 0 & birds_zones$suburban[i] >= 0 & birds_zones$urban[i] > 0) {
-    birds_zones$category[i] <- "in.urban"
-  }
-  else if (birds_zones$natural[i] >= 0 & birds_zones$suburban[i] > 0 & birds_zones$urban[i] == 0){
-    birds_zones$category[i] <- "in.suburban"
-  }
-  else if (birds_zones$natural[i] > 0 & birds_zones$suburban[i] == 0 & birds_zones$urban[i] == 0) {
-    birds_zones$category[i] <- "natural.only"
-  }
-  
+    if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
+      birds_zones$category[i] <- "both"
+    }
+    else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+      birds_zones$category[i] <- "urban.only"
+    }
+    else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
+      birds_zones$category[i] <- "natural.only"
+    }
+    
 }
+
+#birds_zones <- birds_zones %>% filter(!category=="urban.only") # remove urban only birds?
+#length(unique(urb.only$SCIENTIFIC.NAME)) # 319 species that are urban only
+
+# with suburban included
+#for (i in 1:nrow(birds_zones)){
+#  if (birds_zones$natural[i] >= 0 & birds_zones$suburban[i] >= 0 & birds_zones$urban[i] > 0) {
+#    birds_zones$category[i] <- "in.urban"
+#  }
+#  else if (birds_zones$natural[i] >= 0 & birds_zones$suburban[i] > 0 & birds_zones$urban[i] == 0){
+#    birds_zones$category[i] <- "in.suburban"
+#  }
+#  else if (birds_zones$natural[i] > 0 & birds_zones$suburban[i] == 0 & birds_zones$urban[i] == 0) {
+#    birds_zones$category[i] <- "natural.only"
+#  }
+#  
+#}
 
 
 
@@ -253,9 +209,9 @@ richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
 
 habitat_bar <-
   richness_category %>% 
-  mutate(category = factor(category, levels = c('natural.only', 'in.suburban', 'in.urban'), ordered = TRUE)) %>%
+  mutate(category = factor(category, levels = c('natural.only', 'both', 'urban.only'), ordered = TRUE)) %>%
   ggplot(aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('Found in natural only', 'Found in suburban', 'Found in urban'), values=c("deepskyblue3", "purple1", "black"))+
+  scale_fill_manual(labels=c('In natural only', 'In urban', 'In urban only'), values=c("deepskyblue3", "black", "grey50"))+
   labs(y="Number of Species")+
 #  coord_flip()+
   geom_bar(position="stack", stat="identity")+
@@ -271,10 +227,11 @@ habitat_bar
 emmeans.df.habitat <- as.data.frame(emmeans.habitat4)
 
 
-habitat_point <-ggplot(emmeans.df.habitat, aes(x=zone_bin, y=emmean, group=category, color=category))+
+habitat_point <- emmeans.df.habitat %>% filter(!category=="urban.only") %>% 
+  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
   geom_point(size=2, position=position_dodge(width=0.2))+
   geom_line(size=0.5, position=position_dodge(width=0.2))+
-  scale_color_manual(values=c("purple1", "deepskyblue3", "black"))+
+  scale_color_manual(values=c("deepskyblue3", "black", "grey50"))+
   labs(y="Log habitat breadth")+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.15, position=position_dodge(width=0.2))+
   annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
@@ -285,7 +242,7 @@ habitat_point <-ggplot(emmeans.df.habitat, aes(x=zone_bin, y=emmean, group=categ
            arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
   coord_cartesian(clip = "off")+
   theme_classic()+
-  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.position="none")
+  theme(axis.title.x=element_blank(), legend.position="none")
 habitat_point
  # theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .1),
   #      legend.justification = c("right", "bottom"),
@@ -294,10 +251,10 @@ habitat_point
 
 habitat_plot <- ggarrange(habitat_bar, habitat_point, ncol=1)
 habitat_plot
+
+
 ggsave(habitat_plot, file="pecialistHabitatResults.png")
 # Try it as an inset
-#ggdraw(habitat_point)+
-#  draw_plot({habitat_bar}, width=0.4, height=0.4, x=0.58, y=0.05)
 
 
 # take a closer look at the species that are lost from urban areas
@@ -332,6 +289,8 @@ sp_diet <- read.table("unique_sp_dietspec.txt", header=T) %>% filter(!is.na(gini
 length(unique(sp_diet$SCIENTIFIC.NAME))
 # see if there are more specialists at low latitudes
 sp_diet %>% group_by(lat_bin) %>% summarise(mean_diet = mean(gini.index))
+
+sp_diet$abslat <- abs(sp_diet$lat)
 # boxplot of specialization
 ggplot(sp_diet)+
   geom_boxplot(aes(x=lat_bin, y=gini.index, fill=urban2))
@@ -346,44 +305,9 @@ emmeans.diet1 <- emmeans(diet.aov1, specs="urban2", by="lat_bin")
 plot(emmeans.diet1)
 
 
-## Group by 10 degree latitude bins
-#birds_diet <- sp_diet %>% group_by(lat_bin, SCIENTIFIC.NAME, urban2, gini.index) %>% count(.drop=FALSE) %>% 
-#  #filter(!urban2=="suburban") %>% 
-#  pivot_wider(names_from="urban2", values_from="n")  
-#
-#birds_diet <- birds_diet %>% replace(is.na(.), 0)
-#
-#birds_diet$category <- NA
-## to make it simpler I will take out surburban for now
-#for (i in 1:nrow(birds_diet)){
-#  if (birds_diet$natural[i] >= 0 & birds_diet$suburban[i] >= 0 & birds_diet$urban[i] > 0) {
-#    birds_diet$category[i] <- "in.urban"
-#  }
-#  else if (birds_diet$natural[i] >= 0 & birds_diet$suburban[i] > 0 & birds_diet$urban[i] == 0) {
-#    birds_diet$category[i] <- "in.suburban"
-#  }
-#  
-#  else if (birds_diet$natural[i] > 0 & birds_diet$suburban[i] == 0 & birds_diet$urban[i] == 0) {
-#    birds_diet$category[i] <- "natural.only"
-#  }
-#}
-#
-#
-#ggplot(birds_diet)+
-#  geom_boxplot(aes(x=lat_bin, y=gini.index, fill=category))
-#
-## run anova
-#diet.aov2 <- aov(gini.index ~ lat_bin * category, data = birds_diet)
-#summary(diet.aov2) # interaction is not significant
-## look at contrasts
-#
-#emmeans.diet2 <- emmeans(diet.aov2, specs="category", by="lat_bin")
-#plot(emmeans.diet2)
-#
-
 ####### Bin by larger categories
 
-sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 70), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 
 # run anova on the raw habitat breadth with these larger zones
@@ -395,25 +319,39 @@ plot(emmeans.diet3)
 # the difference is way larger in the tropics!
 
 diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index) %>% count(.drop=FALSE) %>% 
-#  filter(!urban2=="suburban") %>%
+  filter(!urban2=="suburban") %>%
   pivot_wider(names_from="urban2", values_from="n")  
 
 diet_zones <- diet_zones %>% replace(is.na(.), 0)
 
 diet_zones$category <- NA
-# to make it simpler I will take out surburban for now
+
 for (i in 1:nrow(diet_zones)){
-  if (diet_zones$natural[i] >= 0 & diet_zones$suburban[i] >= 0 & diet_zones$urban[i] > 0) {
-    diet_zones$category[i] <- "in.urban"
-  }
-  else if (diet_zones$natural[i] >= 0 & diet_zones$suburban[i] > 0 & diet_zones$urban[i] == 0) {
-    diet_zones$category[i] <- "in.suburban"
-  }
-  
-  else if (diet_zones$natural[i] > 0 & diet_zones$suburban[i] == 0 & diet_zones$urban[i] == 0) {
-    diet_zones$category[i] <- "natural.only"
+  if (diet_zones$natural[i] > 0  & diet_zones$urban[i] > 0) {
+   diet_zones$category[i] <- "both"
+ }
+  else if (diet_zones$natural[i] == 0 & diet_zones$urban[i] > 0) {
+   diet_zones$category[i] <- "urban.only"
+ }
+else if (diet_zones$natural[i] > 0 & diet_zones$urban[i] == 0) {
+   diet_zones$category[i] <- "natural.only"
   }
 }
+
+
+# including suburban
+#for (i in 1:nrow(diet_zones)){
+#  if (diet_zones$natural[i] >= 0 & diet_zones$suburban[i] >= 0 & diet_zones$urban[i] > 0) {
+ #   diet_zones$category[i] <- "in.urban"
+ # }
+#  else if (diet_zones$natural[i] >= 0 & diet_zones$suburban[i] > 0 & diet_zones$urban[i] == 0) {
+ #   diet_zones$category[i] <- "in.suburban"
+ # }
+  
+  #else if (diet_zones$natural[i] > 0 & diet_zones$suburban[i] == 0 & diet_zones$urban[i] == 0) {
+ #   diet_zones$category[i] <- "natural.only"
+#  }
+#}
 
 
 unique(diet_zones$zone_bin)
@@ -446,9 +384,9 @@ ggplot(diet_zones, aes(y = zone_bin, x = gini.index, fill = category)) +
 richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
 
 diet_bar <- richness_category %>% 
-  mutate(category = factor(category, levels = c('natural.only', 'in.suburban', 'in.urban'), ordered = TRUE)) %>%
+  mutate(category = factor(category, levels = c('natural.only', 'both', 'urban.only'), ordered = TRUE)) %>%
   ggplot(aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('Found in natural only', 'Found in suburban', 'Found in urban'), values=c("deepskyblue3", "purple1", "black"))+
+  scale_fill_manual(labels=c('In natural only', 'In urban', 'In urban only'), values=c("deepskyblue3", "black", "grey50"))+
   geom_bar(position="stack", stat="identity")+
   labs(y="Number of Species")+
 #  coord_flip()+
@@ -464,25 +402,26 @@ diet_bar
 
 
 emmeans.df.diet <- as.data.frame(emmeans.diet4)
-diet_point <- ggplot(emmeans.df.diet, aes(x=zone_bin, y=emmean, group=category, color=category))+
+diet_point <- emmeans.df.diet %>% filter(!category=="urban.only") %>% 
+  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
   geom_point(size=2, position=position_dodge(width=0.2))+
   geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
-  scale_color_manual(values=c("purple1","black","deepskyblue3"))+
+  scale_color_manual(values=c("black", "deepskyblue3"))+
   labs(y="Diet specialization")+
   scale_y_reverse()+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25, position=position_dodge(width=0.2))+
-  annotate("text", x=0.7, y=0.86, label="Generalist", angle=90)+
-  annotate("text", x=0.7, y=0.915, label="Specialist", angle=90)+
-  annotate("segment", x = 0.7, y = 0.835, xend = 0.7, yend = 0.845, size=0.5,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+  annotate("text", x=0.7, y=0.9, label="Generalist", angle=90)+
+  annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
+  annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
   annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
            arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
   theme_classic()+
-  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.position="none")
+  theme(axis.title.x=element_blank(), legend.position="none")
 # annotations not showing up for some reason rip
 diet_point
 
-ggarrange(habitat_bar, diet_bar, habitat_point, diet_point)
+ggarrange(diet_bar, diet_point, ncol=1)
 
 
 

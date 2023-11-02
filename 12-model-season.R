@@ -16,87 +16,8 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 # Load data
 dat <- read.csv("season_modeling_data.csv")
 
-# assign hemisphere
-dat$hemisphere <- "northern"
-dat$hemisphere[dat$lat<0]<-"southern"
-
-dat$urban<-as.factor(dat$urban)
-dat$BIOME <- as.factor(dat$BIOME)
-
-# make another column with just 3 categories
-dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
-dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
-dat$urban2 <- as.factor(dat$urban2)
-dat$abslat <- abs(dat$lat) # absolute latitude
-
-# Divide by quartiles
-for (i in 1:nrow(dat)){
-  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
-    dat$quadrant[i] <- 1
-  }
-  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
-    dat$quadrant[i] <- 2
-  }
-  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
-    dat$quadrant[i] <- 3 
-  }
-  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
-}
-dat$quadrant <- as.factor(dat$quadrant)
-
-#dat <- dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
-
-
-urb <- dat %>% filter(urban2==3)
-range(urb$lat) # the highest latitude is 64.15 and the lowest is -54.84
-
-suburb <- dat %>% filter(urban2==2)
-range(suburb$lat) # highest latitude is 65.76 and lowest latitude is -53.11
-
-nat <- dat %>% filter(urban2==1)
-range(nat$lat) # highest latitude is 65.76 and lowest latitude is -53.11
-# 42266 - 42243
-dat <- dat %>% filter(lat <= 66 & lat >= -55) # cut off data at the highest latitude range
-
-nrow(dat %>% filter(season=="winter"))
-
-dat %>% group_by(season, urban2) %>% count()
 # Plot relationship 
 
-LDG <- ggplot(dat, aes(x=abs(lat), y=total_SR, color=urban2)) +
-  geom_point(alpha=0.1, shape=1) +
-  geom_smooth(method="lm") +
-  labs(x="Absolute Latitude", y="Species Richness")+
-  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw() +
-  facet_wrap(~season) # has the expected relationship!
-
-# Plot data coverage
-dat.wint  <- dat %>% filter(season=="winter") 
-plot.wint <-  ggplot(data=world)+
-  geom_sf() +
-  geom_point(data=dat.wint, aes(x=long, y=lat), color="cornflowerblue", size=0.03) +
-  coord_sf(crs = 4326, expand = FALSE) +
-  scale_color_viridis_c(na.value = NA, option="B")+
-  labs(x="Longitude", y="Latitude")+
-  theme_bw()
-ggsave(plot.wint, file="winter.coverage.png", height=8, width=6)
-
-dat.sum  <- dat %>% filter(season=="summer") 
-plot.sum <-  ggplot(data=world)+
-  geom_sf() +
-  geom_point(data=dat.sum, aes(x=long, y=lat), color="orange", size=0.03) +
-  coord_sf(crs = 4326, expand = FALSE) +
-  scale_color_viridis_c(na.value = NA, option="B")+
-  labs(x="Longitude", y="Latitude")+
-  theme_bw()
-ggsave(plot.sum, file="summer.coverage.png", height=8, width=6)
-
-dat$season <- factor(dat$season, levels = c("winter", "summer"),
-                  labels = c("Winter", "Summer"))
-
-dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
-                     labels = c("Natural", "Suburban", "Urban"))
 # model
 mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + BIOME + log(number_checklists) + elevation, dat)
 
@@ -161,45 +82,6 @@ lstrends(mod1, pairwise ~ season, var="abslat", by="urban2")
 lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Winter")) # compare slopes in winter
 lstrends(mod1, pairwise ~ urban2, var="abslat", at=c(season="Summer")) # compare slopes in summer
 # still significantly positive!
-
-
-
-predicted <- ggpredict(mod1, terms = c("abslat", "urban2", "season")) # looks the same whether sqrt included in model or not
-
-seasonal.results.plot<-
-  plot(predicted, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
-       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'), legend.position="none")+
-  guides(fill = guide_legend(byrow = TRUE))
-seasonal.results.plot
-ggsave(seasonal.results.plot, file="seasonal.results.plot.png", height=6, width=12)
-ggsave(seasonal.results.plot, file="seasonal.results.plot.conclusion.png", height=6, width=7)
-
-predicted2 <- predicted %>% filter(group=="Natural")
-seasonal.results.plot2<-
-  plot(predicted2, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
-       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#009E73")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'), legend.position="none")+
-  guides(fill = guide_legend(byrow = TRUE))
-seasonal.results.plot2
-ggsave(seasonal.results.plot2, file="seasonal.results2.plot.png", height=6, width=12)
-ggsave(seasonal.results.plot2, file="seasonal.results2.plot.conclusion.png", height=6, width=7) # less wide for conclusion
-
-predicted3 <- predicted %>% filter(group%in%c("Natural", "Urban"))
-seasonal.results.plot3<-
-  plot(predicted3, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
-       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.text=element_text(size=22), legend.spacing.y = unit(1, 'cm'), legend.position="none")
-seasonal.results.plot3
-ggsave(seasonal.results.plot3, file="seasonal.results.plot3.png", height=6, width=12)
-ggsave(seasonal.results.plot3, file="seasonal.results3.plot.conclusion.png", height=6, width=7)
-# it back transforms automatically but does not transform the errors, might need to fix later
 
 
 
@@ -316,7 +198,7 @@ plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE), ad
 
 
 
-############################
+################################
 ## Iterative thinned models to get rid of spatial autocorrelation
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
 spat.extent <- ext(GHSL)
@@ -362,32 +244,106 @@ plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
 plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
                         1, data = dat.thinned.sf, cutoff = 200, alpha = c(0, 45, 90, 135)))
 
-## might need to thin within season
 
-thinned.results <- list()
-predicted <- list()
+################## Loop and store models
 
+thinned.results.season <- list()
+predicted.season <- list()
+means.season <- list()
+emmeans.slopes.sum <- list()
+emmeans.slopes.wint <- list()
+ggeffects.slopes.season <- list()
+set.seed(20)
 for (i in 1:1000){
-  dat.thinned <- dat %>% group_by(cell.subsample, season) %>% sample_n(1) # try subsampling within season
-  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+  dat.thinned <- dat %>% group_by(cell.subsample, season) %>% sample_n(1) 
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere +
                      BIOME + log(number_checklists) + elevation, dat.thinned)
-  # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
-  #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
-  #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
-  # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  thinned.results[[i]] <- summary(lm.thinned)
-  predicted[[i]] <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
+  
+  thinned.results.season[[i]] <- summary(lm.thinned) # store summary data
+  predicted.season[[i]] <- ggemmeans(lm.thinned, terms = c("abslat", "urban2", "season"))# store predictions
+  means.season[[i]] <- emmeans(lm.thinned, specs="urban2", by="season")
+  emmeans.slopes.sum[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Summer")) # so I can see differences in slopes for each model (using emmeans)
+  emmeans.slopes.wint[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Winter"))
+  ggeffects.slopes.season[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test=NULL) # see differences in slopes (using ggeffects)
 }
 
-predicted_df <- bind_rows(predicted)
+# loop and store models
 
-# plot each predicted value as a point and the confidence intervals as lines
-predicted_df <- predicted_df %>% group_by(x, group) %>% mutate(max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+## Save predicted values as a csv
+predicted.season.df <- bind_rows(predicted.season)
+write.csv(predicted.season.df, "thinned.seasonal.results.csv")
 
-ggplot(predicted_df, aes(x=x, y=predicted, color=group)) +
-  geom_point()+
-  geom_smooth(method="lm") +
-  geom_errorbar(aes(ymin=min.conf.low, ymax=max.conf.high))
+# 1) Look at mean species richness in each urbanization level and season 
+seasonal_means_df <- list()
+for (i in 1:1000){
+  seasonal_means_df[[i]] <- as.data.frame(season.means[[i]])
+}
+
+seasonal_means_df <- bind_rows(seasonal_means_df)
+seasonal_means_summary <- seasonal_means_df %>% group_by(season, urban2) %>% summarise(mean=mean(emmean), max.upper=mean(upper.CL), min.lower=min(lower.CL))
+seasonal_means_summary
+
+# 2) Look at which slopes are different from one another
+contrast_sum_df <- list()
+for (i in 1:1000){
+  contrast_sum_df[[i]] <- as.data.frame(emmeans.slopes.sum[[i]]$contrasts)
+}
+contrast_sum_df <- bind_rows(contrast_sum_df)
+# calculate proportion where each contrast is significant
+contrast_sum_df %>% filter(p.value<0.05) %>% group_by(contrast) %>% count()
+# suburban and urban are not significantly different but natural is different from urban and suburban (P-value is less than 0.05 in all models)
+
+## Look at the slope of each line
+contrast_wint_df <- list()
+for (i in 1:1000){
+  contrast_wint_df[[i]] <- as.data.frame(emmeans.slopes.wint[[i]]$contrasts)
+}
+contrast_wint_df <- bind_rows(contrast_wint_df)
+contrast_wint_df %>% filter(p.value<0.05) %>% group_by(contrast) %>% count()
+
+
+
+### 3) Look at slopes of the line
+## Do with both emmeans and ggeffects because they give different results
+
+## Emmeans
+slopes_sum_df <- list()
+for (i in 1:1000){
+  slopes_sum_df[[i]] <- as.data.frame(emmeans.slopes.sum[[i]]$emtrends)
+}
+slopes_sum_df <- bind_rows(slopes_sum_df)
+
+## Look at the slope of each line
+slopes_wint_df <- list()
+for (i in 1:1000){
+  slopes_wint_df[[i]] <- as.data.frame(emmeans.slopes.wint[[i]]$emtrends)
+}
+slopes_wint_df <- bind_rows(slopes_wint_df)
+
+# look at slopes in urban areas
+slopes_sum <- slopes_sum_df %>% group_by(urban2) %>% summarise(mean=mean(abslat.trend), conf.high = max(upper.CL), conf.low=min(lower.CL))
+slopes_sum
+slopes_wint <- slopes_wint_df %>% group_by(urban2) %>% summarise(mean=mean(abslat.trend), 
+                                                                 conf.high = max(upper.CL), conf.low=min(lower.CL))
+slopes_wint
+# slopes are significantly negative in both winter and summer, but barely in urban areas in the winter
+
+## Ggeffects
+ggeffects.slopes.season.df <- bind_rows(ggeffects.slopes.season)
+# this uses the marginaleffects package
+# the slopes are negative here for urban and suburban
+
+ggslopes_sum <- ggeffects.slopes.season.df %>% group_by(urban2, season) %>% 
+  summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes_sum
+
+
+
+
+
+
+
+
 
 
 

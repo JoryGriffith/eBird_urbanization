@@ -60,3 +60,5 @@ season_habitatbreadth.txt
 winter_habitatbreadth.txt
 global_unique_species.txt
 ._global_unique_species.txt
+thinned.results.csv
+thinned.seasonal.results.csv

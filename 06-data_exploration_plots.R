@@ -410,22 +410,60 @@ cities <- cities_in_df %>% group_by(CITY_NAME) %>% summarise(n=n())
 dat <- read.csv("modeling_data.csv")
 world <- ne_countries(scale = "medium", returnclass = "sf")
 
-ggplot(data=world)+
-  geom_sf() +
-  geom_point(data=dat, aes(x=long, y=lat, color=urban2), size=0.05) +
+urb.map<-ggplot(data=world)+
+  geom_sf(lwd=0.15, fill="white") +
+  geom_point(data=dat, aes(x=long, y=lat, color=urban2), size=0.05, alpha=0.3) +
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   coord_sf(crs = 4326, expand = FALSE) +
   labs(x="Longitude", y="Latitude")+
-  geom_hline(yintercept=c(23.4, -23.4, 35, -35, 66.5, -66.5), alpha=0.8, lty=3)+ # geographic zones
+ # geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
+#  geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
+  theme_void()+
+  theme(legend.title=element_blank(), legend.position = c(.85, .3), text=element_text(size=15), strip.text=element_blank())+
+  facet_wrap(~urban2, ncol=2)
+urb.map
+# there are like 2 points in the arctic zone
+ggsave(urb.map, file="urban.map.png", height=5, width=10)
+
+# try all together
+map.together <- ggplot(data=world)+
+  geom_sf(lwd=0.15, fill="white") +
+  geom_point(data=dat, aes(x=long, y=lat, color=urban2), size=0.05, alpha=0.3) +
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  coord_sf(crs = 4326, expand = FALSE) +
+  labs(x="Longitude", y="Latitude")+
+ # geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
+#  geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
+  theme_void() +
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=15))
+ggsave(map.together, file="map.together.png", height=5, width=7)
+
+
+geographic_zones <- 
+  ggplot(data=world)+
+  geom_sf(lwd=0.15, fill="white") +
+#  geom_point(data=dat, aes(x=long, y=lat, color=urban2), size=0.05) +
+ # scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  coord_sf(crs = 4326, expand = FALSE) +
+  labs(x="Longitude", y="Latitude")+
+  geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
   geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
   theme_void()+
-  theme(legend.title=element_blank(), legend.position = c(.85, .15), text=element_text(size=15))+
-  facet_wrap(~urban2, ncol=2)
-# there are like 2 points in the arctic zone
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=-66.5, fill="blue", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=66.5, ymax=Inf, fill="blue", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=-66.5, ymax=-50, fill="lightblue", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=50, ymax=66.5, fill="lightblue", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=35, ymax=50, fill="forestgreen", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=-50, ymax=-35, fill="forestgreen", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=23.4, ymax=35, fill="yellow", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=-35, ymax=-23.4, fill="yellow", alpha=0.2)+
+  annotate("rect", xmin=-Inf, xmax=Inf, ymin=-23.4, ymax=23.4, fill="orange", alpha=0.2)+
+  theme(legend.title=element_blank(), legend.position = c(.85, .15), text=element_text(size=15))
+ggsave(geographic_zones,  file="zones_map.png")
 
 
-
-
+#library(maps)
+#map('world',col="white", fill=TRUE, bg="white", lwd=0.2, mar=rep(0,4), border=1, ylim=c(-80,80))  
 
 
 

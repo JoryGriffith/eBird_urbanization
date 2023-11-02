@@ -346,9 +346,66 @@ latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), 
 
 datFINAL <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                              y = sf::st_coordinates(.)[,2]))
-datFINAL <- datFINAL[,-1]
 
-write_csv(datFINAL, "season_modeling_data.csv")
+
+######### Continue to prepare data for modelling
+dat <- datFINAL[,-1]
+
+# assign hemisphere
+dat$hemisphere <- "northern"
+dat$hemisphere[dat$lat<0]<-"southern"
+
+dat$urban<-as.factor(dat$urban) # make urban score a factor (instead of numeric)
+dat$BIOME <- as.factor(dat$BIOME) # make biome a factor
+
+# make another column with just 3 categories
+dat <- dat %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
+dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
+dat$urban2 <- as.factor(dat$urban2)
+dat$abslat <- abs(dat$lat) # absolute latitude
+
+# Divide by quartiles
+for (i in 1:nrow(dat)){
+  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+    dat$quadrant[i] <- 1
+  }
+  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+    dat$quadrant[i] <- 2
+  }
+  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+    dat$quadrant[i] <- 3 
+  }
+  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+}
+dat$quadrant <- as.factor(dat$quadrant)
+
+#dat <- dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
+
+
+urb <- dat %>% filter(urban2==3)
+range(urb$lat) # the highest latitude is 64.15 and the lowest is -54.84
+
+suburb <- dat %>% filter(urban2==2)
+range(suburb$lat) # highest latitude is 65.76 and lowest latitude is -53.11
+
+nat <- dat %>% filter(urban2==1)
+range(nat$lat) # highest latitude is 65.76 and lowest latitude is -53.11
+# 42266 - 42243
+dat <- dat %>% filter(lat <= 66 & lat >= -55) # cut off data at the highest latitude range
+
+dat$season <- factor(dat$season, levels = c("winter", "summer"),
+                     labels = c("Winter", "Summer"))
+
+dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
+                     labels = c("Natural", "Suburban", "Urban"))
+
+## Save data
+write_csv(dat, "season_modeling_data.csv")
+
+
+
+
+
 
 
 

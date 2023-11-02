@@ -101,7 +101,8 @@ write.table(sp_habitat, "unique_sp_habitatbreadth.txt", row.names=F)
 
 ######## Diet data 
 diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
-sp_diet <- merge(global_uniquesp2, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
+global_uniquesp2 <- read.table("global_unique_species.txt", header=T)
+sp_diet <- merge(global_uniquesp2, diet[, c(9,21,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific") # merge with species data
 length(unique(sp_diet$SCIENTIFIC.NAME)) # 6,902 species
 
 # save data with diet
@@ -148,19 +149,26 @@ birds_zones <- birds_zones %>% replace(is.na(.), 0)
 birds_zones$category <- NA
 
 for (i in 1:nrow(birds_zones)){
-    if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
-      birds_zones$category[i] <- "both"
+    if (birds_zones$natural[i] >= 0 & birds_zones$urban[i] > 0) {
+      birds_zones$category[i] <- "in.urban"
     }
- #   else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
-  #    birds_zones$category[i] <- "urban.only"
-   # }
+  #  else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+   #   birds_zones$category[i] <- "urban.only"
+  #  }
     else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
       birds_zones$category[i] <- "natural.only"
     }
     
 }
 
-#birds_zones <- birds_zones %>% filter(!category=="urban.only") # remove urban only birds?
+# look at birds in different categories and see where they are found
+urban.only <- birds_zones %>% filter(category=="urban.only") # remove urban only birds?
+urban.only2 <- urban.only %>% pivot_wider(names_from="zone_bin", values_from="urban")
+
+#both <- birds_zones %>% filter(category=="both")
+#plot(both$natural~both$urban) # definitely a positive correlation
+#cor(both$natural,both$urban) # 0.935
+
 #length(unique(urb.only$SCIENTIFIC.NAME)) # 319 species that are urban only
 
 # with suburban included
@@ -209,9 +217,9 @@ richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
 
 habitat_bar <-
   richness_category %>% 
-  mutate(category = factor(category, levels = c('natural.only', 'both', 'urban.only'), ordered = TRUE)) %>%
+  mutate(category = factor(category, levels = c('natural.only', 'in.urban', 'urban.only'), ordered = TRUE)) %>%
   ggplot(aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('In natural only', 'In urban', 'In urban only'), values=c("deepskyblue3", "black", "grey50"))+
+  scale_fill_manual(labels=c('In natural', 'In Urban', 'In urban only'), values=c("deepskyblue3", "grey30"))+
   labs(y="Number of Species")+
 #  coord_flip()+
   geom_bar(position="stack", stat="identity")+
@@ -231,7 +239,8 @@ habitat_point <- emmeans.df.habitat %>% filter(!category=="urban.only") %>%
   ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
   geom_point(size=2, position=position_dodge(width=0.2))+
   geom_line(size=0.5, position=position_dodge(width=0.2))+
-  scale_color_manual(values=c("deepskyblue3", "black", "grey50"))+
+  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  scale_y_reverse()+
   labs(y="Log habitat breadth")+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.15, position=position_dodge(width=0.2))+
   annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
@@ -253,14 +262,26 @@ habitat_plot <- ggarrange(habitat_bar, habitat_point, ncol=1)
 habitat_plot
 
 
-ggsave(habitat_plot, file="pecialistHabitatResults.png")
+ggsave(habitat_plot, file="pecialistHabitatResults.png", height=4, width=8)
 # Try it as an inset
 
 
-# take a closer look at the species that are lost from urban areas
-lost <- birds_zones %>% filter(category=="natural.only") # 2665 of 13,764
-sub.only <- birds_zones %>% filter(category=="in.suburban") # 1977
-in.urb <- birds_zones %>% filter(category=="in.urban")
+## Try making a plot using EulerR
+birds_zones %>% group_by(zone_bin) %>% count()
+richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
+# put it into a dataframe that eulerr will understand
+library(eulerr)
+euler_df <- c(Ntrop=2934, Utrop=113, "Ntrop&Utrop"=4251, Nsub=939, Usub=77, "Nsub&Usub"=2918, 
+              Ntemp=383, Utemp=111, "Ntemp&Utemp"=1537, Npol=217, Upol=36, "Npol&Upol"=690) # tropical
+
+euler_trop <- euler(euler_df, shape="circle")
+plot(euler_trop)
+
+
+
+
+
+
 
 ## Plt distribution of some of these individually
 # seen in the most natural cells but no urban or suburban - Cyrtonyx montezumae
@@ -307,7 +328,7 @@ emmeans.diet3 <- emmeans(diet.aov3, specs="urban2", by="zone_bin")
 plot(emmeans.diet3)
 # the difference is way larger in the tropics!
 
-diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index) %>% count(.drop=FALSE) %>% 
+diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index, Diet.5Cat) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>%
   pivot_wider(names_from="urban2", values_from="n")  
 
@@ -375,13 +396,13 @@ richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
 diet_bar <- richness_category %>% 
   mutate(category = factor(category, levels = c('natural.only', 'both', 'urban.only'), ordered = TRUE)) %>%
   ggplot(aes(fill=category, y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('In natural only', 'In urban', 'In urban only'), values=c("deepskyblue3", "black", "grey50"))+
+  scale_fill_manual(labels=c('In natural', 'In urban', 'In urban only'), values=c("deepskyblue3", "grey30"))+
   geom_bar(position="stack", stat="identity")+
   labs(y="Number of Species")+
 #  coord_flip()+
-  theme_bw()+
+  theme_classic()+
 #  theme(axis.title.x=element_blank(), legend.position="none")
-  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.text=element_text(size=15), legend.position = c(.95, .75),
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
         legend.justification = c("right", "bottom"),
         legend.box.just = "right",
         legend.margin = margin(6, 6, 6, 6))
@@ -397,7 +418,7 @@ diet_point <- emmeans.df.diet %>% filter(!category=="urban.only") %>%
   geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
   scale_color_manual(values=c("black", "deepskyblue3"))+
   labs(y="Diet specialization")+
-  scale_y_reverse()+
+ # scale_y_reverse()+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25, position=position_dodge(width=0.2))+
   annotate("text", x=0.7, y=0.9, label="Generalist", angle=90)+
   annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
@@ -410,8 +431,8 @@ diet_point <- emmeans.df.diet %>% filter(!category=="urban.only") %>%
 # annotations not showing up for some reason rip
 diet_point
 
-ggarrange(diet_bar, diet_point, ncol=1)
-
+diet.plot <- ggarrange(diet_bar, diet_point, ncol=1)
+ggsave(diet.plot, file="diet.spec.results.png", height=4, width=8)
 
 
 ###### Look at relationship between habitat and diet breadth
@@ -433,22 +454,22 @@ cor(habitat.diet$diet.breadth, habitat.diet$habitat.breadth) # negative because 
 
 #################### Figure out how to use taxise to merge data
 
-res<-taxize::get_gbifid_(global_uniquesp$SCIENTIFIC.NAME, method="backbone") #finds GBIF info for each species 
-all.names<-as.data.frame(matrix(data=NA,nrow=nrow(species.list),ncol=2))
-names(all.names)=c("IUCN_Name","GBIF_Name")
-for (i in 347:length(res)){
-  all.names[i,1]=names(res)[i]
-  
-  if (length(which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT"))>0){
-    all.names[i,2]=res[[i]]$species[which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT")]
-  }
-  
-  if (length(which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT"))==0){
-    all.names[i,2]=res[[i]]$species[which(res[[i]]$status=="SYNONYM" & res[[i]]$matchtype=="EXACT")]
-  }
-  
-  else(next)
-}
+#res<-taxize::get_gbifid_(global_uniquesp$SCIENTIFIC.NAME, method="backbone") #finds GBIF info for each species 
+#all.names<-as.data.frame(matrix(data=NA,nrow=nrow(species.list),ncol=2))
+#names(all.names)=c("IUCN_Name","GBIF_Name")
+#for (i in 347:length(res)){
+#  all.names[i,1]=names(res)[i]
+#  
+#  if (length(which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT"))>0){
+#    all.names[i,2]=res[[i]]$species[which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT")]
+#  }
+#  
+#  if (length(which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT"))==0){
+#    all.names[i,2]=res[[i]]$species[which(res[[i]]$status=="SYNONYM" & res[[i]]$matchtype=="EXACT")]
+#  }
+#  
+#  else(next)
+#}
 
 
 
@@ -460,8 +481,8 @@ length(unique(global_uniquesp$SCIENTIFIC.NAME))
 global_uniquesp$abslat <- abs(global_uniquesp$lat)
 
 # Bin by latitude
-global_uniquesp <- global_uniquesp %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), 
-                                             labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+global_uniquesp <- global_uniquesp %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), 
+                                             labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 total_zone <- global_uniquesp %>% group_by(zone_bin, SCIENTIFIC.NAME) %>% count()
 
@@ -479,31 +500,141 @@ total_zones$category <- NA
 # label by urban and not urban
 for (i in 1:nrow(total_zones)){
   if (total_zones$natural[i] >= 0 & total_zones$urban[i] > 0) {
-    total_zones$category[i] <- "urban"
+    total_zones$category[i] <- "both"
   }
+#  else if (total_zones$natural[i] == 0 & total_zones$urban[i] > 0) {
+ #    total_zones$category[i] <- "urban.only"
+#  }
   else if (total_zones$natural[i] > 0 & total_zones$urban[i] == 0) {
     total_zones$category[i] <- "not.urban"
   }
 }
 
-zzz <- total_zones %>% group_by(zone_bin, category) %>% count() %>% pivot_wider(names_from="category", values_from="n") %>% 
-  mutate(total=sum(urban, not.urban), fraction=not.urban/total)
+zzz <- total_zones %>% group_by(zone_bin, category) %>% count() %>% pivot_wider(names_from="category", values_from="n") 
+
+#zzz5 <- total_zones %>% group_by(category) %>% count() %>% pivot_wider(names_from="category", values_from="n") %>% 
+ # mutate(total=sum(urban, urban.only, not.urban), fraction=urban.only/total)
 richness_category <- total_zones %>% group_by(zone_bin, category) %>% count()
+
 ## Make plot with overall results of species being lost (because some species lost when merged with habitat or diet data)
-total_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
-  scale_fill_manual(labels=c('Absent from urban', 'Found in urban'), values=c("deepskyblue3", "black"))+
-  labs(y="Number of Species")+
+total_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=reorder(zone_bin, -n))) + 
+  scale_fill_manual(labels=c('In natural only', 'In urban'), values=c("deepskyblue3", "grey30"))+
   #  coord_flip()+
+  labs(y="Number of Species")+
   geom_bar(position="stack", stat="identity")+
   theme_classic()+
-  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
-        legend.justification = c("right", "bottom"),
-        legend.box.just = "right",
-        legend.margin = margin(6, 6, 6, 6))
+  theme(axis.ticks.x=element_blank(), axis.title.x=element_blank(), legend.title=element_blank(), 
+        legend.position = c(0.85, 0.9), legend.text = element_text(size=13), axis.title.y=element_text(size=12),
+        axis.text=element_text(size=10), legend.spacing.y = unit(1, 'cm'))+
+  ## important additional element
+  guides(fill = guide_legend(byrow = TRUE))
 total_bar
 
-##### This will probably be the final figure?
-ggarrange(total_bar, habitat_point, diet_point, nrow=3, align="hv")
+# this is the total number of species (not only the ones that matched up)
+#ggsave(total_bar, file="total_species_zones.png", height=7, width=4)
+
+
+
+
+######## Put all plots together
+library(patchwork)
+
+habitat_point2 <- emmeans.df.habitat %>% filter(!category=="urban.only") %>% 
+  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
+  geom_point(size=2, position=position_dodge(width=0.2))+
+  geom_line(size=0.5, position=position_dodge(width=0.2))+
+  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  scale_y_reverse()+
+  labs(y="Log habitat breadth")+
+  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.15, position=position_dodge(width=0.2))+
+  annotate("text", x=0.7, y=2.3, label="Generalist", angle=90)+
+  annotate("text", x=0.7, y=1.55, label="Specialist", angle=90)+
+  annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
+           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+  coord_cartesian(clip = "off")+
+  theme_classic()+
+  theme(axis.title.x=element_blank(), legend.position="none", axis.title.y=element_text(size=12),
+        axis.text=element_text(size=10))
+habitat_point2
+
+
+diet_point2 <- emmeans.df.diet %>% 
+  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
+  geom_point(size=2, position=position_dodge(width=0.2))+
+  geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
+  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  labs(y="Diet specialization")+
+  # scale_y_reverse()+
+  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25, position=position_dodge(width=0.2))+
+ # annotate("text", x=0.7, y=0.9, label="Generalist", angle=90)+
+  #annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
+  #annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
+   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  #annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
+   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  theme_classic()+
+  theme(axis.title.x=element_blank(), legend.position="none", axis.title.y=element_text(size=12),
+        axis.text=element_text(size=10))
+# annotations not showing up for some reason rip
+diet_point2
+
+composite_plot <- total_bar / (habitat_point2 | diet_point2) + plot_annotation(tag_levels = "A") 
+ggsave(composite_plot, file="full_specialist_results.png", height=6, width=9)
+
+
+####### Euler plots
+# another category with urban only
+total_zones$category2 <- NA
+for (i in 1:nrow(total_zones)){
+  if (total_zones$natural[i] > 0 & total_zones$urban[i] > 0) {
+    total_zones$category[i] <- "both"
+  }
+    else if (total_zones$natural[i] == 0 & total_zones$urban[i] > 0) {
+      total_zones$category[i] <- "urban.only"
+    }
+  else if (total_zones$natural[i] > 0 & total_zones$urban[i] == 0) {
+    total_zones$category[i] <- "not.urban"
+  }
+}
+
+
+total_zones %>% group_by(zone_bin) %>% count()
+richness_category <- total_zones %>% group_by(zone_bin, category) %>% count()
+# put it into a dataframe that eulerr will understand
+library(eulerr)
+euler_trop_df <- c(Ntrop=3556, Utrop=217, "Ntrop&Utrop"=5180, Nsub=1315, Usub=178, 
+                   "Nsub&Usub"=3734, Ntemp=608, Utemp=173, "Ntemp&Utemp"=2139, Npol=350, Upol=88, "Npol&Upol"=927) # tropical
+euler_subtrop_df <- c(Nsub=1315, Usub=178, "Nsub&Usub"=3734) # subtropical
+euler_temp_df <- c(Ntemp=608, Utemp=173, "Ntemp&Utemp"=2139) # temperate
+euler_subpol <- c(Npol=350, Upol=88, "Npol&Upol"=927) # subpolar
+
+euler_trop <- euler(euler_trop_df, shape="ellipse")
+euler_plot <- plot(euler_trop, fills=c("deepskyblue3", "grey30", "deepskyblue3", "grey30", "deepskyblue3", "grey30", "deepskyblue3", "grey30"), labels="")
+png("euler_plot.png")
+euler_plot
+dev.off()
+
+
+
+
+#######################################
+
+## Look at distribution of different diet guilds
+test <- diet_zones %>% pivot_longer(cols=c("natural", "urban"))
+
+ggplot(test)+
+  geom_col(aes(x=name, y=value, fill=Diet.5Cat)) +
+  facet_wrap(~zone_bin)
+# not really seeing anything here
+
+
+
+
+
+
+
 
 
 

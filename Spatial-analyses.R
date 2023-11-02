@@ -328,46 +328,15 @@ moran # yes this is autocorrelated, so the other one is accurate
 
 
 
-## Make map of thinned data
-plot.thinned <-  ggplot(data=world)+
-  geom_sf() +
-  geom_point(data=dat.thinned, aes(x=long, y=lat), color="cornflowerblue", size=0.03) +
-  coord_sf(crs = 4326, expand = FALSE) +
-  scale_color_viridis_c(na.value = NA, option="B")+
-  labs(x="Longitude", y="Latitude")+
-  theme_bw()
-plot.thinned
-
-
-
-
-
-
-
-predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
-#
-results.plot2 <-
-  plot(predicted2, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text = element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-  guides(fill = guide_legend(byrow = TRUE))
-
-results.plot2
-# still getting the same results even when it is super thinned out
-
-
-summary(lm.thinned)
-
-plot(lm.thinned)
-
 
 
 ###### Start looping model and store results
 thinned.results <- list()
 predicted <- list()
-
+means <- list()
+emmeans.slopes <- list()
+ggeffects.slopes <- list()
+set.seed(30)
 for (i in 1:1000){
   dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
   lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
@@ -376,22 +345,79 @@ for (i in 1:1000){
   #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
   #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
   # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  thinned.results[[i]] <- summary(lm.thinned)
-  predicted[[i]] <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
+  thinned.results[[i]] <- summary(lm.thinned) # store summary data
+  predicted[[i]] <- ggemmeans(lm.thinned, terms = c("abslat", "urban2"))# store predictions
+  means[[i]] <- emmeans(lm.thinned, specs="urban2")
+  emmeans.slopes[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat") # so I can see differences in slopes for each model (using emmeans)
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # see differences in slopes (using ggeffects)
 }
 
 predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "thinned.results.csv")
 
-# plot each predicted value as a point and the confidence intervals as lines
-predicted_df <- predicted_df %>% group_by(x, group) %>% mutate(max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+# 1) Look at mean species richness in each urbanization level
+means_df <- list()
+for (i in 1:1000){
+  means_df[[i]] <- as.data.frame(means[[i]])
+}
 
-ggplot(predicted_df, aes(x=x, y=predicted, color=group)) +
-  geom_point()+
-  geom_smooth(method="lm") +
-  geom_errorbar(aes(ymin=min.conf.low, ymax=max.conf.high))
-#  geom_point(aes(x=x, y=conf.high), color="grey40")+
-#  geom_point(aes(x=x, y=conf.low), color="grey40")
-# natural is definitely different, suburban and urban look the same
+means_df <- bind_rows(means_df)
+means_summary <- means_df %>% group_by(urban2) %>% summarise(mean=mean(emmean), max.upper=mean(upper.CL), min.lower=min(lower.CL))
+means_summary
+
+# 2) Look at which slopes are different from one another
+slopes_df <- list()
+for (i in 1:1000){
+  slopes_df[[i]] <- as.data.frame(emmeans.slopes[[i]]$contrasts)
+}
+
+slopes_df2 <- bind_rows(slopes_df)
+contrast <- slopes_df2 %>% filter(contrast=="Suburban - Urban") %>% filter(p.value<0.05) # 88.5 of the urban-surburban contrasts 
+# have p-values that are significantly different from one another
+contrast <- slopes_df2 %>% filter(contrast=="Natural - Suburban") %>% filter(p.value<0.05) # 100% of models are significant
+contrast <- slopes_df2 %>% filter(contrast=="Natural - Urban") %>% filter(p.value<0.05) # 100% of models are significant
+
+
+
+# 3) Look at the slopes of the line
+## See if the ggeffects slopes are different than the lsmeans
+# lsmeans slopes
+emmeans.slopes.df <- list()
+for (i in 1:1000){
+  emmeans.slopes.df[[i]] <- as.data.frame(emmeans.slopes[[i]]$emtrends)
+}
+emmeans.slopes.df <- bind_rows(emmeans.slopes.df)
+emmeans_slopes <- emmeans.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(abslat.trend), conf.high = max(upper.CL), conf.low=min(lower.CL))
+emmeans_slopes
+
+# ggeffects slopes
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
+
+
+
+
+
+## Run full model and plot model fits from that with these confidence intervals
+#predicted.full <- ggpredict(mod1.lm, terms = c("abslat", "urban2")) 
+#predicted.full$
+#
+#results.plot <-
+#  plot(predicted.full, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
+#       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
+#  theme_bw()+
+#  labs(x="Absolute Latitude", y="Species Richness", color="Urban") +
+#  geom_ribbon(predicted_df, mapping=aes(x=x, ymax=max.conf.high, ymin=min.conf.low, group=group), alpha=0.1)+
+#  theme(text=element_text(size=15), legend.spacing.y = unit(1, 'cm'), legend.title=element_blank())
+#results.plot
+#
+#ggplot()+
+##  geom_point(dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.5, alpha=0.2)+
+#  geom_line(predicted.full, mapping=aes(x=x, y=predicted, color=group))+
+#  geom_ribbon(predicted_df, mapping=aes(x=x, ymax=max.conf.high, ymin=min.conf.low, group=group), alpha=0.1)
+## this definitely does not work
 
 
 

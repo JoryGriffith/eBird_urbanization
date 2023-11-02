@@ -186,7 +186,7 @@ season_sp_habitat <- read.table("season_habitatbreadth.txt", header=TRUE) %>% fi
  # geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
 
 #### Try binning by larger categories
-season_sp_habitat <- season_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+season_sp_habitat <- season_sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 season_zones <- season_sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN, season) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
@@ -196,14 +196,14 @@ season_zones <- season_zones %>% replace(is.na(.), 0)
 season_zones$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(season_zones)){
-  if (season_zones$natural[i] > 0 & season_zones$urban[i] > 0) {
+  if (season_zones$natural[i] >= 0 & season_zones$urban[i] > 0) {
     season_zones$category[i] <- "In urban"
   }
+ # else if (season_zones$natural[i] > 0 & season_zones$urban[i] == 0) {
+  #  season_zones$category[i] <- "Not in urban"
+  #}
   else if (season_zones$natural[i] > 0 & season_zones$urban[i] == 0) {
     season_zones$category[i] <- "Not in urban"
-  }
-  else if (season_zones$natural[i] == 0 & season_zones$urban[i] > 0) {
-    season_zones$category[i] <- "urban.only"
   }
 }
 
@@ -274,7 +274,7 @@ season_sp_diet <- read.table("season_dietspec.txt", header=TRUE) %>% filter(!is.
 # geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
 
 #### Try binning by larger categories
-season_sp_diet <- season_sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 66.5, 90), labels=c("Tropical", "Subtropical", "Temperate", "Arctic")))
+season_sp_diet <- season_sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 season_zones_diet <- season_sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index, season) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
@@ -322,7 +322,7 @@ season.emmeans.df <- as.data.frame(emmeans.results)
 ggplot(season.emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
   geom_point(size=2)+
   geom_line(linewidth=0.5)+
-  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+ # scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
   facet_wrap(~season)+
   theme_bw()

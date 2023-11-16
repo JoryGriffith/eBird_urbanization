@@ -62,3 +62,11 @@ global_unique_species.txt
 ._global_unique_species.txt
 thinned.results.csv
 thinned.seasonal.results.csv
+season_unique_species.txt
+season_modeling_data.csv
+precipitation/wc2.1_5m_bio_12.tif
+precipitation/._wc2.1_5m_bio_12.tif
+modeling_data.csv
+.RDataTmp
+modeling_data.csv
+modeling_data.csv

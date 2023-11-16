@@ -52,7 +52,7 @@ for (i in 1:length(names)){ # come back to r1c4 (4) - no data in r1c4
 
 winter_unique_sp <- dplyr::bind_rows(datalist.names) # put all sections together
 length(unique(winter_unique_sp$SCIENTIFIC.NAME)) # 8,724 species
-write.table(winter_unique_sp, "winter_unique_species.txt", row.names=FALSE)
+#write.table(winter_unique_sp, "winter_unique_species.txt", row.names=FALSE)
 
 
 
@@ -93,15 +93,15 @@ for (i in 1:length(names)){
 
 summer_unique_sp <- dplyr::bind_rows(datalist.names) # put all sections together
 length(unique(summer_unique_sp$SCIENTIFIC.NAME)) # 10,723 species
-write.table(summer_unique_sp, "summer_unique_species.txt", row.names=FALSE)
+#write.table(summer_unique_sp, "summer_unique_species.txt", row.names=FALSE)
 
 ##########################
 
 # Merge with trait data
 # Combine summer and winter dataframes
-winter_uniquesp <- read.table("winter_unique_species.txt", header=TRUE)
+#winter_uniquesp <- read.table("winter_unique_species.txt", header=TRUE)
 winter_uniquesp$season <- "winter"
-summer_uniquesp <- read.table("summer_unique_species.txt", header=TRUE)
+#summer_uniquesp <- read.table("summer_unique_species.txt", header=TRUE)
 summer_uniquesp$season <- "summer"
 # merge
 
@@ -120,12 +120,14 @@ latlong_df <- as.data.frame(dat_latlong %>% mutate(long = sf::st_coordinates(.)[
 
 # bind this with data in other crs
 season_uniquesp <- cbind(season_uniquesp, latlong_df[,6:7])
-
+season_uniquesp$abslat <- abs(season_uniquesp$lat)
 #### Extract urban scores
 season_uniquesp$urban <- as.data.frame(terra::extract(GHSL, season_uniquesp[,c(3:4)]))$SMOD_global
 test <- season_uniquesp %>% na.omit(urban) # there are no NAs in urban, this is good
 # turn urban into 3 categories
 season_uniquesp <- season_uniquesp %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), "natural", ifelse(urban==30, "urban", "suburban")))
+
+write.table(season_uniquesp, "season_unique_species.txt", row.names=FALSE)
 
 
 
@@ -210,13 +212,17 @@ for (i in 1:nrow(season_zones)){
 
 ggplot(season_zones)+
   geom_boxplot(aes(x=zone_bin, y=log(Habitat_breadth_IUCN), fill=category))
-
+library(ggeffects)
 # run an anova
 season.habitat.aov <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category * season, data = season_zones)
 summary(season.habitat.aov)
 emmeans.results <- emmeans(season.habitat.aov, specs=c("season", "category"), by="zone_bin", facet=TRUE)
+hypothesis_test(season.habitat.aov, terms=c("season", "category", "zone_bin"))
+?hypothesis_test
 plot(emmeans.results)
 #### Looks pretty similar to winter and overall
+# the average values of specialization are the same in winter and summer in each latitude bin
+
 
 richness_category <- season_zones %>% group_by(zone_bin, category, season) %>% count()
 season_bar <-ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
@@ -231,17 +237,20 @@ season_bar
 # Plot of habitat breadth means
 season.emmeans.df <- as.data.frame(emmeans.results)
 
-ggplot(season.emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
+season.habitat.plot <- ggplot(season.emmeans.df, mapping=aes(x=zone_bin, y=emmean, group=interaction(category, season), color=category, shape=season))+
   geom_point(size=2)+
-  geom_line(linewidth=0.5)+
-  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+  scale_y_reverse()+
+  geom_line(linewidth=0.5, aes(group=interaction(category, season), linetype=season))+
+  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","deepskyblue3"))+
+  scale_linetype_manual(labels=c("Summer", "Winter"), values=c(1,2))+
+  scale_shape_manual(labels=c("Summer", "Winter"), values=c(15,17))+
+  labs(y="Habitat breadth")+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
-  facet_wrap(~season)+
-  theme_bw()
+  theme_classic()+
+  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.position=c(0.8, 0.8))
 # specialization measures for urban and not urban are the same for summer and winter
 # difference between specialization are definitely decreasing with latitude
-
-
+ggsave(season.habitat.plot, file="season.habitat.plot.png", height=6, width=9)
 
 ##############################################
 
@@ -303,6 +312,7 @@ ggplot(season_zones_diet)+
 season.diet.aov <- aov(gini.index ~ zone_bin * category * season, data = season_zones_diet)
 summary(season.diet.aov)
 emmeans.results <- emmeans(season.diet.aov, specs=c("season", "category"), by="zone_bin", facet=TRUE)
+hypothesis_test(season.diet.aov, terms=c("season", "category", "zone_bin"))
 plot(emmeans.results)
 #### Looks pretty similar to winter and overall
 
@@ -319,11 +329,225 @@ season_bar
 # Plot of diet breadth means
 season.emmeans.df <- as.data.frame(emmeans.results)
 
-ggplot(season.emmeans.df, aes(x=zone_bin, y=emmean, group=category, color=category))+
+
+
+
+season.diet.plot <- ggplot(season.emmeans.df, mapping=aes(x=zone_bin, y=emmean, group=interaction(category, season), color=category, shape=season))+
   geom_point(size=2)+
-  geom_line(linewidth=0.5)+
- # scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","#009E73"))+
+ # scale_y_reverse()+
+  geom_line(linewidth=0.5, aes(group=interaction(category, season), linetype=season))+
+  scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","deepskyblue3"))+
+  scale_linetype_manual(labels=c("Summer", "Winter"), values=c(1,2))+
+  scale_shape_manual(labels=c("Summer", "Winter"), values=c(15,17))+
+  labs(y="Diet breadth")+
   geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
-  facet_wrap(~season)+
-  theme_bw()
-# this looks wrong because they are negative? but maybe because it
+  theme_classic()+
+  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.position="none")
+
+season.diet.plot
+ggsave(season.diet.plot, file="diet.specialization.season.png", height=5, width=9)
+
+
+
+
+
+
+#################### Plot full species list (not just merged) #######################
+season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+
+season_uniquesp <- season_uniquesp %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), 
+                                                             labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
+
+
+total_zone <- season_uniquesp %>% group_by(zone_bin, season, SCIENTIFIC.NAME) %>% count()
+
+# number of species in each zone
+total_zone %>% group_by(zone_bin) %>% count()
+
+total_zones <- season_uniquesp %>% group_by(zone_bin, SCIENTIFIC.NAME, season, urban2) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+total_zones <- total_zones %>% replace(is.na(.), 0)
+
+total_zones$category <- NA
+
+# label by urban and not urban
+for (i in 1:nrow(total_zones)){
+  if (total_zones$natural[i] >= 0 & total_zones$urban[i] > 0) {
+    total_zones$category[i] <- "both"
+  }
+  #  else if (total_zones$natural[i] == 0 & total_zones$urban[i] > 0) {
+  #    total_zones$category[i] <- "urban.only"
+  #  }
+  else if (total_zones$natural[i] > 0 & total_zones$urban[i] == 0) {
+    total_zones$category[i] <- "not.urban"
+  }
+}
+
+# seeing how many species switched from not urban to urban in summer to winter
+wide_zones <- total_zones[, -c(4,5)] %>% pivot_wider(values_from="category", names_from="season") %>% drop_na() %>% filter(!summer==winter) %>% 
+  filter(zone_bin=="Subpolar", summer=="both")
+
+
+
+
+
+
+zzz <- total_zones %>% group_by(zone_bin, category) %>% count() %>% pivot_wider(names_from="category", values_from="n") 
+
+#zzz5 <- total_zones %>% group_by(category) %>% count() %>% pivot_wider(names_from="category", values_from="n") %>% 
+# mutate(total=sum(urban, urban.only, not.urban), fraction=urban.only/total)
+richness_category <- total_zones %>% group_by(zone_bin, season, category) %>% count()
+
+## Make plot with overall results of species being lost (because some species lost when merged with habitat or diet data)
+total_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=reorder(zone_bin, -n))) + 
+  scale_fill_manual(labels=c('In natural only', 'In urban'), values=c("deepskyblue3", "grey30"))+
+  #  coord_flip()+
+  labs(y="Number of Species")+
+  geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  theme(axis.ticks.x=element_blank(), axis.title.x=element_blank(), legend.title=element_blank(), 
+        legend.position = c(0.85, 0.8), legend.text = element_text(size=13), axis.title.y=element_text(size=12),
+        axis.text=element_text(size=10), legend.spacing.y = unit(1, 'cm'))+
+  ## important additional element
+  guides(fill = guide_legend(byrow = TRUE))+
+  facet_wrap(~season)
+total_bar
+ggsave(total_bar, file="season_geographiczone.png", height=6, width=10)
+# this is the total number of species (not only the ones that matched up)
+proportion <- richness_category %>% pivot_wider(names_from="category", values_from="n") %>% mutate(total=sum(both+not.urban), prop = not.urban/total)
+# although there are less species overall in summer, the proportional richness loss is the same, which is likely why specialization is the same
+
+
+
+
+################# Combine data with migration data to see if migratory birds are leaving low latitudes in summer
+avonet <- read.csv("/Users/jorygriffith/Desktop/Avonet/ELEData/TraitData/AVONET2_eBird.csv")
+# for migration 1=sedentary, 2 = partially migratory, and 3 = migratory
+season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+# merge with specialization data
+season_migration <- merge(season_uniquesp, avonet[,c(1,28)], by.x="SCIENTIFIC.NAME", by.y="Species2")
+length(unique(season_migration$SCIENTIFIC.NAME)) # 7992 unique species
+
+season_migration <- season_migration %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), 
+                                                             labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
+
+
+total_zones <- season_migration %>% group_by(zone_bin, season, Migration, SCIENTIFIC.NAME) %>% count()
+
+total_zones2 <- total_zones %>% group_by(zone_bin, season, Migration) %>% count()
+total_zones2$Migration <- as.factor(total_zones2$Migration)
+
+
+## Make plot with overall results of species being lost (because some species lost when merged with habitat or diet data)
+total_bar <- ggplot(total_zones2, aes(fill=Migration, y=n, x=zone_bin)) + 
+  #  coord_flip()+
+  labs(y="Number of Species")+
+  geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  ## important additional element
+  guides(fill = guide_legend(byrow = TRUE))+
+  facet_wrap(~season)
+total_bar
+# there aren't any crazy patterns here, although there are more migrants at higher latitudes in the summer
+
+# plot proportion
+props <- total_zones2 %>% group_by(zone_bin, season, urban2) %>% mutate(total=sum(n), proportion=n/total)
+
+ggplot(props, aes(x=zone_bin, y=proportion, fill=Migration))+
+  geom_bar(position="stack", stat="identity")+
+  facet_wrap(~season)
+
+
+### Now separate by urbanization level
+total_zones <- season_migration %>% group_by(zone_bin, season, Migration, SCIENTIFIC.NAME, urban2) %>% count()
+
+total_zones2 <- total_zones %>% group_by(zone_bin, season, Migration, urban2) %>% count()
+total_zones2$Migration <- as.factor(total_zones2$Migration)
+
+total_bar <- ggplot(total_zones2, aes(fill=Migration, y=n, x=zone_bin)) + 
+  #  coord_flip()+
+  labs(y="Number of Species")+
+  geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  ## important additional element
+  guides(fill = guide_legend(byrow = TRUE))+
+  facet_grid(urban2~season)
+total_bar
+
+
+#### Now separate by in urban and not in urban
+
+total_zones <- season_migration %>% group_by(zone_bin, SCIENTIFIC.NAME, season, urban2, Migration) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
+
+total_zones <- total_zones %>% replace(is.na(.), 0)
+
+total_zones$category <- NA
+
+# label by urban and not urban
+for (i in 1:nrow(total_zones)){
+  if (total_zones$natural[i] >= 0 & total_zones$urban[i] > 0) {
+    total_zones$category[i] <- "both"
+  }
+  #  else if (total_zones$natural[i] == 0 & total_zones$urban[i] > 0) {
+  #    total_zones$category[i] <- "urban.only"
+  #  }
+  else if (total_zones$natural[i] > 0 & total_zones$urban[i] == 0) {
+    total_zones$category[i] <- "not.urban"
+  }
+}
+
+richness_category <- total_zones %>% group_by(zone_bin, season, category, Migration) %>% count()
+
+total_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
+  #  coord_flip()+
+  labs(y="Number of Species")+
+  geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  ## important additional element
+  guides(fill = guide_legend(byrow = TRUE))+
+  facet_grid(Migration~season)
+total_bar
+
+props <- richness_category %>% group_by(zone_bin, season, category) %>% mutate(total=sum(n), proportion=n/total)
+props$Migration<-as.factor(props$Migration)
+ggplot(props, aes(x=zone_bin, y=proportion, fill=Migration))+
+  geom_bar(position="stack", stat="identity")+
+  facet_grid(category~season)
+
+
+
+
+
+# are there are higher proportion of migrants in non-urban habitats?
+mod.migration <- aov(n ~ zone_bin + season + category + Migration, data=richness_category)
+summary(mod.migration)
+
+
+
+
+################# Look at relationship between diet and habitat breadth and migratory status
+habitat_migration <- merge(season_sp_habitat, avonet[,c(1,28)], by="SCIENTIFIC.NAME", by.y="Species2")
+habitat_migration %>% group_by(Migration) %>% summarise(mean=mean(Habitat_breadth_IUCN))
+# the widest habitat breadth is the partial migrants, which kinda makes sense
+aov1 <- aov(log(Habitat_breadth_IUCN) ~ as.factor(Migration), data = habitat_migration)
+ggplot(habitat_migration)+
+  geom_boxplot(aes(x=as.factor(Migration), y=Habitat_breadth_IUCN))
+TukeyHSD(aov1)
+
+
+diet_migration <- merge(season_sp_diet, avonet[,c(1,28)], by="SCIENTIFIC.NAME", by.y="Species2")
+diet_migration %>% group_by(Migration) %>% summarise(mean=mean(gini.index))
+# full migrants have the most specialized diets
+aov2 <- aov(gini.index ~ as.factor(Migration), data = diet_migration)
+
+ggplot(diet_migration)+
+  geom_boxplot(aes(x=as.factor(Migration), y=gini.index))
+TukeyHSD(aov2)
+
+
+
+
+
+

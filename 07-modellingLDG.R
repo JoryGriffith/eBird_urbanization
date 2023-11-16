@@ -35,7 +35,7 @@ hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
 hist(dat$number_checklists) # this is super log normal, used the log in the response variable
 
-dat %>% group_by(BIOME) %>% summarise(n=n()) # look at how many observations per biome
+dat %>% group_by(precip) %>% summarise(n=n()) # look at how many observations per precip
 
 dat %>% group_by(urban2) %>% count()
 
@@ -50,23 +50,23 @@ dat %>% group_by(CONTINENT) %>% summarise(n=n()) # most are in quadrant 2 which 
 # Try a simple linear model with absolute latitude
 
 mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
-              abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
+              abs(lat):CONTINENT + precip + log(number_checklists), dat)
 
 
 
 # try a bunch of different models
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
+                   precip + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
 
 mod1.hemsiphere <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + 
-                   BIOME + log(number_checklists) + elevation, dat) # no interaction with hemisphere
+                   precip + log(number_checklists) + elevation, dat) # no interaction with hemisphere
 
 mod1.trans.cont <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + abslat:CONTINENT + 
-                        BIOME + log(number_checklists) + elevation, dat) # continent as a fixed effect
+                        precip + log(number_checklists) + elevation, dat) # continent as a fixed effect
 
 
 mod1.trans.cont.intrxn <- lm(sqrt(total_SR) ~ abslat * urban2 * CONTINENT + 
-                             BIOME + log(number_checklists) + elevation, dat) # triple interaction between continent, latitude, and urbanization
+                             precip + log(number_checklists) + elevation, dat) # triple interaction between continent, latitude, and urbanization
 
 
 AIC(mod1.trans, mod1.hemsiphere, mod1.trans.cont, mod1.trans.cont.intrxn)
@@ -74,7 +74,7 @@ AIC(mod1.trans, mod1.hemsiphere, mod1.trans.cont, mod1.trans.cont.intrxn)
 # I think I will do the hemisphere one with the interaction
 
 #mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
- #                     BIOME + log(number_checklists) + elevation, dat) # model with quadrant instead
+ #                     precip + log(number_checklists) + elevation, dat) # model with quadrant instead
 
 
 
@@ -131,7 +131,7 @@ effect_plot(mod1.trans, pred=lat, interval=TRUE) # peaks at intermediate latitud
 
 effect_plot(mod1.trans, pred=hemisphere, interval=TRUE) # no difference
 
-effect_plot(mod1.trans, pred=BIOME, interval=TRUE)
+effect_plot(mod1.trans, pred=precip, interval=TRUE) # generally a positive relationship between precipitation and richness
 
 effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
 
@@ -156,7 +156,7 @@ interact_plot(mod1.abslat, abslat, hemisphere)
 head(dat)
 mod.quad <- lm(sqrt(total_SR) ~ lat + urban + lat:urban + I(lat^2) + lat:urban +  I(lat^2):urban 
                + hemisphere + CONTINENT +
-                 lat:CONTINENT + BIOME + log(number_checklists), dat)
+                 lat:CONTINENT + precip + log(number_checklists), dat)
 plot(mod.quad)
 summary(mod.quad)
 effect_plot(mod.quad, pred=lat, interval=TRUE)
@@ -175,11 +175,11 @@ dat <- dat %>% mutate(urban2=ifelse(urban==11, 1, ifelse(urban==30, 3, 2)))
 dat %>% group_by(urban2) %>% summarise(n=n()) # it worked
 dat$urban2 <- as.factor(dat$urban2)
 mod.3cat <- lm(sqrt(total_SR) ~ abs(lat) * urban2 + hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + BIOME + log(number_checklists), dat) # looks good
+                   abs(lat):CONTINENT + precip + log(number_checklists), dat) # looks good
 AIC(mod1.trans)
 AIC(mod.3cat) # less good of a model but not too far off
 mod1.abslat <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + CONTINENT +
-                    abs(lat):CONTINENT + BIOME + log(number_checklists), dat)
+                    abs(lat):CONTINENT + precip + log(number_checklists), dat)
 
 interact_plot(mod.3cat, lat, urban2, interval=TRUE)
 interact_plot(mod1.abslat, abslat, urban2, interval=TRUE) 
@@ -200,7 +200,7 @@ dat.97 <- dat %>% filter(number_checklists >= 139) # 47057 observations
 
 # Model 
 gls2 <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-              abs(lat):CONTINENT + BIOME + log(number_checklists), dat.97)
+              abs(lat):CONTINENT + precip + log(number_checklists), dat.97)
 anova(gls2) # all very significant
 
 # try to add a correlation structure
@@ -214,7 +214,7 @@ dat.samp2 <- dat[sample(nrow(dat), 40000), ]
 # with the highest threshold we have 37000 so maybe I should use that
 
 gls2.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp2)
+                   abs(lat):CONTINENT + precip + log(number_checklists), dat.samp2)
 
 glsExp2 <- update(gls2.samp, correlation=csExp)
 
@@ -222,7 +222,7 @@ glsExp2 <- update(gls2.samp, correlation=csExp)
 
 ############ Trying a poisson model
 mod.poisson <- glm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
-      abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), data=dat, family=poisson)
+      abs(lat):CONTINENT + precip + log(number_checklists), data=dat, family=poisson)
 plot(mod.poisson)
 summary(mod.poisson) # it is overdispersed
 # everything very significant
@@ -232,7 +232,7 @@ ggplot(dat, aes(x=abs(lat), y=total_SR)) + geom_point() +
 
 # try poly model with latitude
 mod.poisson.poly <- glm(total_SR ~ lat + urban + lat:urban + I(lat^2) + lat:urban +  I(lat^2):urban 
-                   + hemisphere + CONTINENT + as.factor(BIOME) + log(number_checklists), data=dat, family=poisson)
+                   + hemisphere + CONTINENT + precip + log(number_checklists), data=dat, family=poisson)
 
 AIC(mod.poisson, mod.poisson.poly)
 # the poly is worse
@@ -266,13 +266,13 @@ samps <- dplyr::bind_rows(datalist)
 
 # Run model with more evenly sampled areas
 dat.binned.mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, data = samps) # with hemisphere
+                   precip + log(number_checklists) + elevation, data = samps) # with hemisphere
 
 summary(dat.binned.mod1)
 # everything still significant
 
 dat.binned.mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 + CONTINENT + 
-                        BIOME + log(number_checklists) + elevation, data = samps) # with continent
+                        precip + log(number_checklists) + elevation, data = samps) # with continent
 
 summary(dat.binned.mod2)
 
@@ -320,12 +320,12 @@ lm.morantest(dat.binned.mod2, samps.lw, zero.policy = T)
 
 # Try to run spatial model
 samps.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists) + elevation, data = samps, listw = samps.lw, zero.policy = TRUE)
+                   precip + log(number_checklists) + elevation, data = samps, listw = samps.lw, zero.policy = TRUE)
 summary(impacts(samps.slx, listw=samps.lw), zstats=TRUE)
 
 # try spatial lag model
 samps.slm <- lagsarlm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + abslat:hemisphere + 
-                     BIOME + log(number_checklists), data = samps, listw = samps.lw, zero.policy = TRUE)
+                     precip + log(number_checklists), data = samps, listw = samps.lw, zero.policy = TRUE)
 summary(samps.slm) # still spatially autocorrelated
 
 # test for autocorrelation
@@ -345,7 +345,7 @@ moran.mc(samps$residuals.slx, samps.lw, nsim = 999, zero.policy = TRUE)
 # TRY RUNNING SOME NON-LINEAR MODELS ON THE FULL DATASET TO SEE IF THERE IS A NON-LINEAR TREND
 library(mgcv)
 # model with regular latitude
-mod.gam1 <- gam(total_SR ~ s(lat, by=c(urban2)) + hemisphere + BIOME + log(number_checklists) + elevation, data = dat)
+mod.gam1 <- gam(total_SR ~ s(lat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = dat)
 
 summary(mod.gam1)
 
@@ -368,7 +368,7 @@ plot(ggeffects::ggpredict(mod.gam1, terms = c("lat", "urban2")), facets = FALSE)
 
 # model with absolute latitude
 mod.gam2 <- gam(total_SR ~ s(abslat, by=urban2) +
-                  BIOME + log(number_checklists) + elevation, data = dat) # couldn't do hemisphere intrxn for some reason
+                  precip + log(number_checklists) + elevation, data = dat) # couldn't do hemisphere intrxn for some reason
 
 plot(ggeffects::ggpredict(mod.gam2, terms=c("abslat", "urban2"), facets = TRUE))
 plot(ggeffects::ggpredict(mod.gam2, terms=c("elevation"), facets = TRUE))
@@ -378,7 +378,7 @@ plot(ggeffects::ggpredict(mod.gam2, terms=c("elevation"), facets = TRUE))
 
 # Try model without smoothing parameter and see how it compares
 mod.gam3 <- gam(total_SR ~ abslat * urban2 + CONTINENT +
-                  BIOME + log(number_checklists) + elevation, data = dat)
+                  precip + log(number_checklists) + elevation, data = dat)
 
 plot(ggeffects::ggpredict(mod.gam3, terms=c("abslat", "urban2"), facets = TRUE)) # linear terms
 
@@ -394,14 +394,14 @@ ggplot(dat, aes(y=total_SR, x=abslat, color=urban2)) +
 dat.n <- dat %>% filter(hemisphere=="northern") 
 
 mod.gam4 <- gam(total_SR ~ s(lat, by=urban2) +
-                  BIOME + log(number_checklists) + elevation, data=dat.n)
+                  precip + log(number_checklists) + elevation, data=dat.n)
 plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE)) # linear terms
 # not a hump in the middle, that's good
 
 dat.s <- dat %>% filter(hemisphere=="southern") 
 
 mod.gam5 <- gam(total_SR ~ s(lat, by=urban2) +
-                  BIOME + log(number_checklists) + elevation, data=dat.s)
+                  precip + log(number_checklists) + elevation, data=dat.s)
 plot(ggeffects::ggpredict(mod.gam5, terms=c("lat", "urban2"), facets = TRUE))
 # who southern pattern is crazy but still not hump, that is good
 
@@ -426,10 +426,10 @@ mod1 <- lm(sqrt(total_SR) ~ abslat * urban2, dat)
 abslat <- sample(1:90, 60000, replace=TRUE)
 urban2 <- as.factor(sample(c('Natural', 'Suburban', 'Urban'), 60000, replace=TRUE))
 hemisphere <- sample(c('northern', 'southern'), 60000, replace=TRUE)
-BIOME <- as.factor(sample(1:14, 60000, replace=TRUE))
+precip <- as.factor(sample(1:14, 60000, replace=TRUE))
 number_checklists <- sample(4:11, 60000, replace=TRUE)
 elevation <- sample(-900:4900, 60000, replace=TRUE)
-newdata <- data.frame(abslat, urban2, hemisphere, BIOME, number_checklists, elevation)
+newdata <- data.frame(abslat, urban2, hemisphere, precip, number_checklists, elevation)
 newdata2 <- data.frame(abslat, urban2)
 
 prediction_interval <- predict(mod1, newdata=newdata2, interval="prediction")

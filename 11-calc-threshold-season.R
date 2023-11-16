@@ -399,6 +399,12 @@ dat$season <- factor(dat$season, levels = c("winter", "summer"),
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural", "Suburban", "Urban"))
 
+
+#### Add precipitation data
+precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
+#dat <- read.csv("season_modeling_data.csv")
+dat$precip <- as.data.frame(terra::extract(precip, dat[,c(15:16)], method="bilinear"))$wc2.1_5m_bio_12
+
 ## Save data
 write_csv(dat, "season_modeling_data.csv")
 

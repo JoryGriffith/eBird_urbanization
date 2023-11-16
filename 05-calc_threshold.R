@@ -335,6 +335,13 @@ dat <- dat %>% filter(lat <= 70 & lat >=-55) # didn't lose too many points
 # 66,639
 unique(dat$CONTINENT)
 
+
+
+##### Add precipitation data
+precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
+#dat <- read.csv("modeling_data.csv")
+dat$precip <- as.data.frame(terra::extract(precip, dat[,c(27:28)], method="bilinear"))$wc2.1_5m_bio_12
+
 ###### Save data
 write.csv(dat, "modeling_data.csv", row.names=FALSE)
 

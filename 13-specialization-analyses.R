@@ -251,7 +251,7 @@ habitat_point <- emmeans.df.habitat %>% filter(!category=="urban.only") %>%
            arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
   coord_cartesian(clip = "off")+
   theme_classic()+
-  theme(axis.title.x=element_blank(), legend.position="none")
+  theme(axis.title.x=element_blank(), legend.position="none") 
 habitat_point
  # theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .1),
   #      legend.justification = c("right", "bottom"),

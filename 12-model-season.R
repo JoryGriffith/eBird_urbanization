@@ -201,7 +201,7 @@ plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE), ad
 
 ################################
 ## Iterative thinned models to get rid of spatial autocorrelation
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 spat.extent <- ext(GHSL)
 sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
 

@@ -10,20 +10,21 @@ library(elevatr)
 library(emmeans)
 library(ncf)
 library(nlme)
+library(marginaleffects)
 
 ### Load model data
 dat <- read.csv("modeling_data.csv")
 
 # Run model
 mod1.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, dat)
+                   precip + log(number_checklists) + elevation, dat)
 
 
 ########### 1. Look at spatial autocorrelation with variogram ########
 
 # rerun using gls 
 mod1.gls <- gls(sqrt(total_SR) ~ abs(lat) * urban * hemisphere + 
-              BIOME + log(number_checklists) + elevation, dat)
+              precip + log(number_checklists) + elevation, dat)
 
 
 # check for spatial autocorrelation
@@ -68,7 +69,7 @@ beep()
 ## Subsample randomly and run Moran's I again
 dat.samp <- dat[sample(nrow(dat), 5000), ]
 lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                BIOME + log(number_checklists) + elevation, dat.samp)
+                precip + log(number_checklists) + elevation, dat.samp)
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
 dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # calculate distances
 dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
@@ -97,7 +98,7 @@ dat.samp <- dat[sample(nrow(dat), 10000), ]
 # try to run a correlog
 
 gls1.samp <- gls(sqrt(total_SR) ~ abs(lat) * urban + hemisphere + CONTINENT +
-                   abs(lat):CONTINENT + as.factor(BIOME) + log(number_checklists), dat.samp)
+                   abs(lat):CONTINENT + as.factor(precip) + log(number_checklists), dat.samp)
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
 
 plot(gstat::variogram(residuals(gls1.samp, "normalized") ~
@@ -226,7 +227,7 @@ da.thinned.int <- dat.thinned[[1]] %>% rename(long=Longitude, lat=Latitude)
 #
 dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
 dat.thinned.new.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
-gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere + BIOME + log(number_checklists) + elevation, dat.thinned.new)
+gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, dat.thinned.new)
 
 plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
                         1, data = dat.thinned.new.sf, cutoff = 200))
@@ -236,7 +237,7 @@ plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
 
 ## run model with thinned data and check for autocorrelation
 lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                  BIOME + log(number_checklists) + elevation, dat.thinned.new)
+                  precip + log(number_checklists) + elevation, dat.thinned.new)
 
 predicted2 <- ggpredict(lm.thinned, terms = c("abslat", "urban2")) 
 ## looks the same whether sqrt included in model or not
@@ -288,7 +289,7 @@ dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1)
 
 # run model
 lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                   BIOME + log(number_checklists) + elevation, dat.thinned)
+                   precip + log(number_checklists) + elevation, dat.thinned)
 dat.thinned$residuals <- residuals(lm.thinned)
 
 dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
@@ -305,8 +306,8 @@ moran
 # Tried by a spatial grid of 10, still not significantly autocorrelated. This is what I will use
 
 #gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-#                  BIOME + log(number_checklists) + elevation, dat.thinned)
-gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere + BIOME + log(number_checklists) + elevation, dat.thinned)
+#                  precip + log(number_checklists) + elevation, dat.thinned)
+gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, dat.thinned)
 plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
                         1, data = dat.thinned.sf, cutoff = 200))
 
@@ -316,7 +317,7 @@ plot(gstat::variogram(residuals(gls.thinned, "normalized") ~
 # looking at results for randomly sampled data (not stratified)
 dat.samp <- dat[sample(nrow(dat), 3104), ]
 lm.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                   BIOME + log(number_checklists) + elevation, dat.samp)
+                   precip + log(number_checklists) + elevation, dat.samp)
 
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat")) 
 dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=200) # calculate distances
@@ -331,39 +332,52 @@ moran # yes this is autocorrelated, so the other one is accurate
 
 
 ###### Start looping model and store results
+square <- function(x){
+  x^2
+} # make function to square
 thinned.results <- list()
 predicted <- list()
 means <- list()
 emmeans.slopes <- list()
 ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+ggeffects.slopes.contrast.hemisphere <- list()
 set.seed(30)
+
 for (i in 1:1000){
   dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
   lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
-                     BIOME + log(number_checklists) + elevation, dat.thinned)
+                     precip + log(number_checklists) + elevation, dat.thinned)
   # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
   #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
   #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
   # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  thinned.results[[i]] <- summary(lm.thinned) # store summary data
-  predicted[[i]] <- ggemmeans(lm.thinned, terms = c("abslat", "urban2"))# store predictions
-  means[[i]] <- emmeans(lm.thinned, specs="urban2")
+  thinned.results[[i]] <- anova(lm.thinned) # store summary data
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+  means[[i]] <- marginal_means(lm.thinned, variables=c("abslat", "urban2"), transform=square)
+  #  means[[i]] <- emmeans(lm.thinned, specs="urban2")
   emmeans.slopes[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat") # so I can see differences in slopes for each model (using emmeans)
   ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # see differences in slopes (using ggeffects)
-}
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"))
+  ggeffects.slopes.contrast.hemisphere[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "hemisphere"))
+  }
 
 predicted_df <- bind_rows(predicted)
 write.csv(predicted_df, "thinned.results.csv")
 
-# 1) Look at mean species richness in each urbanization level
-means_df <- list()
-for (i in 1:1000){
-  means_df[[i]] <- as.data.frame(means[[i]])
-}
+saveRDS(thinned.results, file="thinned_results/thinned_anovas.rds")
+#test <- readRDS("thinned_results/thinned_anovas.rds")
 
-means_df <- bind_rows(means_df)
-means_summary <- means_df %>% group_by(urban2) %>% summarise(mean=mean(emmean), max.upper=mean(upper.CL), min.lower=min(lower.CL))
+# 1) Look at mean species richness in each urbanization level
+means_df <- bind_rows(means)
+means_summary <- means_df %>% group_by(urban2) %>% summarise(mean=mean(estimate), max.upper=mean(conf.high), min.lower=min(conf.low))
 means_summary
+126-102
+126-87.4
+write.csv(means_df, file="thinned_results/thinned_means.csv")
+
+means_df <- read.csv("thinned_results/thinned_means.csv")
 
 # 2) Look at which slopes are different from one another
 slopes_df <- list()
@@ -371,7 +385,7 @@ for (i in 1:1000){
   slopes_df[[i]] <- as.data.frame(emmeans.slopes[[i]]$contrasts)
 }
 
-slopes_df2 <- bind_rows(slopes_df)
+
 contrast <- slopes_df2 %>% filter(contrast=="Suburban - Urban") %>% filter(p.value<0.05) # 88.5 of the urban-surburban contrasts 
 # have p-values that are significantly different from one another
 contrast <- slopes_df2 %>% filter(contrast=="Natural - Suburban") %>% filter(p.value<0.05) # 100% of models are significant
@@ -394,11 +408,27 @@ emmeans_slopes
 ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
 ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
 ggslopes
+write.csv(ggeffects.slopes.df, file="thinned_results/thinned_slopes.csv")
+ggeffects.slopes.df <- read.csv("thinned_results/thinned_slopes.csv")
 
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Urban-Suburban") %>% filter(p.value<0.05) # 918, just shy of significant
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) #1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
 
+# look at contrasts for latitude
+ggeffects.contrast.hemisphere_df <- bind_rows(ggeffects.slopes.contrast.hemisphere)
+write.csv(ggeffects.contrast.hemisphere_df, file="thinned_results/thinned_constrasts_hemisphere.csv")
 
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Natural-Natural", hemisphere=="northern-southern") %>% filter(p.value<0.05)
+# steeper in N hemsiphere
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Urban", hemisphere=="northern-southern") %>% filter(p.value<0.05)
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Suburban-Suburban", hemisphere=="northern-southern") %>% filter(p.value<0.05)
 
-
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", hemisphere=="southern-southern") %>% filter(p.value<0.05)
+# 718
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", hemisphere=="northern-northern") %>% filter(p.value<0.05)
 
 ## Run full model and plot model fits from that with these confidence intervals
 #predicted.full <- ggpredict(mod1.lm, terms = c("abslat", "urban2")) 
@@ -438,7 +468,7 @@ GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtered.tif")
 dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat"), crs=st_crs(GHSL)) 
 
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, dat.samp) # here is the model that I am working with
+                   precip + log(number_checklists) + elevation, dat.samp) # here is the model that I am working with
 summary(mod1.trans)
 dat.samp$residuals <- residuals(mod1.trans)
 dat.samp$fitted <- fitted(mod1.trans)
@@ -518,7 +548,7 @@ beep()
 ##### Try running models  with sample data
 # Spatially lagged X model
 dat.samp.slx <- lmSLX(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                        BIOME + log(number_checklists) + elevation, data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
+                        precip + log(number_checklists) + elevation, data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 beep()
 summary(dat.samp.slx) # R2 is 0.38 (higher than without the lag)
 summary(mod1.trans)
@@ -534,13 +564,13 @@ moran.mc(dat.samp$residuals.slx, dat.samp.lw, nsim = 999, zero.policy = TRUE)
 
 # Spatial lag model
 dat.samp.slm <- spatialreg::lagsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                       BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
+                                       precip + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 beep()
 summary(dat.samp.slm)
 
 # Spatial error model
 dat.samp.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                         BIOME + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
+                                         precip + log(number_checklists), data = dat.samp, listw = dat.samp.lw, zero.policy = TRUE)
 summary(dat.samp.sem)
 beep()
 
@@ -567,7 +597,7 @@ dat.samp2 <- dat[sample(nrow(dat), 5000), ]
 
 # run regular model
 dat.samp2.lm <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                     BIOME + log(number_checklists), data = dat.samp2)
+                     precip + log(number_checklists), data = dat.samp2)
 
 # turn into sf object
 dat.samp2.sf <- st_as_sf(dat.samp2, coords=c("long", "lat"), crs=st_crs(GHSL)) 
@@ -576,7 +606,7 @@ dat.samp2.nb <- dnearneigh(dat.samp2.sf, d1=0, d2=5)
 dat.samp2.lw <- nb2listw(dat.samp2.nb, style = "W", zero.policy = TRUE)
 
 dat.samp2.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                          BIOME + log(number_checklists), data = dat.samp2, listw = dat.samp2.lw, zero.policy = TRUE)
+                                          precip + log(number_checklists), data = dat.samp2, listw = dat.samp2.lw, zero.policy = TRUE)
 
 dat.samp2$residuals.lm <- residuals(dat.samp2.lm)
 moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)
@@ -609,7 +639,7 @@ dat.nb <- dnearneigh(dat.sf, d1=0, d2=1)
 dat.lw <- nb2listw(dat.nb, style = "W", zero.policy = TRUE)
 
 dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                    BIOME + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
+                                    precip + log(number_checklists), data = dat, listw = dat.lw, zero.policy = TRUE)
 # can't run, sample size too large
 dat.samp2$residuals.lm <- residuals(dat.samp2.lm)
 moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)

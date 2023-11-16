@@ -14,31 +14,49 @@ total.dat <- read.csv("modeling_data.csv")
 full.model <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    BIOME + log(number_checklists) + elevation, total.dat)
 
+
+
+square <- function(x){
+  x^2
+} 
 # Analyse model
-lstrends(full.model, pairwise ~ urban2, var="abslat")
+#lstrends(full.model, pairwise ~ urban2, var="abslat")
 # significantly negative slope for all, all significantly different from one another
 hypothesis_test(full.model, c("abslat", "urban2")) # ggeffects
 # all significantly negative, all significantly different from one another (same as above)
-emtrends(full.model, pairwise ~ hemisphere, var="abslat", by="urban2")
+#emtrends(full.model, pairwise ~ hemisphere, var="abslat", by="urban2")
 # Southern hemisphere is significantly steeper than northern in each urbanization level
 
+# look at means
+marginal_means(full.model, variables=c("abslat", "urban2"), cross=TRUE, transform=square)
+?marginal_means
+
+avg_slopes(full.model, variables="abslat", by="urban2")
+
+?avg_slopes
+hypothesis_test(full.model, terms=c("abslat", "urban2"), test=NULL, scale="response")
+hypothesis_test(full.model, terms=c("abslat", "urban2"), scale="response")
+?hypothesis_test
 
 ## Load seasonal data
 dat.season <- read.csv("season_modeling_data.csv")
 
 season.model <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + 
                      BIOME + log(number_checklists) + elevation, dat.season)
+# look at means
+season.means <- marginal_means(season.model, variables=c("abslat", "urban2", "season"), cross=TRUE, transform=square)
 
 # Analyse model
-lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer")) # all significantly negative, urban and suburban NS
-lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Winter")) # all significantly negative, urban and suburban significantly different
-lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer", hemisphere="northern")) # slope overlaps 0 in urb in N hemisphere, suburban and urban NS diff
-lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer", hemisphere="southern")) # slope negative for all, suburb and urb NS diff.
+#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer")) # all significantly negative, urban and suburban NS
+#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Winter")) # all significantly negative, urban and suburban significantly different
+#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer", hemisphere="northern")) # slope overlaps 0 in urb in N hemisphere, suburban and urban NS diff
+#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer", hemisphere="southern")) # slope negative for all, suburb and urb NS diff.
 
 # significantly negative slope for all of them
-lstrends(season.model, pairwise ~ urban2, var="abslat", at=c(season="Winter"))
+#lstrends(season.model, pairwise ~ urban2, var="abslat", at=c(season="Winter"))
 
-hypothesis_test(season.model, c("abslat", "urban2", "season", "hemisphere"), test = NULL) # ggeffects
+#hypothesis_test(season.model, c("abslat", "urban2", "season", "hemisphere"), test = NULL, scale=exp) # ggeffects
+
 # urban summer in the northern hemisphere the slope overlaps 0
 hypothesis_test(season.model, c("abslat", "urban2", "season"), test = NULL)
 # also overlaps 0 in full model because of the way it averages (way more points in N hemsiphere)
@@ -47,38 +65,39 @@ hypothesis_test(season.model, c("abslat", "urban2", "season"))
 
 
 
-
 ############### Maps of coverage ####################
 # Full
 full.map<-ggplot(data=world)+
   geom_sf(lwd=0.15, fill="white") +
-  geom_point(data=total.dat, aes(x=long, y=lat, color=urban2), size=0.05, alpha=0.3) +
+  geom_point(data=total.dat, aes(x=long, y=lat, color=urban2, shape=urban2), size=2, alpha=0.5) +
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
-  coord_sf(crs = 4326, expand = FALSE) +
+  coord_sf(crs = 4326, expand = TRUE) +
   labs(x="Longitude", y="Latitude")+
   # geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
   #  geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
   theme_classic()+
-  theme(legend.title=element_blank(), legend.position = c(.75, .3), text=element_text(size=15), axis.text = element_blank(), axis.ticks = element_blank(), 
+  theme(legend.title=element_blank(), legend.position = c(.7, .3), text=element_text(size=15), axis.text = element_blank(), axis.ticks = element_blank(), 
         axis.title=element_blank(), axis.line = element_blank())
 full.map
+ggsave(full.map, file="coverage.map.png", height=12, width=8)
 
 # Seasonal
 season.map<-ggplot(data=world)+
   geom_sf(lwd=0.15, fill="white") +
-  geom_point(data=dat.season, aes(x=long, y=lat, color=urban2), size=0.05, alpha=0.3) +
+  geom_point(data=dat.season, aes(x=long, y=lat, color=urban2, shape=urban2), size=2, alpha=0.5) +
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
-  coord_sf(crs = 4326, expand = FALSE) +
+  coord_sf(crs = 4326, expand = TRUE) +
   labs(x="Longitude", y="Latitude")+
   # geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
   #  geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
   theme_classic()+
+  facet_wrap(~season)+
   theme(legend.title=element_blank(),text=element_text(size=15), axis.text = element_blank(), axis.ticks = element_blank(), 
-        axis.title=element_blank(), axis.line = element_blank(), legend.position="none")+
-  facet_wrap(~season, ncol=2)
+        axis.title=element_blank(), axis.line = element_blank(), legend.position = "none")
 season.map
 
-full.map / season.map
+map <- full.map / season.map
+ggsave(season.map, file="coverage.season.map.png", height=6, width=10)
 
 
 
@@ -92,9 +111,24 @@ square <- function(x){
 
 # plotting with marginal effects
 plot_slopes(full.model, variables="abslat", condition=c("urban2", "hemisphere")) # all very much different
+?plot_slopes
 # northern hemisphere is steeper
 
-predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=square, newdata="mean")
+predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=square, 
+                                newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
+
+211.93041-203.01373
+203.01373-194.28868
+194.28868-185.75526
+
+
+211.93041-104.53534 # overall difference in natural from 0 to 70
+107.3951/7
+156.93979-93.37027 #3 suburban
+63.56952/7
+131.45021-93.29387
+38.15634/7
+
 # want to make this over a more limited set of predictors and somehow make not wiggly
 #marginal.full<-plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) # need to figure out how to back transform this
 
@@ -111,7 +145,7 @@ mainLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tr
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 mainLDGplot
 # yay this plot is the same!
-mainLDGplot | marginal.full
+#mainLDGplot | marginal.full
 
 
 
@@ -128,10 +162,27 @@ marginal.season <- plot_predictions(season.model, condition=c("abslat", "urban2"
 
 plot_slopes(season.model, variables="abslat", condition=c("urban2", "hemisphere", "season"))
 
-predicted.season<-avg_predictions(season.model, by=c("abslat", "urban2", "season"), transform=square, newdata="mean")
+predicted.season <- avg_predictions(season.model, by=c("abslat", "urban2", "season"), transform=square, 
+                                         newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                                            season = c("Summer", "Winter")))
+
+# natural
+(216.04530-18.50056)/7
+(138.87740-70.49192)/7
+# suburban
+(156.48679-23.63505)/7
+(84.61439-73.49592)/7
+# urb
+(125.04127-32.49114)/7
+(84.61439-70.49192)/7
+
+
+
+
+#predicted.season<-avg_predictions(season.model, by=c("abslat", "urban2", "season"), transform=square, newdata="mean")
 seasonLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
-  geom_point(total.dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(dat.season, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.season, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.season, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
@@ -144,19 +195,17 @@ seasonLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), 
 seasonLDGplot
 # beautiful!
 
-seasonLDGplot / marginal.season
+#seasonLDGplot / marginal.season
 # yes they look the same, great!
 
-ldg.full.results <- plot.full.model / seasonal.results.plot + plot_annotation(tag_levels = "A")
-
-ldg.full.results2 <- wrap_elements(ldg.full.results) +
+ldg.full.results <- mainLDGplot / seasonLDGplot + plot_annotation(tag_levels = "A") + plot_layout(heights = c(2, 1)) +
   labs(tag = "Species Richness") +
   theme(
     plot.tag = element_text(size = 15, angle = 90),
     plot.tag.position = "left"
   )  
 
-ggsave(ldg.full.results2, file="ldg.results.png", height=6, width=8)
+ggsave(ldg.full.results2, file="ldg.results.png", height=10, width=8)
 
 
 
@@ -172,14 +221,14 @@ ggsave(ldg.full.results2, file="ldg.results.png", height=6, width=8)
 thinned.results <- read.csv("thinned.results.csv")
 
 #thinned.results.summary <- thinned.results %>% group_by(x, group) %>% summarise(mean_x=mean(predicted), max.conf.high = quantile(conf.high, 0.975), min.conf.low = quantile(conf.low, 0.25))
-thinned.results.summary <- thinned.results %>% group_by(x, group) %>% summarise(mean_x=mean(predicted), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+thinned.results.summary <- thinned.results %>% group_by(abslat, urban2) %>% summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 
 
 thinned.plots <- ggplot()+
   # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
   geom_point(total.dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
-  geom_line(thinned.results.summary, mapping=aes(x=x, y=mean_x, color=group), lwd=1.5)+
-  geom_ribbon(thinned.results.summary, mapping=aes(x=x, ymax=max.conf.high, ymin=min.conf.low, group=group), alpha=0.3)+
+  geom_line(thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
@@ -188,42 +237,44 @@ thinned.plots <- ggplot()+
 # this is the plot with the 95% of the confidence intervals
 thinned.plots
 
+# compare with full plot
+mainLDGplot | thinned.plots
+# slopes are the same, just the confidence intervals are different
+
 
 #### Seasonal
 seasonal.thinned.results <- read.csv("thinned.seasonal.results.csv")
 
-#seasonal.thinned.results.summary <- seasonal.thinned.results %>% group_by(x, group, facet) %>% 
-#  summarise(mean_x=mean(predicted), max.conf.high = quantile(conf.high, 0.975), min.conf.low = quantile(conf.low, 0.25))
+seasonal.thinned.results.summary <- seasonal.thinned.results %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 
-
-seasonal.results.plot / season.thinned.plot
 
 
 # Plot thinned models together
-ldg.results <- thinned.plots / season.thinned.plot + plot_annotation(tag_levels = "A")
-
-seasonal.thinned.results.summary <- seasonal.thinned.results %>% group_by(x, group, facet) %>% 
-  summarise(mean_x=mean(predicted), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 season.thinned.plot <- ggplot()+
   # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
   geom_point(dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
-  geom_line(seasonal.thinned.results.summary, mapping=aes(x=x, y=mean_x, color=group), lwd=1.5)+
-  geom_ribbon(seasonal.thinned.results.summary, mapping=aes(x=x, ymax=max.conf.high, ymin=min.conf.low, group=group), alpha=0.3)+
+  geom_line(seasonal.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(seasonal.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
-  facet_wrap(~facet)+
+  facet_wrap(~season)+
   theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=15), axis.title.y=element_blank())
 # this is the plot with the 95% of the confidence intervals
 season.thinned.plot
-ldg.results2 <- wrap_elements(ldg.results) +
+
+ldg.results <- thinned.plots / season.thinned.plot + plot_layout(heights = c(2, 1))+ 
   labs(tag = "Species Richness") +
   theme(
     plot.tag = element_text(size = 15, angle = 90),
     plot.tag.position = "left"
-  )
-ggsave(ldg.results2, file="ldg.thinned.results.png", height=6, width=8)
+  ) 
+
+ldg.results
+
+ggsave(ldg.results2, file="ldg.thinned.results.png", height=10, width=8)
 
 
 

@@ -12,7 +12,7 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 total.dat <- read.csv("modeling_data.csv")
 
 full.model <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   BIOME + log(number_checklists) + elevation, total.dat)
+                   precip + log(number_checklists) + elevation, total.dat)
 
 
 
@@ -29,20 +29,18 @@ hypothesis_test(full.model, c("abslat", "urban2")) # ggeffects
 
 # look at means
 marginal_means(full.model, variables=c("abslat", "urban2"), cross=TRUE, transform=square)
-?marginal_means
 
 avg_slopes(full.model, variables="abslat", by="urban2")
 
-?avg_slopes
+
 hypothesis_test(full.model, terms=c("abslat", "urban2"), test=NULL, scale="response")
 hypothesis_test(full.model, terms=c("abslat", "urban2"), scale="response")
-?hypothesis_test
 
 ## Load seasonal data
 dat.season <- read.csv("season_modeling_data.csv")
 
 season.model <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + 
-                     BIOME + log(number_checklists) + elevation, dat.season)
+                     precip + log(number_checklists) + elevation, dat.season)
 # look at means
 season.means <- marginal_means(season.model, variables=c("abslat", "urban2", "season"), cross=TRUE, transform=square)
 
@@ -117,17 +115,6 @@ plot_slopes(full.model, variables="abslat", condition=c("urban2", "hemisphere"))
 predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=square, 
                                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
 
-211.93041-203.01373
-203.01373-194.28868
-194.28868-185.75526
-
-
-211.93041-104.53534 # overall difference in natural from 0 to 70
-107.3951/7
-156.93979-93.37027 #3 suburban
-63.56952/7
-131.45021-93.29387
-38.15634/7
 
 # want to make this over a more limited set of predictors and somehow make not wiggly
 #marginal.full<-plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) # need to figure out how to back transform this
@@ -150,8 +137,8 @@ mainLDGplot
 
 
 
-ggsave(plot.full.model, file="LDGMainResults.png", height=5, width=7)
-plot.full.model | thinned.plots # compare the full model with the thinned model
+ggsave(mainLDGplot, file="LDGMainResults.png", height=5, width=7)
+#plot.full.model | thinned.plots # compare the full model with the thinned model
 
 # ok they are not too different except that the one with marginal means is steeper (which makes sense)
 
@@ -165,16 +152,6 @@ plot_slopes(season.model, variables="abslat", condition=c("urban2", "hemisphere"
 predicted.season <- avg_predictions(season.model, by=c("abslat", "urban2", "season"), transform=square, 
                                          newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
                                                             season = c("Summer", "Winter")))
-
-# natural
-(216.04530-18.50056)/7
-(138.87740-70.49192)/7
-# suburban
-(156.48679-23.63505)/7
-(84.61439-73.49592)/7
-# urb
-(125.04127-32.49114)/7
-(84.61439-70.49192)/7
 
 
 
@@ -222,7 +199,12 @@ thinned.results <- read.csv("thinned.results.csv")
 
 #thinned.results.summary <- thinned.results %>% group_by(x, group) %>% summarise(mean_x=mean(predicted), max.conf.high = quantile(conf.high, 0.975), min.conf.low = quantile(conf.low, 0.25))
 thinned.results.summary <- thinned.results %>% group_by(abslat, urban2) %>% summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
-
+avg.slope.nat <- thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Natural")
+(198-97.8)/7
+avg.slope.sub <- thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Suburban")
+(148-84)/7
+avg.slope.urb <- thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Urban")
+(127-82)/7
 
 thinned.plots <- ggplot()+
   # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
@@ -247,13 +229,23 @@ seasonal.thinned.results <- read.csv("thinned.seasonal.results.csv")
 
 seasonal.thinned.results.summary <- seasonal.thinned.results %>% group_by(abslat, urban2, season) %>% 
   summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
-
-
+avg.slope.nat.sum <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Natural"& season=="Summer")
+(129-82.7)/7
+avg.slope.nat.wint <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Natural"& season=="Winter")
+(206-15.5)/7
+avg.slope.sub.sum <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Suburban"& season=="Summer")
+(81.4-66.3)/7
+avg.slope.sub.wint <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Suburban"& season=="Winter")
+(150-21.3)/7
+avg.slope.urb.sum <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Urban" & season=="Summer")
+(71.2-62.3)/7
+avg.slope.urb.wint <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Urban"& season=="Winter")
+(123-31)/7
 
 # Plot thinned models together
 season.thinned.plot <- ggplot()+
   # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
-  geom_point(dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(dat.season, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(seasonal.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
   geom_ribbon(seasonal.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
@@ -265,14 +257,14 @@ season.thinned.plot <- ggplot()+
 # this is the plot with the 95% of the confidence intervals
 season.thinned.plot
 
-ldg.results <- thinned.plots / season.thinned.plot + plot_layout(heights = c(2, 1))+ 
+ldg.results2 <- thinned.plots / season.thinned.plot + plot_layout(heights = c(2, 1))+ 
   labs(tag = "Species Richness") +
   theme(
     plot.tag = element_text(size = 15, angle = 90),
     plot.tag.position = "left"
   ) 
 
-ldg.results
+ldg.results2
 
 ggsave(ldg.results2, file="ldg.thinned.results.png", height=10, width=8)
 

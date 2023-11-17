@@ -371,13 +371,13 @@ saveRDS(thinned.results, file="thinned_results/thinned_anovas.rds")
 
 # 1) Look at mean species richness in each urbanization level
 means_df <- bind_rows(means)
+write.csv(means_df, file="thinned_results/thinned_means.csv")
+means_df <- read.csv("thinned_results/thinned_means.csv")
 means_summary <- means_df %>% group_by(urban2) %>% summarise(mean=mean(estimate), max.upper=mean(conf.high), min.lower=min(conf.low))
 means_summary
-126-102
-126-87.4
-write.csv(means_df, file="thinned_results/thinned_means.csv")
+129-106
+129-92.6
 
-means_df <- read.csv("thinned_results/thinned_means.csv")
 
 # 2) Look at which slopes are different from one another
 slopes_df <- list()
@@ -385,8 +385,8 @@ for (i in 1:1000){
   slopes_df[[i]] <- as.data.frame(emmeans.slopes[[i]]$contrasts)
 }
 
-
-contrast <- slopes_df2 %>% filter(contrast=="Suburban - Urban") %>% filter(p.value<0.05) # 88.5 of the urban-surburban contrasts 
+slopes_df2 <- bind_rows(slopes_df)
+contrast <- slopes_df2 %>% filter(contrast=="Suburban - Urban") %>% filter(p.value<0.05) # 87.9 of the urban-surburban contrasts 
 # have p-values that are significantly different from one another
 contrast <- slopes_df2 %>% filter(contrast=="Natural - Suburban") %>% filter(p.value<0.05) # 100% of models are significant
 contrast <- slopes_df2 %>% filter(contrast=="Natural - Urban") %>% filter(p.value<0.05) # 100% of models are significant
@@ -406,10 +406,11 @@ emmeans_slopes
 
 # ggeffects slopes
 ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
-ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
-ggslopes
 write.csv(ggeffects.slopes.df, file="thinned_results/thinned_slopes.csv")
 ggeffects.slopes.df <- read.csv("thinned_results/thinned_slopes.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
 
 ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
 write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")

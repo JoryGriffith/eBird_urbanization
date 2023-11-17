@@ -4,7 +4,7 @@ library(terra)
 library(taxize)
 library(sf)
 library(terra)
-library(emmeans)
+library(marginaleffects)
 library(ggpubr)
 library(grid)
 library(cowplot)
@@ -62,7 +62,7 @@ length(unique(global_unique_sp$SCIENTIFIC.NAME)) # 10,723 species
 ###################################################################################################
 
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
-global_uniquesp <- read.table("global_unique_sp.txt", header=TRUE) # this worked better than csv
+#global_uniquesp <- read.table("global_unique_sp.txt", header=TRUE) # this worked better than csv
 length(unique(global_uniquesp$SCIENTIFIC.NAME))
 #global_uniquesp <- global_uniquesp %>% na.omit() # remove random row with NA (not sure why that is there)
 
@@ -132,10 +132,9 @@ habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * urban2, data = sp_habitat)
 summary(habitat.aov3) # significant interaction
 
 # look at just difference in specialization with latitude
-emmeans(habitat.aov3, specs="zone_bin")
+marginal_means(habitat.aov3, variables=c("zone_bin"))
 
-emmeans.habitat3 <- emmeans(habitat.aov3, specs="urban2", by="zone_bin")
-plot(emmeans.habitat3)
+means.habitat3 <- marginal_means(habitat.aov3, variables=c("zone_bin", "urban2"))
 # the difference is way larger in the tropics!
 
 
@@ -189,12 +188,11 @@ urban.only2 <- urban.only %>% pivot_wider(names_from="zone_bin", values_from="ur
 
 habitat.aov4 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = birds_zones)
 summary(habitat.aov4)
+# need to change transformation to exponent!
+means.habitat4 <- marginal_means(habitat.aov4, variables=c("zone_bin", "category"), cross=TRUE)
+#emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
 
-emmeans.habitat4 <- emmeans(habitat.aov4, specs="category", by="zone_bin")
-emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
-
-emmeans.habitat4
-plot(emmeans.habitat4) # now that I fixed that error there is a significant interaction
+means.habitat4
 # Plot of richness of different categories
 
 # this is exactly what I was trying to show! Didn't know it would be so clear
@@ -232,17 +230,15 @@ habitat_bar
 #  theme(axis.title.x=element_blank(), legend.position="none")
 
 ### Plot emmeans using ggplot
-emmeans.df.habitat <- as.data.frame(emmeans.habitat4)
 
-
-habitat_point <- emmeans.df.habitat %>% filter(!category=="urban.only") %>% 
-  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
+habitat_point <- 
+  ggplot(means.habitat4, aes(x=zone_bin, y=estimate, group=category, color=category))+
   geom_point(size=2, position=position_dodge(width=0.2))+
   geom_line(size=0.5, position=position_dodge(width=0.2))+
   scale_color_manual(values=c("grey30", "deepskyblue3"))+
   scale_y_reverse()+
   labs(y="Log habitat breadth")+
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.15, position=position_dodge(width=0.2))+
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width=0.15, position=position_dodge(width=0.2))+
   annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
   annotate("text", x=0.7, y=1.4, label="Specialist", angle=90)+
   annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
@@ -262,7 +258,7 @@ habitat_plot <- ggarrange(habitat_bar, habitat_point, ncol=1)
 habitat_plot
 
 
-ggsave(habitat_plot, file="pecialistHabitatResults.png", height=4, width=8)
+#ggsave(habitat_plot, file="pecialistHabitatResults.png", height=4, width=8)
 # Try it as an inset
 
 
@@ -324,8 +320,7 @@ sp_diet <- sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 5
 diet.aov3 <- aov(gini.index ~ zone_bin * urban2, data = sp_diet)
 summary(diet.aov3) # significant interaction
 
-emmeans.diet3 <- emmeans(diet.aov3, specs="urban2", by="zone_bin")
-plot(emmeans.diet3)
+means.diet3 <- marginal_means(diet.aov3, variables=c("zone_bin", "urban2"), cross=TRUE)
 # the difference is way larger in the tropics!
 
 diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index, Diet.5Cat) %>% count(.drop=FALSE) %>% 
@@ -368,9 +363,8 @@ unique(diet_zones$zone_bin)
 diet.aov4 <- aov(gini.index ~ zone_bin * category, data = diet_zones)
 summary(diet.aov4)
 
-emmeans.diet4 <- emmeans(diet.aov4, specs="category", by="zone_bin")
-emmeans(diet.aov4, pairwise~zone_bin, by="category")
-plot(emmeans.diet4)
+means.diet4 <- marginal_means(diet.aov4, variables=c("zone_bin", "category"), cross=TRUE)
+#emmeans(diet.aov4, pairwise~zone_bin, by="category")
 
 ##### Stacked bar plot of overall species loss
 richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
@@ -410,22 +404,20 @@ diet_bar
 
 
 
-
-emmeans.df.diet <- as.data.frame(emmeans.diet4)
-diet_point <- emmeans.df.diet %>% filter(!category=="urban.only") %>% 
-  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
+diet_point <- means.diet4 %>% 
+  ggplot(aes(x=zone_bin, y=estimate, group=category, color=category))+
   geom_point(size=2, position=position_dodge(width=0.2))+
   geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
   scale_color_manual(values=c("black", "deepskyblue3"))+
   labs(y="Diet specialization")+
  # scale_y_reverse()+
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25, position=position_dodge(width=0.2))+
-  annotate("text", x=0.7, y=0.9, label="Generalist", angle=90)+
-  annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
-  annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
-  annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width=0.25, position=position_dodge(width=0.2))+
+#  annotate("text", x=0.7, y=0.83, label="Generalist", angle=90)+
+#  annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
+ #$ annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
+   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  #annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
+ #          arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
   theme_classic()+
   theme(axis.title.x=element_blank(), legend.position="none")
 # annotations not showing up for some reason rip
@@ -632,7 +624,38 @@ ggplot(test)+
 
 
 
+#############################################
 
+#### Trying new way of looking at specialization! (By cell)
+global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filter(lat <= 70 & lat >=-55)
+# this is a list of species for each cell
+
+# Merge with habitat data
+habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
+
+uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
+
+habitat.species.summary <- uniquesp_habitat %>% group_by(cell, long, lat, urban2) %>% drop_na(Habitat_breadth_IUCN) %>% 
+  summarise(mean.habitat=mean(Habitat_breadth_IUCN))
+habitat.species.summary$abslat <- abs(habitat.species.summary$lat)
+
+ggplot(habitat.species.summary, mapping=aes(x=abslat, y=mean.habitat, color=urban2), alpha=0.2)+
+ # geom_point()+
+  geom_smooth(method="lm")+
+  scale_y_reverse()
+
+
+##### Now try with diet
+diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
+uniquesp_diet <- merge(global_uniquesp, diet[, c(9,21,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific")
+
+diet.species.summary <- uniquesp_diet %>% group_by(cell, long, lat, urban2) %>% drop_na(gini.index) %>% 
+  summarise(mean.diet=mean(gini.index))
+diet.species.summary$abslat <- abs(diet.species.summary$lat)
+
+ggplot(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), alpha=0.2)+
+  # geom_point()+
+  geom_smooth(method="lm")
 
 
 

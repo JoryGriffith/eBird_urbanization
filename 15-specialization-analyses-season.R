@@ -549,5 +549,78 @@ TukeyHSD(aov2)
 
 
 
+#################### Looking at proportion of cells that are in urban vs not urban for each bird species
+# see if that changes with season
+
+season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+season_uniquesp <- season_uniquesp %>% 
+  mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), 
+                        labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
+season_uniquesp <- season_uniquesp %>% 
+  mutate(lat_bin = cut(abslat, breaks=c(0, 10, 20, 30, 40, 50, 60, 70, 80)))
+
+# summarise: how many cells in each category for each season
+summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2) %>% count() %>% 
+  group_by(SCIENTIFIC.NAME, season) %>% mutate(total=sum(n), prop=n/total)
+
+summary.urban2 <- summary.urban %>% group_by(season, urban2) %>% summarise(mean=mean(prop))
+# proportion in urban areas does not change with season, suggesting that birds are not moving into urban areas
+
+# But I would only expect the proportion to increase at mid latitudes because that is where seasonality is highest
+summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2, zone_bin) %>% count() %>% 
+  group_by(SCIENTIFIC.NAME, season, zone_bin) %>% mutate(total=sum(n), prop=n/total)
+
+summary.urban2 <- summary.urban %>% group_by(season, urban2, zone_bin) %>% summarise(mean=mean(prop))
+
+summary.urban2 %>% filter(urban2=="urban") %>% ggplot() +
+  geom_point(aes(x=zone_bin, y=mean, color=season))+
+  facet_wrap(~urban2)
+
+
+# Look at finer resolution of latitude bins
+summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2, lat_bin) %>% count() %>% 
+  group_by(SCIENTIFIC.NAME, season, lat_bin) %>% mutate(total=sum(n), prop=n/total)
+
+summary.urban2 <- summary.urban %>% group_by(season, urban2, lat_bin) %>% summarise(mean=mean(prop))
+
+summary.urban2 %>% filter(urban2=="urban") %>% ggplot() +
+  geom_point(aes(x=lat_bin, y=mean, color=season))+
+  geom_line(aes(x=lat_bin, y=mean, color=season, group=season))+
+  facet_wrap(~urban2)
+
+
+
+
+
+
+
+####### Now looking at mean latitude per species in summer and winter to see if natural birds are migrating more than urban
+summary.lat <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2) %>% summarise(species.mean=mean(abslat))
+# plot species level avg latitude as a boxplot
+ggplot(summary.lat, aes(x=urban2, y=species.mean, fill=season))+
+  geom_boxplot()
+
+
+summary.lat2 <- summary.lat %>% group_by(season,urban2) %>% summarise(mean=mean(species.mean))
+
+lat.anova <- aov(species.mean ~ season*urban2, dat=summary.lat)
+summary(lat.anova)
+library(marginaleffects)
+
+means <- marginal_means(lat.anova, variables=c("season", "urban2"), cross=TRUE)
+
+ggplot(means, aes(x=urban2, y=estimate, group=season, color=season))+
+  geom_point(size=2, position=position_dodge(width=0.2))+
+  geom_line(size=0.5, position=position_dodge(width=0.2))+
+  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  labs(y="Avg latitude")+
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width=0.15, position=position_dodge(width=0.2))
+
+
+
+
+
+
+
 
 

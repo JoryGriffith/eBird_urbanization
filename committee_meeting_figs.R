@@ -22,19 +22,20 @@ dat <- data.frame(x,y)
 
 h1.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_point(alpha=0)+
-  geom_abline(aes(slope=-2.2, intercept=400, color="Natural"), linewidth=1.2) +
-  geom_abline(aes(slope=-2.2, intercept=320, color="Suburban"), linewidth=1.2) +
-  geom_abline(aes(slope=-2.2, intercept=230, color="Urban"), linewidth=1.2) +
+#  geom_abline(aes(slope=-2.2, intercept=400, color="Natural"), linewidth=1.2) +
+ # geom_abline(aes(slope=-2.2, intercept=320, color="Suburban"), linewidth=1.2) +
+#  geom_abline(aes(slope=-2.2, intercept=230, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Species Richness") +
   scale_x_continuous(expand=c(0,0))+
   scale_y_continuous(limits=c(0,500), expand=c(0,0))+
   theme_classic() +
-  annotate("Text", size=5, label="H1: No change in slope", color="grey20", x=45, y=470)+
-  theme(text=element_text(size=13), axis.text.y = element_blank(), axis.title.y=element_blank(),
-        axis.ticks.y=element_blank(), axis.title.x=element_blank(), legend.position="none")+
+ # annotate("Text", size=5, label="H1: No change in slope", color="grey20", x=45, y=470)+
+  theme(text=element_text(size=15), 
+        axis.ticks.y=element_blank(), legend.position="none")+
   scale_color_manual(name="Urbanization", breaks=c('Natural', 'Suburban', 'Urban'),
                      values=c('Natural'='#009E73', 'Suburban'='#CC79A7', 'Urban'='#000000'))
-#ggsave(h1.plot, file="Desktop/h1.plot.png", height=4.5, width=6)
+
+ggsave(h1.plot, file="blank.plot.png", height=4.5, width=6)
 # H2
 h2.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_point(alpha=0)+

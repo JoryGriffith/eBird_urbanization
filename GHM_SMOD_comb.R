@@ -60,7 +60,7 @@ plot(GHSL.test, col=colors) # compare the two to make sure it worked, yes looks 
 writeRaster(GHSL.test, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif", overwrite=TRUE)
 
 GHSL.test2 <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
-
+plot(GHSL.test2)
 GHSL.test2 <- subst(GHSL.test2, 10, NA) # turn water into NA
 GHSL.test2 <- subst(GHSL.test2, 30, 3) # turn urban into 3
 GHSL.test2 <- subst(GHSL.test2, 11, 1)
@@ -74,5 +74,15 @@ plot(GHSL.test2)
 
 writeRaster(GHSL.test2, "/Volumes/Expansion/eBird/SMOD_global/GHSL_filt_3cat.tif")
 
+filt <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filt_3cat.tif")
+plot(filt)
+filt
 
+extent <- c(-8000000, -6000000, 4000000, 6000000)
+colors=c("#009E73", "#CC79A7", "#000000")
+plot(filt, col=colors, ext=extent)
 
+png(file="new.raster.example.png")
+plot(filt, col=colors, ext=extent)
+dev.off()
+?png

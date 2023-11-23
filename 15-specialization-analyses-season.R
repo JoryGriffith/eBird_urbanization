@@ -527,7 +527,7 @@ summary(mod.migration)
 
 
 
-################# Look at relationship between diet and habitat breadth and migratory status
+######################### Look at relationship between diet and habitat breadth and migratory status
 habitat_migration <- merge(season_sp_habitat, avonet[,c(1,28)], by="SCIENTIFIC.NAME", by.y="Species2")
 habitat_migration %>% group_by(Migration) %>% summarise(mean=mean(Habitat_breadth_IUCN))
 # the widest habitat breadth is the partial migrants, which kinda makes sense
@@ -567,8 +567,19 @@ summary.urban2 <- summary.urban %>% group_by(season, urban2) %>% summarise(mean=
 # proportion in urban areas does not change with season, suggesting that birds are not moving into urban areas
 
 # But I would only expect the proportion to increase at mid latitudes because that is where seasonality is highest
-summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2, zone_bin) %>% count() %>% 
-  group_by(SCIENTIFIC.NAME, season, zone_bin) %>% mutate(total=sum(n), prop=n/total)
+summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, zone_bin, urban2) %>% mutate(total.urb=n())
+
+summary.urban2 <- summary.urban %>% group_by(SCIENTIFIC.NAME, season, zone_bin) %>% mutate(total=n(), prop=total.urb/total) %>% filter(urban2=="urban")
+summary.urban3 <- summary.urban2 %>% group_by(SCIENTIFIC.NAME, season, zone_bin) %>% summarise(prop.urban=mean(prop))
+
+
+# try running binomial model
+mod <- glm(prop.urban ~ season + zone_bin, family=quasibinomial, data=summary.urban3)
+
+plot(mod)
+
+
+
 
 summary.urban2 <- summary.urban %>% group_by(season, urban2, zone_bin) %>% summarise(mean=mean(prop))
 
@@ -578,15 +589,20 @@ summary.urban2 %>% filter(urban2=="urban") %>% ggplot() +
 
 
 # Look at finer resolution of latitude bins
-summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2, lat_bin) %>% count() %>% 
-  group_by(SCIENTIFIC.NAME, season, lat_bin) %>% mutate(total=sum(n), prop=n/total)
+#summary.urban <- season_uniquesp %>% group_by(SCIENTIFIC.NAME, season, urban2, lat_bin) %>% count() %>% 
+ # group_by(SCIENTIFIC.NAME, season, lat_bin) %>% mutate(total=sum(n), prop=n/total)
 
-summary.urban2 <- summary.urban %>% group_by(season, urban2, lat_bin) %>% summarise(mean=mean(prop))
+summary.urban4 <- summary.urban3 %>% group_by(season, zone_bin) %>% summarise(mean=mean(prop.urban))
 
-summary.urban2 %>% filter(urban2=="urban") %>% ggplot() +
-  geom_point(aes(x=lat_bin, y=mean, color=season))+
-  geom_line(aes(x=lat_bin, y=mean, color=season, group=season))+
-  facet_wrap(~urban2)
+urb.proportion.season <- summary.urban3 %>% ggplot()+
+  geom_point(aes(x=zone_bin, y=prop.urban, color=season), position=position_dodge(width=0.5), shape=1)+
+  geom_smooth(aes(x=zone_bin, y=prop.urban, group=season, color=season), method="lm")+
+  labs(y="Proportion of urban cells")+
+  scale_color_manual(values=c("darkgoldenrod1","deepskyblue4"))+
+  theme_classic()+
+  theme(text=element_text(size=13), axis.title.x=element_blank(), legend.title=element_blank())
+ggsave(urb.proportion.season, file="urban.prop.season.png", height=5, width=7)
+#  geom_line(aes(x=zone_bin, y=prop.urban, color=season, group=season))
 
 
 
@@ -616,6 +632,42 @@ ggplot(means, aes(x=urban2, y=estimate, group=season, color=season))+
   labs(y="Avg latitude")+
   geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width=0.15, position=position_dodge(width=0.2))
 
+
+
+
+
+
+
+############################ New way of looking at specialization - calculating by cell #############
+season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+
+# merge with habitat
+habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
+season_sp_habitat <- merge(season_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
+
+season.habitat.summary <- season_sp_habitat %>% group_by(cell, long, lat, urban2, season) %>% drop_na(Habitat_breadth_IUCN) %>% 
+  summarise(mean.habitat=mean(Habitat_breadth_IUCN))
+season.habitat.summary$abslat <- abs(habitat.species.summary$lat)
+
+ggplot(season.habitat.summary, mapping=aes(x=abslat, y=mean.habitat, color=urban2), alpha=0.2)+
+  # geom_point()+
+  geom_smooth(method="lm")+
+  facet_wrap(~season)+
+  scale_y_reverse()
+
+### diet
+diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") 
+season_sp_diet <- merge(season_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific")
+
+
+diet.species.summary <- season_sp_diet %>% group_by(cell, long, lat, urban2, season) %>% drop_na(gini.index) %>% 
+  summarise(mean.diet=mean(gini.index))
+diet.species.summary$abslat <- abs(diet.species.summary$lat)
+
+ggplot(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), alpha=0.2)+
+  # geom_point()+
+  geom_smooth(method="lm")+
+  facet_wrap(~season)
 
 
 

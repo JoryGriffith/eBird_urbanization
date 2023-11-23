@@ -82,20 +82,20 @@ ggsave(full.map, file="coverage.map.png", height=12, width=8)
 # Seasonal
 season.map<-ggplot(data=world)+
   geom_sf(lwd=0.15, fill="white") +
-  geom_point(data=dat.season, aes(x=long, y=lat, color=urban2, shape=urban2), size=2, alpha=0.5) +
+  geom_point(data=dat.season, aes(x=long, y=lat, color=urban2, shape=urban2), size=1, alpha=0.5) +
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   coord_sf(crs = 4326, expand = TRUE) +
   labs(x="Longitude", y="Latitude")+
   # geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
   #  geom_hline(yintercept=0, alpha=0.8, lty=2) + # for equator
   theme_classic()+
-  facet_wrap(~season)+
+  facet_wrap(~season, ncol=1)+
   theme(legend.title=element_blank(),text=element_text(size=15), axis.text = element_blank(), axis.ticks = element_blank(), 
         axis.title=element_blank(), axis.line = element_blank(), legend.position = "none")
 season.map
 
 map <- full.map / season.map
-ggsave(season.map, file="coverage.season.map.png", height=6, width=10)
+ggsave(season.map, file="coverage.season.map.png", height=8, width=4)
 
 
 
@@ -109,7 +109,7 @@ square <- function(x){
 
 # plotting with marginal effects
 plot_slopes(full.model, variables="abslat", condition=c("urban2", "hemisphere")) # all very much different
-?plot_slopes
+
 # northern hemisphere is steeper
 
 predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=square, 
@@ -142,6 +142,45 @@ ggsave(mainLDGplot, file="LDGMainResults.png", height=5, width=7)
 
 # ok they are not too different except that the one with marginal means is steeper (which makes sense)
 
+
+
+
+### Look at proportion that is lost (expect proportion to be the same)
+predicted.proportion <- predicted.full %>% select(abslat, urban2, estimate) %>% 
+  pivot_wider(names_from="urban2", values_from = "estimate") %>% mutate(proportion.urb = Urban/Natural, proportion.suburb = Suburban/Natural)
+
+
+full.proportion.results <- predicted.full %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
+  pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
+  mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, LCL.urb = conf.low_Urban/conf.high_Natural,
+         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
+         LCL.suburb = conf.low_Suburban/conf.high_Natural)
+# full proportion results
+
+full.proportion.plot <- ggplot(full.proportion.results, aes(x=abslat, y=proportion.urb))+
+  geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  ylim(0,1)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme(text=element_text(size=15))
+
+
+ggsave(full.proportion.plot, file="full.proportion.plot.png", height=5, width=6)
+
+
+proportion.empty <- ggplot(predicted.proportion, aes(x=abslat, y=proportion.urb))+
+ # geom_line(aes(x=abslat, y=proportion.urb), color="red")+
+  #geom_line(aes(x=abslat, y=proportion.suburb))+
+  ylim(0,1)+
+  xlim(0,90)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute latitude")+
+  theme(text=element_text(size=15))
+ggsave(proportion.empty, file="proportion.empty.png", height=5, width=6)
 
 
 ######## Plot results of seasonal data
@@ -186,8 +225,58 @@ ggsave(ldg.full.results2, file="ldg.results.png", height=10, width=8)
 
 
 
+## Plot proportion for seasonal data
+predicted.proportion <- predicted.season %>% select(abslat, urban2, season, estimate) %>% 
+  pivot_wider(names_from="urban2", values_from = "estimate") %>% mutate(proportion.urb = Urban/Natural, proportion.suburb = Suburban/Natural)
+
+ggplot(predicted.proportion)+
+  geom_line(aes(x=abslat, y=proportion.urb), color="red")+
+  geom_line(aes(x=abslat, y=proportion.suburb))+
+  facet_wrap(~season)+
+  ylim(0,1.5)
 
 
+
+
+season.proportion.results <- predicted.season %>% select(estimate, season, urban2, abslat, conf.high, conf.low) %>% 
+  pivot_wider(names_from=c("urban2", "season"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
+  mutate(proportion.urb.wint = estimate_Urban_Winter/estimate_Natural_Winter, UCL.urb.wint = conf.high_Urban_Winter/conf.low_Natural_Winter, 
+         LCL.urb.wint = conf.low_Urban_Winter/conf.high_Natural_Winter,
+         proportion.urb.sum = estimate_Urban_Summer/estimate_Natural_Summer, UCL.urb.sum = conf.high_Urban_Summer/conf.low_Natural_Summer, 
+         LCL.urb.sum = conf.low_Urban_Summer/conf.high_Natural_Summer,
+         proportion.suburb.wint = estimate_Suburban_Winter/estimate_Natural_Winter, UCL.suburb.wint = conf.high_Suburban_Winter/conf.low_Natural_Winter, 
+         LCL.suburb.wint = conf.low_Suburban_Winter/conf.high_Natural_Winter, 
+         proportion.suburb.sum = estimate_Suburban_Summer/estimate_Natural_Summer, UCL.suburb.sum = conf.high_Suburban_Summer/conf.low_Natural_Summer, 
+         LCL.suburb.sum = conf.low_Suburban_Summer/conf.high_Natural_Summer)
+
+
+
+
+
+
+proportion.plot.wint <- ggplot(season.proportion.results, aes(x=abslat, y=proportion.urb.wint))+
+  geom_line(aes(x=abslat, y=proportion.urb.wint), color="#000000", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.urb.wint, ymin=LCL.urb.wint), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb.wint), color="#CC79A7", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.suburb.wint, ymin=LCL.suburb.wint), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme(text=element_text(size=15))
+
+proportion.plot.sum <- ggplot(season.proportion.results, aes(x=abslat, y=proportion.urb.sum))+
+  geom_line(aes(x=abslat, y=proportion.urb.sum), color="#000000", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.urb.sum, ymin=LCL.urb.sum), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb.sum), color="#CC79A7", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.suburb.sum, ymin=LCL.suburb.sum), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme(text=element_text(size=15))
+
+
+proportion.plot.season <- proportion.plot.wint / proportion.plot.sum
+ggsave(proportion.plot.season, file="proportion.plot.season.png", height=9, width=7)
 
 
 
@@ -218,10 +307,36 @@ thinned.plots <- ggplot()+
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 # this is the plot with the 95% of the confidence intervals
 thinned.plots
-
+ggsave(thinned.plots, file="main.thinned.results.png", height=4, width=6)
 # compare with full plot
 mainLDGplot | thinned.plots
 # slopes are the same, just the confidence intervals are different
+
+
+
+## Plot proportions
+thinned.proportion.results <- thinned.results.summary %>% select(mean_x, urban2, abslat, max.conf.high, min.conf.low) %>% 
+  pivot_wider(names_from=c("urban2"), values_from = c("mean_x", "max.conf.high", "min.conf.low")) %>% 
+  mutate(proportion.urb = mean_x_Urban/mean_x_Natural, UCL.urb = max.conf.high_Urban/min.conf.low_Natural, LCL.urb = min.conf.low_Urban/max.conf.high_Natural,
+           proportion.suburb = mean_x_Suburban/mean_x_Natural, UCL.suburb = max.conf.high_Suburban/min.conf.low_Natural, 
+         LCL.suburb = min.conf.low_Suburban/max.conf.high_Natural)
+# full proportion results
+
+ggplot(thinned.proportion.results, aes(x=abslat, y=proportion.urb))+
+   geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1)+
+  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  ylim(0,1)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Latitude")+
+  theme(text=element_text(size=15))
+?geom_hline
+
+
+
+
 
 
 #### Seasonal
@@ -256,6 +371,7 @@ season.thinned.plot <- ggplot()+
   theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=15), axis.title.y=element_blank())
 # this is the plot with the 95% of the confidence intervals
 season.thinned.plot
+ggsave(season.thinned.plot, file="season.thinned.plot.png", height=4, width=7)
 
 ldg.results2 <- thinned.plots / season.thinned.plot + plot_layout(heights = c(2, 1))+ 
   labs(tag = "Species Richness") +

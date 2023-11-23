@@ -9,6 +9,7 @@ library(ggpubr)
 library(grid)
 library(cowplot)
 library(tidyterra)
+library(marginaleffects)
 ## First I want to thin the data so that for each cell, there is only one row for each species 
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
@@ -113,6 +114,10 @@ write.table(sp_diet, "unique_sp_dietspec.txt", row.names=F)
 #############################################################
 
 
+
+
+
+
 ## Habitat data, filter out NAs for habitat
 sp_habitat <- read.table("unique_sp_habitatbreadth.txt", header=T) %>% filter(!is.na(Habitat_breadth_IUCN)) # some species have NA values for habitat breadth
 length(unique(sp_habitat$SCIENTIFIC.NAME)) # 8367
@@ -189,7 +194,11 @@ urban.only2 <- urban.only %>% pivot_wider(names_from="zone_bin", values_from="ur
 habitat.aov4 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = birds_zones)
 summary(habitat.aov4)
 # need to change transformation to exponent!
-means.habitat4 <- marginal_means(habitat.aov4, variables=c("zone_bin", "category"), cross=TRUE)
+exponent <- function(x){
+  exp(x)
+} 
+means.habitat4 <- marginal_means(habitat.aov4, variables=c("zone_bin", "category"), cross=TRUE, transform=exponent)
+?marginal_means
 #emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
 
 means.habitat4
@@ -219,7 +228,7 @@ habitat_bar <-
   ggplot(aes(fill=category, y=n, x=zone_bin)) + 
   scale_fill_manual(labels=c('In natural', 'In Urban', 'In urban only'), values=c("deepskyblue3", "grey30"))+
   labs(y="Number of Species")+
-#  coord_flip()+
+  coord_flip()+
   geom_bar(position="stack", stat="identity")+
   theme_classic()+
   theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .75),
@@ -232,22 +241,22 @@ habitat_bar
 ### Plot emmeans using ggplot
 
 habitat_point <- 
-  ggplot(means.habitat4, aes(x=zone_bin, y=estimate, group=category, color=category))+
-  geom_point(size=2, position=position_dodge(width=0.2))+
-  geom_line(size=0.5, position=position_dodge(width=0.2))+
+  ggplot(means.habitat4, aes(y=zone_bin, x=estimate, group=category, color=category))+
+  geom_point(size=2)+
+  geom_line(size=0.5)+
   scale_color_manual(values=c("grey30", "deepskyblue3"))+
-  scale_y_reverse()+
-  labs(y="Log habitat breadth")+
-  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width=0.15, position=position_dodge(width=0.2))+
-  annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
-  annotate("text", x=0.7, y=1.4, label="Specialist", angle=90)+
-  annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
-  annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+#  scale_y_reverse()+
+  labs(x="Habitat breadth")+
+  geom_errorbar(aes(xmin=conf.low, xmax=conf.high), width=0.1)+
+ # annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
+#  annotate("text", x=0.7, y=1.4, label="Specialist", angle=90)+
+ # annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
+  #         arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+  #annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
+   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
   coord_cartesian(clip = "off")+
   theme_classic()+
-  theme(axis.title.x=element_blank(), legend.position="none") 
+  theme(axis.title.y=element_blank(), legend.position="none") 
 habitat_point
  # theme(axis.title.x=element_blank(), legend.title=element_blank(),legend.position = c(.95, .1),
   #      legend.justification = c("right", "bottom"),
@@ -260,6 +269,8 @@ habitat_plot
 
 #ggsave(habitat_plot, file="pecialistHabitatResults.png", height=4, width=8)
 # Try it as an inset
+
+
 
 
 ## Try making a plot using EulerR
@@ -405,13 +416,13 @@ diet_bar
 
 
 diet_point <- means.diet4 %>% 
-  ggplot(aes(x=zone_bin, y=estimate, group=category, color=category))+
-  geom_point(size=2, position=position_dodge(width=0.2))+
-  geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
-  scale_color_manual(values=c("black", "deepskyblue3"))+
-  labs(y="Diet specialization")+
- # scale_y_reverse()+
-  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width=0.25, position=position_dodge(width=0.2))+
+  ggplot(aes(y=zone_bin, x=estimate, group=category, color=category))+
+  geom_path(linewidth=0.5)+
+  geom_point(size=2)+
+  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  labs(x="Diet specialization")+
+  scale_x_reverse()+
+  geom_errorbar(aes(xmin=conf.low, xmax=conf.high), width=0.25)+
 #  annotate("text", x=0.7, y=0.83, label="Generalist", angle=90)+
 #  annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
  #$ annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
@@ -419,7 +430,7 @@ diet_point <- means.diet4 %>%
   #annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
  #          arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
   theme_classic()+
-  theme(axis.title.x=element_blank(), legend.position="none")
+  theme(axis.title.y=element_blank(), legend.position="none")
 # annotations not showing up for some reason rip
 diet_point
 
@@ -511,12 +522,12 @@ richness_category <- total_zones %>% group_by(zone_bin, category) %>% count()
 ## Make plot with overall results of species being lost (because some species lost when merged with habitat or diet data)
 total_bar <- ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=reorder(zone_bin, -n))) + 
   scale_fill_manual(labels=c('In natural only', 'In urban'), values=c("deepskyblue3", "grey30"))+
-  #  coord_flip()+
+    coord_flip()+
   labs(y="Number of Species")+
   geom_bar(position="stack", stat="identity")+
   theme_classic()+
-  theme(axis.ticks.x=element_blank(), axis.title.x=element_blank(), legend.title=element_blank(), 
-        legend.position = c(0.85, 0.9), legend.text = element_text(size=13), axis.title.y=element_text(size=12),
+  theme(axis.ticks.x=element_blank(), axis.title.y=element_blank(), legend.title=element_blank(), 
+        legend.position = c(0.85, 0.9), legend.text = element_text(size=13), axis.title.x=element_text(size=12),
         axis.text=element_text(size=10), legend.spacing.y = unit(1, 'cm'))+
   ## important additional element
   guides(fill = guide_legend(byrow = TRUE))
@@ -531,49 +542,49 @@ total_bar
 ######## Put all plots together
 library(patchwork)
 
-habitat_point2 <- emmeans.df.habitat %>% filter(!category=="urban.only") %>% 
-  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
-  geom_point(size=2, position=position_dodge(width=0.2))+
-  geom_line(size=0.5, position=position_dodge(width=0.2))+
-  scale_color_manual(values=c("grey30", "deepskyblue3"))+
-  scale_y_reverse()+
-  labs(y="Log habitat breadth")+
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.15, position=position_dodge(width=0.2))+
-  annotate("text", x=0.7, y=2.3, label="Generalist", angle=90)+
-  annotate("text", x=0.7, y=1.55, label="Specialist", angle=90)+
-  annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
-  annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
-           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
-  coord_cartesian(clip = "off")+
-  theme_classic()+
-  theme(axis.title.x=element_blank(), legend.position="none", axis.title.y=element_text(size=12),
-        axis.text=element_text(size=10))
-habitat_point2
+#habitat_point2 <- emmeans.df.habitat %>% filter(!category=="urban.only") %>% 
+#  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
+#  geom_point(size=2, position=position_dodge(width=0.2))+
+#  geom_line(size=0.5, position=position_dodge(width=0.2))+
+#  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+#  scale_y_reverse()+
+#  labs(y="Log habitat breadth")+
+#  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.15, position=position_dodge(width=0.2))+
+#  annotate("text", x=0.7, y=2.3, label="Generalist", angle=90)+
+#  annotate("text", x=0.7, y=1.55, label="Specialist", angle=90)+
+#  annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
+#           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+#  annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
+#           arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+#  coord_cartesian(clip = "off")+
+#  theme_classic()+
+#  theme(axis.title.x=element_blank(), legend.position="none", axis.title.y=element_text(size=12),
+#        axis.text=element_text(size=10))
+#habitat_point2
+#
+#
+#diet_point2 <- emmeans.df.diet %>% 
+#  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
+#  geom_point(size=2, position=position_dodge(width=0.2))+
+#  geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
+#  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+#  labs(y="Diet specialization")+
+#  # scale_y_reverse()+
+#  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25, position=position_dodge(width=0.2))+
+# # annotate("text", x=0.7, y=0.9, label="Generalist", angle=90)+
+#  #annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
+#  #annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
+#   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+#  #annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
+#   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+#  theme_classic()+
+#  theme(axis.title.x=element_blank(), legend.position="none", axis.title.y=element_text(size=12),
+#        axis.text=element_text(size=10))
+## annotations not showing up for some reason rip
+#diet_point2
 
-
-diet_point2 <- emmeans.df.diet %>% 
-  ggplot(aes(x=zone_bin, y=emmean, group=category, color=category))+
-  geom_point(size=2, position=position_dodge(width=0.2))+
-  geom_line(linewidth=0.5, position=position_dodge(width=0.2))+
-  scale_color_manual(values=c("grey30", "deepskyblue3"))+
-  labs(y="Diet specialization")+
-  # scale_y_reverse()+
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25, position=position_dodge(width=0.2))+
- # annotate("text", x=0.7, y=0.9, label="Generalist", angle=90)+
-  #annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
-  #annotate("segment", x = 0.7, y = 0.89, xend = 0.7, yend = 0.88, size=0.5,
-   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
-  #annotate("segment", x = 0.7, y = 0.93, xend = 0.7, yend = 0.94, size=0.5,
-   #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
-  theme_classic()+
-  theme(axis.title.x=element_blank(), legend.position="none", axis.title.y=element_text(size=12),
-        axis.text=element_text(size=10))
-# annotations not showing up for some reason rip
-diet_point2
-
-composite_plot <- total_bar / (habitat_point2 | diet_point2) + plot_annotation(tag_levels = "A") 
-ggsave(composite_plot, file="full_specialist_results.png", height=6, width=9)
+composite_plot <- total_bar | (habitat_point / diet_point) + plot_annotation(tag_levels = "A") + plot_layout(widths=c(2, 1.5))
+ggsave(composite_plot, file="full_specialist_results.png", height=9, width=11)
 
 
 ####### Euler plots
@@ -634,15 +645,45 @@ global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filt
 habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
 
 uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
+uniquesp_habitat$abslat <- abs(uniquesp_habitat$lat)
 
 habitat.species.summary <- uniquesp_habitat %>% group_by(cell, long, lat, urban2) %>% drop_na(Habitat_breadth_IUCN) %>% 
   summarise(mean.habitat=mean(Habitat_breadth_IUCN))
 habitat.species.summary$abslat <- abs(habitat.species.summary$lat)
 
 ggplot(habitat.species.summary, mapping=aes(x=abslat, y=mean.habitat, color=urban2), alpha=0.2)+
- # geom_point()+
+  geom_point(size=0.3, alpha=0.1, shape=1)+
   geom_smooth(method="lm")+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean habitat breadth", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=15))+
   scale_y_reverse()
+
+
+
+
+# Run model (with just raw habitat breadth see if this works?)
+spec.mod1 <- lm(mean.habitat ~ abslat * urban2, data=habitat.species.summary)
+summary(spec.mod1)
+predicted.habitat <- avg_predictions(spec.mod1, by=c("abslat", "urban2"), 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("natural", "suburban", "urban")))
+
+habitatLDG <- ggplot()+
+  geom_point(spec.mod1, mapping=aes(x=abslat, y=mean.habitat, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.habitat, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.habitat, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean habitat breadth", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=15), legend.position=c(0.2,0.2))+
+  scale_y_reverse()
+# will need to account for spatial autocorrelation
+
+
+
+
+
 
 
 ##### Now try with diet
@@ -657,9 +698,21 @@ ggplot(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), a
   # geom_point()+
   geom_smooth(method="lm")
 
+diet.mod1 <- lm(mean.diet ~ abslat * urban2, data=diet.species.summary)
+summary(diet.mod1)
+predicted.diet <- avg_predictions(diet.mod1, by=c("abslat", "urban2"), 
+                                     newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("natural", "suburban", "urban")))
 
+dietLDG <- ggplot()+
+  geom_point(diet.mod1, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.diet, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.diet, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean diet specialization", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none")
 
+specializationLDG <- habitatLDG | dietLDG
 
-
-
+ggsave(specializationLDG, file="specializationLDG.png", height=6, width=10)
 

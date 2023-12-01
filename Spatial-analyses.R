@@ -650,3 +650,134 @@ moran.mc(dat.samp2$residuals.lm, dat.samp2.lw, nsim = 999, zero.policy = TRUE)
 
 
 
+
+
+
+
+
+
+
+
+#########################################################
+
+##### Thinning of proportional loss in richness
+dat <- read.csv("modeling_data.csv")
+
+# Run model
+full.model <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                precip + log(number_checklists) + elevation, dat)
+
+
+
+
+
+predicted.Nhemisphere <- predictions(
+  full.model,
+  type = "response", transform=square,
+  # by = "urban2",
+  newdata = datagridcf(urban2=c("Natural", "Urban", "Suburban"))) %>% 
+  select(estimate, abslat, urban2, hemisphere) %>% filter(hemisphere=="northern") %>% pivot_wider(names_from="urban2", values_from=c("estimate"), values_fn=mean)
+
+# S hemisphere
+predicted.Shemisphere <- predictions(
+  full.model,
+  type = "response", transform=square,
+  # by = "urban2",
+  newdata = datagridcf(urban2=c("Natural", "Urban", "Suburban"))) %>% 
+  select(estimate, abslat, urban2, hemisphere) %>% filter(hemisphere=="southern") %>% pivot_wider(names_from="urban2", values_from="estimate", values_fn=mean)
+
+predicted.fulldata <- rbind(predicted.Nhemisphere, predicted.Shemisphere)
+
+# merge with observed values
+predicted.fulldata2 <- inner_join(total.dat[, c(2, 3, 21, 26, 27, 28, 31, 32, 34)], predicted.fulldata, by=c("abslat", "hemisphere"))
+
+# line for urban sites
+resids <- predicted.fulldata2 %>% group_by(urban2) %>% mutate(resids = total_SR/Natural)
+
+# plot
+ggplot(resids, aes(x=abslat, y=resids, group=urban2, color=urban2))+
+  geom_point(size=0.2, alpha=0.2)+
+  facet_wrap(~hemisphere)+
+  geom_smooth(method="lm")
+
+# now I want to model the residuals as a linear model
+
+hist(sqrt(resids$resids)) # they have a square root distribution, which makes sense because the data they are pulled from has a square root dist
+
+mod.resids <- lm(sqrt(resids)~abslat * urban2 * hemisphere, resids)
+plot(mod.resids)
+# looks pretty good actually
+
+# Now plot model predictions
+predicted.resids <- avg_predictions(mod.resids, by=c("abslat", "urban2"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
+
+ggplot()+
+  geom_point(resids, mapping=aes(x=abslat, y=resids, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.resids, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.resids, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Proportion richness")+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15))
+# ok that looks pretty good
+
+
+# but then this is probably autocorrelated as well so I need to do the thinning
+mod.resids.gls <- gls(sqrt(resids)~abslat * urban2 * hemisphere, resids)
+library(sf)
+resids.sf <- st_as_sf(resids, coords=c("long", "lat")) 
+
+plot(gstat::variogram(residuals(mod.resids.gls, "normalized") ~
+                        1, data = resids.sf, cutoff = 200))
+# doesn't look like there is much autocorrelation
+library(spdep)
+
+# there is autocorrelation on sample so try doing the thinning
+library(terra)
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL))
+
+resids.samp <- resids[sample(nrow(resids), 10000), ]
+
+vect <- st_as_sf(resids.samp, crs=st_crs(4326), coords=c("long","lat"))
+vect2 <- st_transform(vect, crs=crs(GHSL))
+
+xy=st_coordinates(vect2)
+# get cell number that each point is in
+resids.samp$cell.subsample<-cellFromXY(sample.grid, xy)
+
+# randomly sample one point within each cell
+resids.thinned <- resids.samp %>% group_by(cell.subsample) %>% sample_n(1) 
+
+
+
+lm.resids.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                       precip + log(number_checklists) + elevation, resids.thinned)
+resids.thinned.sf <- st_as_sf(resids.thinned, coords=c("long", "lat")) 
+resids.thinned.nb <- dnearneigh(resids.thinned.sf, d1=0, d2=200) # calculate distances
+resids.thinned.lw <- nb2listw(resids.thinned.nb, style = "W", zero.policy = TRUE)
+## Run Moran's I
+moran.samp <- lm.morantest(lm.resids.thinned, resids.thinned.lw, zero.policy = T)
+moran.samp
+library(beep)
+beep()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

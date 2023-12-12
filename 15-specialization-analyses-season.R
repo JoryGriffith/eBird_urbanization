@@ -766,7 +766,7 @@ dietLDG.sum <- ggplot()+
 # will need to account for spatial autocorrelation
 dietLDG.sum
 
-winter.specialization <- habitatLDG.wint/ dietLDG.wint
+#winter.specialization <- habitatLDG.wint/ dietLDG.wint
 ggsave(winter.specialization, file="winter.specialization.png", height=7, width=5)
 
 
@@ -854,8 +854,10 @@ contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-ur
 
 
 ########## Plot
+predicted_habitat_season_df <- read.csv("thinned_results/thinned.habitat.specialization.season.csv")
+
 habitat.thinned.results.summary <- predicted_habitat_season_df %>% group_by(abslat, urban2, season) %>% 
-  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low)) %>% 
 
 
 thinned.habitatLDG <- ggplot()+
@@ -865,14 +867,13 @@ thinned.habitatLDG <- ggplot()+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
   labs(y="Mean habitat breadth", x="Absolute latitude")+
-  scale_y_reverse()+
   facet_wrap(~season)+
-  theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
+  theme(legend.title=element_blank(), text=element_text(size=18), legend.position="none", axis.title.x=element_blank(), strip.text=element_blank())
 # will need to account for spatial autocorrelation
 thinned.habitatLDG
-# something has gone wrong
 
 
+ggsave(thinned.habitatLDG, file="thinned.habitat.specialization.season.png", width=6, height=3.5)
 
 
 
@@ -940,24 +941,27 @@ contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban
 
 
 ########## Plot
-diet.thinned.results.summary <- predicted_diet_df %>% group_by(abslat, urban2) %>% 
+predicted_diet_df <- read.csv("thinned_results/thinned.diet.specialization.season.csv")
+diet.thinned.results.summary <- predicted_diet_df %>% group_by(abslat, urban2, season) %>% 
   summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 
 
 thinned.dietLDG <- ggplot()+
-  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(season.diet.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
   geom_line(diet.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
   geom_ribbon(diet.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
-  labs(y="Mean diet breadth", x="Absolute latitude")+
-  scale_y_reverse()+
-  theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
+  labs(y="Mean diet specialization", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=18), legend.position="none", axis.title.x=element_blank(), strip.text=element_blank())+
+  facet_wrap(~season)
 # will need to account for spatial autocorrelation
 thinned.dietLDG
 
+ggsave(thinned.dietLDG, file="thinned.diet.specialization.season.png", width=6, height=3.5)
 
 
+test <- diet.thinned.results.summary %>% filter(season=="Winter")
 
 
 

@@ -654,6 +654,8 @@ ggplot(means, aes(x=urban2, y=estimate, group=season, color=season))+
 
 ############################ New way of looking at specialization - calculating by cell #############
 season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+range(season_uniquesp$abslat)
+season_uniquesp <- season_uniquesp %>% filter(lat <= 66 & lat >=-55)
 
 exponent <- function(x){
   exp(x)
@@ -673,7 +675,7 @@ season.habitat.summary <- inner_join(season.habitat.summary, season.SR.dat[,c(1,
 habitat.mod1 <- lm(log(mean.habitat) ~ abslat * urban2 * season * hemisphere + elevation + precip + log(number_checklists), data=season.habitat.summary)
 plot(habitat.mod1)
 hist(habitat.mod1$residuals) # looks fine
-
+anova(habitat.mod1)
 
 predicted.habitat <- avg_predictions(habitat.mod1, by=c("abslat", "urban2", "season"), transform=exponent,
                                      newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), season=c("Summer", "Winter"), 
@@ -717,10 +719,10 @@ avg_slopes(habitat.mod1, variables="abslat", by=c("urban2", "season"))
 ### diet
 diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") 
 season_sp_diet <- merge(season_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific")
-
+season_sp_diet$gini.flipped <- 1-season_sp_diet$gini.index
 
 diet.species.summary <- season_sp_diet %>% group_by(cell, long, lat, urban2, season) %>% drop_na(gini.index) %>% 
-  summarise(mean.diet=mean(gini.index))
+  summarise(mean.diet=mean(gini.index), mean.diet.flipped=mean(gini.flipped))
 diet.species.summary$abslat <- abs(diet.species.summary$lat)
 
 
@@ -729,22 +731,22 @@ diet.species.summary$abslat <- abs(diet.species.summary$lat)
 season.diet.summary <- inner_join(diet.species.summary, season.SR.dat[,c(1,2,9,10,17,23)], by=c("cell", "season"))
 
 # model
-diet.mod1 <- lm(log(mean.diet) ~ abslat * urban2 * season * hemisphere + elevation + precip + log(number_checklists), data=season.diet.summary)
+diet.mod1 <- lm(mean.diet.flipped ~ abslat * urban2 * season * hemisphere + elevation + precip + log(number_checklists), data=season.diet.summary)
 plot(diet.mod1)
+anova(diet.mod1)
 hist(diet.mod1$residuals)
-predicted.diet <- avg_predictions(diet.mod1, by=c("abslat", "urban2", "season"), transform=exponent,
+predicted.diet <- avg_predictions(diet.mod1, by=c("abslat", "urban2", "season"), 
                                      newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), season=c("Summer", "Winter"), 
                                                         urban2=c("natural", "suburban", "urban")))
 winter.diet.summary <- season.diet.summary %>% filter(season=="Winter")
 predicted.diet.winter <- predicted.diet %>% filter(season=="Winter")
 dietLDG.wint <- ggplot()+
-  geom_point(winter.diet.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(winter.diet.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.5, alpha=0.3)+
   geom_line(predicted.diet.winter, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.diet.winter, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
   labs(y="Mean diet specialization", x="Absolute latitude")+
-  ylim(c(1,0.7))+
   theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 # will need to account for spatial autocorrelation
 dietLDG.wint
@@ -755,13 +757,12 @@ test <- predicted.diet %>% filter(season=="Winter")
 summer.diet.summary <- season.diet.summary %>% filter(season=="Summer")
 predicted.diet.summer <- predicted.diet %>% filter(season=="Summer")
 dietLDG.sum <- ggplot()+
-  geom_point(summer.diet.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(summer.diet.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.diet.summer, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.diet.summer, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
   labs(y="Mean diet specialization", x="Absolute latitude")+
-  ylim(c(1,0.7))+
   theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 # will need to account for spatial autocorrelation
 dietLDG.sum
@@ -794,11 +795,11 @@ xy=st_coordinates(vect2)
 season.habitat.summary$cell.subsample<-cellFromXY(sample.grid, xy)
 
 # randomly sample one point within each cell
-diet.thinned <- season.habitat.summary %>% group_by(cell.subsample, season) %>% sample_n(1) 
+habitat.thinned <- season.habitat.summary %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
 
 
-
-
+habitat.mod1 <- lm(log(mean.habitat) ~ abslat * urban2 * season * hemisphere + elevation + precip + log(number_checklists), data=habitat.thinned)
+anova(habitat.mod1)
 
 
 ####### Start thinning
@@ -811,7 +812,7 @@ ggeffects.slopes.contrast.habitat <- list()
 set.seed(100)
 
 for (i in 1:1000){
-  dat.thinned.habitat <- season.habitat.summary %>% group_by(cell.subsample, season) %>% sample_n(1) 
+  dat.thinned.habitat <- season.habitat.summary %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
   lm.thinned.habitat <- lm(log(mean.habitat) ~ abslat * urban2 * season * hemisphere +
                           precip + log(number_checklists) + elevation, dat.thinned.habitat)
   # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
@@ -836,18 +837,18 @@ write.csv(ggeffects.slopes.habitat.df, "thinned_results/thinned.habitat.speciali
 
 
 ggeffects.slopes.contrast.habitat.df <- bind_rows(ggeffects.slopes.contrast.habitat)
-contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 35
-contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 205
+contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 382
+contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 0
 
 contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="urban-urban", season=="Summer-Winter") %>% filter(p.value<0.05) # 1000
 contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-suburban", season=="Summer-Winter") %>% filter(p.value<0.05) # 1000
 contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-natural", season=="Summer-Winter") %>% filter(p.value<0.05) # 1000
 contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-suburban", season =="Winter-Winter") %>% filter(p.value<0.05) #1000
 contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 1000
-contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 205
-contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-suburban", season =="Summer-Summer") %>% filter(p.value<0.05) #0
-contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 815
-contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 35
+contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 0
+contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-suburban", season =="Summer-Summer") %>% filter(p.value<0.05) # 5
+contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="natural-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 382
 
 
 
@@ -857,7 +858,7 @@ contrast <- ggeffects.slopes.contrast.habitat.df %>% filter(urban2=="suburban-ur
 predicted_habitat_season_df <- read.csv("thinned_results/thinned.habitat.specialization.season.csv")
 
 habitat.thinned.results.summary <- predicted_habitat_season_df %>% group_by(abslat, urban2, season) %>% 
-  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low)) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 
 
 thinned.habitatLDG <- ggplot()+
@@ -885,13 +886,10 @@ xy=st_coordinates(vect2)
 season.diet.summary$cell.subsample<-cellFromXY(sample.grid, xy)
 
 # randomly sample one point within each cell
-diet.thinned <- season.diet.summary %>% group_by(cell.subsample, season) %>% sample_n(1) 
+diet.thinned <- season.diet.summary %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
 
 
 ####### Start thinning
-exponent <- function(x){
-  exp(x)
-} # make function to square
 predicted.diet <- list()
 ggeffects.slopes.diet <- list()
 ggeffects.slopes.contrast.diet <- list()
@@ -899,17 +897,17 @@ ggeffects.slopes.contrast.hemisphere.diet <- list()
 set.seed(100)
 
 for (i in 1:1000){
-  dat.thinned.diet <- season.diet.summary %>% group_by(cell.subsample, season) %>% sample_n(1) 
-  lm.thinned.diet <- lm(log(mean.diet) ~ abslat * urban2 * season * hemisphere +
+  dat.thinned.diet <- season.diet.summary %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
+  lm.thinned.diet <- lm(mean.diet.flipped ~ abslat * urban2 * season * hemisphere +
                              precip + log(number_checklists) + elevation, dat.thinned.diet)
   # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
   #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
   #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
   # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  predicted.diet[[i]] <- avg_predictions(lm.thinned.diet, by=c("abslat", "urban2", "season"), transform=exponent, 
+  predicted.diet[[i]] <- avg_predictions(lm.thinned.diet, by=c("abslat", "urban2", "season"),  
                                             newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
                                                                season=c("Summer", "Winter"), urban2=c("natural", "suburban", "urban"))) # store predictions for plotting
-  ggeffects.slopes.diet[[1]] <- hypothesis_test(lm.thinned.diet, c("abslat", "urban2", "season"), test = NULL) # see differences in slopes (using ggeffects)
+  ggeffects.slopes.diet[[i]] <- hypothesis_test(lm.thinned.diet, c("abslat", "urban2", "season"), test = NULL) # see differences in slopes (using ggeffects)
   ggeffects.slopes.contrast.diet[[i]] <- hypothesis_test(lm.thinned.diet, c("abslat", "urban2", "season"))
 }
 
@@ -924,7 +922,7 @@ write.csv(ggeffects.slopes.diet.df, "thinned_results/thinned.diet.specialization
 
 
 ggeffects.slopes.contrast.diet.df <- bind_rows(ggeffects.slopes.contrast.diet)
-contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 448
+contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 959
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 1000
 
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="urban-urban", season=="Summer-Winter") %>% filter(p.value<0.05) # 1000
@@ -935,7 +933,7 @@ contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="natural-urban"
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 1000
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="natural-suburban", season =="Summer-Summer") %>% filter(p.value<0.05) #1000
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="natural-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 1000
-contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 448
+contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="suburban-urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 959
 
 
 
@@ -947,12 +945,12 @@ diet.thinned.results.summary <- predicted_diet_df %>% group_by(abslat, urban2, s
 
 
 thinned.dietLDG <- ggplot()+
-  geom_point(season.diet.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(season.diet.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
   geom_line(diet.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
   geom_ribbon(diet.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
-  labs(y="Mean diet specialization", x="Absolute latitude")+
+  labs(y="Mean diet breadth", x="Absolute latitude")+
   theme(legend.title=element_blank(), text=element_text(size=18), legend.position="none", axis.title.x=element_blank(), strip.text=element_blank())+
   facet_wrap(~season)
 # will need to account for spatial autocorrelation

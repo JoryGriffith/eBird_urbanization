@@ -138,48 +138,61 @@ global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filt
 # this is a list of species for each cell
 # Merge with habitat data
 habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
-habitat$habitat.scaled.before <- scales::rescale(habitat$Habitat_breadth_IUCN)
+#habitat$habitat.scaled.before <- scales::rescale(habitat$Habitat_breadth_IUCN)
 
-uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14,30)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
-uniquesp_habitat$abslat <- abs(uniquesp_habitat$lat)
+uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
 
 habitat.species.summary <- uniquesp_habitat %>% group_by(cell, long, lat, urban2) %>% drop_na(Habitat_breadth_IUCN) %>% 
-  summarise(mean.habitat=mean(Habitat_breadth_IUCN), mean.habitat.scaled = mean(habitat.scaled.before)) 
+  summarise(mean.habitat=mean(Habitat_breadth_IUCN)) 
 # scale habitat then subtract from 1
 min.habitat <- min(habitat.species.summary$mean.habitat)
 max.habitat <- max(habitat.species.summary$mean.habitat)
 
-habitat.species.summary$habitat.scaled <- scales::rescale(habitat.species.summary$mean.habitat)
+#habitat.species.summary$habitat.scaled <- scales::rescale(habitat.species.summary$mean.habitat)
 
 habitat.species.summary$abslat <- abs(habitat.species.summary$lat)
 
 # merge with modeling data to get precipitation and elevation
 SR.dat <- read.csv("modeling_data.csv")
-habitat.species.summary <- inner_join(habitat.species.summary, SR.dat[,c(1,2,3,21,26,34)], by="cell") %>% drop_na() %>% filter(habitat.scaled>0 & habitat.scaled< 1)
-
+habitat.species.summary <- inner_join(habitat.species.summary, SR.dat[,c(1,2,3,21,26,34)], by="cell") %>% drop_na() 
+habitat.species.summary$abslat <- abs(habitat.species.summary$lat)
 
 
 # Run model
-spec.mod1 <- lm(habitat.scaled ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.species.summary)
-#spec.mod2 <- lm(log(mean.habitat) ~ abslat * urban2 * hemisphere, data=habitat.species.summary)
-# adding in elevation, precipitation, hemisphere, and number of checklists all made the model better
+spec.mod1 <- lm(mean.habitat ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.species.summary)
+summary(spec.mod1)
+spec.mod2 <- lm(log(mean.habitat) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.species.summary)
+summary(spec.mod2)
+anova(spec.mod2)
 
+spec.mod3 <- lm(sqrt(mean.habitat) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.species.summary)
+summary(spec.mod3)
+
+# better when log transformed
+# adding in elevation, precipitation, hemisphere, and number of checklists all made the model better
+AIC(spec.mod1, spec.mod2, spec.mod3)
+# log transformed is the best
 # the scaled habitat looks bad, something has gone wrong
 
 #plot(spec.mod1) # doesn't look great
-hist(spec.mod1$residuals)
+hist(spec.mod2$residuals)
 # the model is right skewed
 
-hist(sqrt(habitat.species.summary$mean.habitat))
+habitat.sf <- st_as_sf(habitat.species.summary, coords=c("long", "lat")) 
+plot(gstat::variogram(residuals(spec.mod2, "pearson") ~
+                                                1, data = habitat.sf, cutoff = 200))
+
+
+
 exponent <- function(x){
   exp(x)
 } 
-summary(spec.mod1)
-predicted.habitat <- avg_predictions(spec.mod1, by=c("abslat", "urban2"),
+summary(spec.mod2)
+predicted.habitat <- avg_predictions(spec.mod2, by=c("abslat", "urban2"), transform=exponent,
                                     newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("natural", "suburban", "urban")))
 
 habitatLDG <- ggplot()+
-  geom_point(habitat.species.summary, mapping=aes(x=abslat, y=habitat.scaled, color=urban2), size=1, alpha=0.1)+
+  geom_point(habitat.species.summary, mapping=aes(x=abslat, y=mean.habitat, color=urban2), size=1, alpha=0.1)+
   geom_line(predicted.habitat, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.habitat, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
@@ -190,8 +203,8 @@ habitatLDG <- ggplot()+
 habitatLDG
 
 
-avg_slopes(spec.mod1, variables="abslat", by="urban2")
-hypothesis_test(spec.mod1, terms=c("abslat", "urban2"), scale="response")
+avg_slopes(spec.mod2, variables="abslat", by="urban2")
+hypothesis_test(spec.mod2, terms=c("abslat", "urban2"), scale="response")
 
 
 
@@ -223,21 +236,23 @@ mainLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tr
   theme(legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 mainLDGplot
 
-
+library(spatialreg)
+library(spdep)
 # check for autocorrelation
-#habitat.samp <- resids[sample(nrow(habitat.species.summary), 5000), ]
-#spec.modsamp <- lm(sqrt(resids)~abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), habitat.samp)
+habitat.samp <- habitat.species.summary[sample(nrow(habitat.species.summary), 5000), ]
+
+spec.modsamp <- lm(sqrt(mean.habitat)~abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), habitat.samp)
 #library(sf)
-#habitat.sf <- st_as_sf(habitat.species.summary, coords=c("long", "lat")) 
-#habitat.nb <- dnearneigh(habitat.sf, d1=0, d2=200) # calculate distances
-#habitat.lw <- nb2listw(habitat.nb, style = "W", zero.policy = TRUE)
+habitat.sf <- st_as_sf(habitat.samp, coords=c("long", "lat")) 
+habitat.nb <- dnearneigh(habitat.sf, d1=0, d2=200) # calculate distances
+habitat.lw <- nb2listw(habitat.nb, style = "W", zero.policy = TRUE)
 #library(mgcv)
-#spec.modsamp <- gls(log(mean.habitat)~abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), habitat.species.summary)
-#plot(gstat::variogram(residuals(spec.modsamp, "normalized") ~
-#                        1, data = habitat.sf, cutoff = 200))
+spec.modsamp <- gls(log(mean.habitat)~abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), habitat.samp)
+plot(gstat::variogram(residuals(spec.modsamp, "pearson") ~
+                        1, data = habitat.sf, cutoff = 200))
 #
-#moran.samp <- lm.morantest(spec.modsamp, habitat.lw, zero.policy = T)
-#moran.samp
+moran.samp <- lm.morantest(spec.modsamp, habitat.lw, zero.policy = T)
+moran.samp
 
 # significantly autocorrelated :(
 
@@ -247,20 +262,23 @@ mainLDGplot
 library(mgcv)
 # model with regular latitude
 habitat.species.summary$urban2 <- as.factor(habitat.species.summary$urban2)
-mod.gam1 <- gam(habitat.scaled ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = habitat.species.summary)
+mod.gam1 <- gam(mean.habitat ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, 
+                data = habitat.species.summary, method="REML")
+#mod.gam2 <- gam(mean.habitat ~ s(abslat, by=c(urban2), bs='ts') + hemisphere + precip + log(number_checklists) + elevation, data = habitat.species.summary)
+AIC(mod.gam1, spec.mod2)
+# the AIC for the GAM is lower
+plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE, add.data=TRUE, dot.alpha=0.2) 
 
-plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE) 
+#plot(ggeffects::ggpredict(mod.gam2, terms = c("abslat", "urban2")), facets = FALSE) 
 
 
-##### Trying beta regression (because it is between 0 and 1)
-library(betareg)
-beta.mod1.full <- betareg(mean.habitat.scaled ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.species.summary)
-beta.mod1
-#plot(beta.mod1)
-plot(ggeffects::ggpredict(beta.mod1, terms = c("abslat", "urban2")), facets = FALSE) 
-plot(ggeffects::ggpredict(spec.mod1, terms = c("abslat", "urban2")), facets = FALSE) 
-summary(beta.mod1)
-# summary(beta.mod1) this takes too long and makes R crash
+habitat.sf <- st_as_sf(habitat.species.summary, coords=c("long", "lat")) 
+# plot variogram
+plot(gstat::variogram(residuals(spec.mod1, "response") ~
+                        1, data = habitat.sf, cutoff = 200))
+plot(gstat::variogram(residuals(beta.mod1.full, "response") ~
+                        1, data = habitat.sf, cutoff = 200))
+# the variogram of the linear model and the variogram of the beta mod look very similar
 
 predicted.habitat.beta <- avg_predictions(beta.mod1.full, by=c("abslat", "urban2"),
                                           newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("natural", "suburban", "urban")))
@@ -288,28 +306,11 @@ xy=st_coordinates(vect2)
 habitat.species.summary$cell.subsample<-cellFromXY(sample.grid, xy)
 
 # randomly sample one point within each cell
-habitat.thinned <- habitat.species.summary %>% group_by(cell.subsample) %>% sample_n(1) 
-test1 <- habitat.thinned %>% group_by(urban2) %>% summarise(mean = mean(habitat.scaled))
+habitat.thinned <- habitat.species.summary %>% group_by(cell.subsample, urban2) %>% sample_n(1) 
+test1 <- habitat.thinned %>% group_by(urban2) %>% summarise(mean = mean(mean.habitat))
 filtered.out <- habitat.species.summary %>% filter(!cell %in% habitat.thinned$cell) # there are only 2,370 urban (so many)
-test2 <- filtered.out %>% group_by(urban2) %>% summarise(mean = mean(habitat.scaled)) # 11290 urban filtered out
+test2 <- filtered.out %>% group_by(urban2) %>% summarise(mean = mean(mean.habitat)) # 11290 urban filtered out
 # a lot of urban areas are filtered out and the mean habitat breadth is wider in the filtered out data
-
-
-
-##### Try using spThin
-library(spThin)
-dat.samp <- habitat.species.summary[sample(nrow(habitat.species.summary), 2000), ]
-dat.samp.sf <- st_as_sf(habitat.species.summary, coords=c("long", "lat")) 
-
-latlong <- as.matrix(habitat.species.summary[,c(2:3)])
-dat.thinned <- thin.algorithm(rec.df.orig=latlong, thin.par=10, reps=2) # this spits out a list of lat long points (list length is # of reps), which I then need to merge back with other data
-
-
-dat.thinned.int <- as.data.frame(dat.thinned[[1]]) %>% rename(long=Longitude, lat=Latitude)
-#
-dat.thinned.new <- inner_join(dat.samp, da.thinned.int, by=c("long", "lat"))
-dat.thinned.new.sf <- st_as_sf(dat.thinned.new, coords=c("long", "lat")) 
-gls.thinned <- gls(sqrt(total_SR) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, dat.thinned.new)
 
 
 
@@ -326,20 +327,22 @@ p2 <- ggplot(habitat.thinned, aes(x=abslat, y=mean.habitat, group=urban2))+
 p1 | p2
 
 
-habitat.thinned.mod1 <- lm(habitat.scaled ~ abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), data=habitat.thinned)
-habitat.thinned.mod2 <- lm(mean.habitat.scaled ~ abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), data=habitat.thinned)
-AIC(habitat.thinned.mod1, habitat.thinned.mod2)
+habitat.thinned.mod1 <- lm(mean.habitat ~ abslat * urban2 * hemisphere + elevation + precip + log(number_checklists), data=habitat.thinned)
 # whoa the second one is a lot better
 
+habitat.thinned.sf <- st_as_sf(habitat.thinned, coords=c("long", "lat")) 
+plot(gstat::variogram(residuals(habitat.thinned.mod1, "response") ~
+                        1, data = habitat.thinned.sf, cutoff = 1000, width=20, alpha = c(0, 45, 90, 135)))
 
-hist(residuals(habitat.thinned.mod2))
+
+hist(residuals(habitat.thinned.mod1))
 plot(habitat.thinned.mod1)
 # plot thinned model
 predicted.habitat.thin <- avg_predictions(habitat.thinned.mod1, by=c("abslat", "urban2"),
                                            newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("natural", "suburban", "urban")))
 
 habitatLDGthin <- ggplot()+
-  geom_point(habitat.thinned, mapping=aes(x=abslat, y=habitat.scaled, color=urban2), size=0.5, alpha=0.2)+
+  geom_point(habitat.thinned, mapping=aes(x=abslat, y=mean.habitat, color=urban2), size=0.5, alpha=0.2)+
   geom_line(predicted.habitat.thin, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.habitat.thin, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
@@ -354,44 +357,20 @@ habitatLDGthin
 library(mgcv)
 # model with regular latitude
 habitat.thinned$urban2 <- as.factor(habitat.thinned$urban2)
-mod.gam1 <- gam(habitat.scaled ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = habitat.thinned)
+mod.gam1 <- gam(mean.habitat ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = habitat.thinned, method="REML")
 
-plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE) 
-# looks pretty much the same as the non-thinned
+plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE, add.data=TRUE, alpha=0.2) 
+AIC(mod.gam1, habitat.thinned.mod1)
+# linear model is better
 
 # try with mean habitat
 habitat.thinned$urban2 <- as.factor(habitat.thinned$urban2)
 mod.gam1 <- gam(mean.habitat ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = habitat.thinned)
 
 # try beta regression
-library(betareg)
-beta.mod1 <- betareg(habitat.scaled ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.thinned, link="log")
-summary(beta.mod1) # everything is significant
-plot(beta.mod1, which = 5, type = "pearson")
-hist(residuals(beta.mod1))
-# try with logit link
-beta.mod2 <- betareg((1-habitat.scaled) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.thinned, link="log")
-summary(beta.mod2) # it is much worse when it is subtracted from 1
-plot(beta.mod2, which = 5, type = "pearson")
-hist(residuals(beta.mod2))
-# the data is still a bit left skewed
-
-beta.mod3 <- betareg(mean.habitat.scaled ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.thinned, link="log")
-summary(beta.mod3)
-plot(beta.mod3, which = 5, type = "pearson")
-hist(residuals(beta.mod3))
-
-beta.mod4 <- betareg(1-(mean.habitat.scaled) ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=habitat.thinned, link="log")
-summary(beta.mod4)
-plot(beta.mod4, which = 5, type = "pearson")
-hist(residuals(beta.mod4))
 
 
-plot(ggeffects::ggpredict(beta.mod1, terms = c("abslat", "urban2")), facets = FALSE)
 plot(ggeffects::ggpredict(habitat.thinned.mod1, terms = c("abslat", "urban2")), facets = FALSE) 
-plot(ggeffects::ggpredict(beta.mod3, terms = c("abslat", "urban2")), facets = FALSE) 
-hist(residuals(habitat.thinned.mod1))
-hist(residuals(beta.mod1))
 # very similar output between the linear model and the beta regression model
 summary(beta.mod1) # the R2 is much better than the linear model
 summary(habitat.thinned.mod1)
@@ -417,6 +396,9 @@ ggplot()+
 
 AIC(habitat.thinned.mod1, beta.mod1) # the beta regression is better (even then the log transformed)
 
+
+
+
 ####### Start iteratively thinning
 exponent <- function(x){
   exp(x)
@@ -429,7 +411,7 @@ ggeffects.slopes.contrast.hemisphere <- list()
 set.seed(100)
 
 for (i in 1:1000){
-  dat.thinned <- habitat.species.summary %>% group_by(cell.subsample) %>% sample_n(1) 
+  dat.thinned <- habitat.species.summary %>% group_by(cell.subsample, urban2) %>% sample_n(1) 
   lm.thinned <- lm(log(mean.habitat) ~ abslat * urban2 * hemisphere +
                      precip + log(number_checklists) + elevation, dat.thinned)
   # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
@@ -465,10 +447,10 @@ ggeffects.contrast.hemisphere_df <- bind_rows(ggeffects.slopes.contrast.hemisphe
 
 contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="natural-natural", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 1000
 # steeper in N hemsiphere
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="urban-urban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="urban-urban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 991
 contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="suburban-suburban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 0
 
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="urban-suburban", hemisphere=="southern-southern") %>% filter(p.value<0.05) # 87
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="urban-suburban", hemisphere=="southern-southern") %>% filter(p.value<0.05) # 54
 # 718
 contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="urban-suburban", hemisphere=="northern-northern") %>% filter(p.value<0.05) # 1000
 
@@ -489,7 +471,7 @@ thinned.habitatLDG <- ggplot()+
   labs(y="Mean habitat breadth", x="Absolute latitude")+
   theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 # will need to account for spatial autocorrelation
-thinned.habitatLDG | habitatLDGthin
+thinned.habitatLDG
 
 
 11.74-9.56 # 2.18 (diff between habitat breadth at equator)
@@ -498,7 +480,14 @@ thinned.habitatLDG | habitatLDGthin
 
 
 
-## Try thinning with spThin function
+
+###### Look at relationship between number of cells in a larger grid cell and specialization (are larger cities more specialized?)
+
+cells.no <- habitat.species.summary %>% group_by(cell.subsample, urban2) %>% summarise(n=n(), mean.habitat=mean(mean.habitat)) %>% filter(urban2=="urban")
+
+ggplot(cells.no, aes(x=n, y=mean.habitat))+
+  geom_point()+
+  geom_smooth(method="lm")
 
 
 
@@ -521,31 +510,39 @@ thinned.habitatLDG | habitatLDGthin
 ########## Diet
 
 ##### Now try with diet
+global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filter(lat <= 70 & lat >=-55)
 diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
 uniquesp_diet <- merge(global_uniquesp, diet[, c(9,21,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific")
-
-diet.species.summary <- uniquesp_diet %>% group_by(cell, long, lat, urban2) %>% drop_na(gini.index) %>% 
-  summarise(mean.diet=mean(gini.index))
+range(uniquesp_diet$gini.index) # 0.35 to 1, pretty goof range
+uniquesp_diet$gini.flipped <- 1-uniquesp_diet$gini.index
+range(uniquesp_diet$gini.flipped) #0 to 0.644
+diet.species.summary <- uniquesp_diet %>% group_by(cell, long, lat, urban2) %>% drop_na(gini.flipped) %>% 
+  summarise(mean.diet.flipped=mean(gini.flipped), mean.diet=mean(gini.index))
+range(diet.species.summary$mean.diet.flipped) # 0.017 to 0.245
+range(diet.species.summary$mean.diet)  # 0.75 to 0.98 
+# this is the same difference
 diet.species.summary$abslat <- abs(diet.species.summary$lat)
+SR.dat <- read.csv("modeling_data.csv")
 diet.species.summary <- inner_join(diet.species.summary, SR.dat[,c(1,2,3,21,26,34)], by="cell") %>% drop_na()
 
 
+diet.mod1 <- lm(mean.diet.flipped ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=diet.species.summary)
+# R2 is 0.39, pretty good!!
+# AIC is the same when it is flipped
+# model without log transformation is better
+#AIC(diet.mod1, diet.mod2)
 
-diet.mod1 <- lm(mean.diet ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=diet.species.summary)
-
-plot(diet.mod1)
+#plot(diet.mod1)
 summary(diet.mod1)
-hist(diet.mod1$residuals)
+hist(diet.mod1$residuals) # they honestly look pretty good
 
-exponent <- function(x){
-  exp(x)
-} 
+
 predicted.diet <- avg_predictions(diet.mod1, by=c("abslat", "urban2"),
                                      newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
                                                         urban2=c("natural", "suburban", "urban")))
 
 dietLDG <- ggplot()+
-  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.diet, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.diet, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
@@ -553,9 +550,9 @@ dietLDG <- ggplot()+
   labs(y="Mean diet specialization", x="Absolute latitude")+
   theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 dietLDG
-specializationLDG <- habitatLDG / dietLDG
-
-ggsave(specializationLDG, file="specializationLDG.png", height=7, width=5)
+#specializationLDG <- habitatLDG / dietLDG
+# models are the same just flipped!
+#ggsave(specializationLDG, file="specializationLDG.png", height=7, width=5)
 
 hypothesis_test(diet.mod1, terms=c("abslat", "urban2"), scale="response")
 avg_slopes(diet.mod1, variables="abslat", by="urban2")
@@ -575,7 +572,7 @@ predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=
 library(RColorBrewer)
 mainLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
-  geom_point(diet.species.summary, mapping=aes(x=abslat, y=total_SR, shape=urban2, color=mean.diet), size=1, alpha=0.8)+
+  geom_point(diet.species.summary, mapping=aes(x=abslat, y=total_SR, shape=urban2, color=mean.diet.flipped), size=1, alpha=0.8)+
   scale_shape_manual(values=c(3,17,19))+
   geom_line(predicted.full, mapping=aes(x=abslat, y=estimate, group=urban2, lty=urban2), lwd=1.5)+
   geom_ribbon(predicted.full, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
@@ -591,19 +588,27 @@ mainLDGplot
 
 
 ### Run GAM with diet specialization
+library(mgcv)
 diet.species.summary$urban2 <- as.factor(diet.species.summary$urban2)
-mod.gam1 <- gam(mean.diet ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = diet.species.summary)
+mod.gam1 <- gam(mean.diet.flipped ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = diet.species.summary)
 
-plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE) 
+plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE, add.data=TRUE, alpha=0.2)
+AIC(diet.mod1, mod.gam1)
+# linear model is better
 
+library(RColorBrewer)
+test <- diet.species.summary %>% group_by(cell.subsample) %>% mutate(n=n())
+ggplot(test, aes(x=abslat, y=mean.diet, color=n, shape=urban2))+
+  geom_point(alpha=0.3)+
+  scale_color_distiller(palette="Spectral")
 
 ### Try beta regression
 library(betareg)
-beta.mod1 <- betareg(mean.diet ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=diet.species.summary, link="log")
-summary(beta.mod1) # everything is significant
+beta.mod1 <- betareg(mean.diet.flipped ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=diet.species.summary, link="log")
+#summary(beta.mod1) # everything is significant
 plot(beta.mod1, which = 5, type = "pearson")
-
-
+AIC(diet.mod1, mod.gam1, beta.mod1)
+# all of the betareg models are worse than the regular linear model
 
 
 
@@ -627,10 +632,10 @@ xy=st_coordinates(vect2)
 diet.species.summary$cell.subsample<-cellFromXY(sample.grid, xy)
 
 # randomly sample one point within each cell
-diet.thinned <- diet.species.summary %>% group_by(cell.subsample) %>% sample_n(1) 
-test1 <- diet.thinned %>% group_by(urban2) %>% summarise(mean = mean(mean.diet))
+diet.thinned <- diet.species.summary %>% group_by(cell.subsample, urban2) %>% sample_n(1) 
+test1 <- diet.thinned %>% group_by(urban2) %>% summarise(mean = mean(mean.diet.flipped))
 filtered.out <- diet.species.summary %>% filter(!cell %in% diet.thinned$cell) 
-test2 <- filtered.out %>% group_by(urban2) %>% summarise(mean = mean(mean.diet)) 
+test2 <- filtered.out %>% group_by(urban2) %>% summarise(mean = mean(mean.diet.flipped)) 
 
 p1 <- ggplot(filtered.out, aes(x=abslat, y=mean.diet, group=urban2))+
   geom_point(aes(color=urban2), size=1, alpha=0.3)+
@@ -643,32 +648,35 @@ p2 <- ggplot(diet.thinned, aes(x=abslat, y=mean.diet, group=urban2))+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))
 
 p1 | p2
+# ok they are less different now!
 
 
-
-lm.thinned.diet <- lm(mean.diet ~ abslat * urban2 * hemisphere +
+lm.thinned.diet <- lm(mean.diet.flipped ~ abslat * urban2 * hemisphere +
                         precip + log(number_checklists) + elevation, diet.thinned)
 
+
+hist(residuals(lm.thinned.diet))
 
 
 ## GAM of thinned
 diet.thinned$urban2 <- as.factor(diet.thinned$urban2)
-mod.gam1 <- gam(mean.diet ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = diet.thinned)
-
-plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE) 
+mod.gam1 <- gam(mean.diet.flipped ~ s(abslat, by=c(urban2)) + hemisphere + precip + log(number_checklists) + elevation, data = diet.thinned)
+summary(mod.gam1)
+plot(ggeffects::ggpredict(mod.gam1, terms = c("abslat", "urban2")), facets = FALSE, add.data=TRUE, alpha=0.2) 
 
 
 ##### Beta regression on thinned
 library(betareg)
-beta.mod1 <- betareg(mean.diet ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=diet.thinned, link="log")
+beta.mod1 <- betareg(mean.diet.flipped ~ abslat * urban2 * hemisphere + precip + log(number_checklists) + elevation, data=diet.thinned, link="log")
+
 summary(beta.mod1) # everything is significant
 plot(beta.mod1, which = 5, type = "pearson")
 hist(residuals(beta.mod1))
 # log link is the best
-
-
-
-
+plot(ggeffects::ggpredict(beta.mod1, terms = c("abslat", "urban2")), facets = FALSE, add.data=TRUE, alpha=0.2) 
+plot(ggeffects::ggpredict(lm.thinned.diet, terms = c("abslat", "urban2")), facets = FALSE, add.data=TRUE, alpha=0.2)
+AIC(lm.thinned.diet, beta.mod1)
+# linear model is better
 
 
 # plot randomly sampled
@@ -677,13 +685,13 @@ predicted.diet.thin <- avg_predictions(beta.mod1, by=c("abslat", "urban2"),
                                                      urban2=c("natural", "suburban", "urban")))
 
 dietLDGthinned <- ggplot()+
-  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.diet.thin, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.diet.thin, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   geom_line(predicted.diet, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5, lty=2)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
-  labs(y="Mean diet specialization", x="Absolute latitude")+
+  labs(y="Mean diet breadth", x="Absolute latitude")+
   theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 
 dietLDGthinned
@@ -691,9 +699,6 @@ plot(lm.thinned.diet)
 
 
 ####### Start thinning
-exponent <- function(x){
-  exp(x)
-} # make function
 predicted.diet <- list()
 ggeffects.slopes.diet <- list()
 ggeffects.slopes.contrast.diet <- list()
@@ -701,14 +706,14 @@ ggeffects.slopes.contrast.hemisphere.diet <- list()
 set.seed(100)
 
 for (i in 1:1000){
-  dat.thinned.diet <- diet.species.summary %>% group_by(cell.subsample) %>% sample_n(1) 
-  lm.thinned.diet <- lm(log(mean.diet) ~ abslat * urban2 * hemisphere +
+  dat.thinned.diet <- diet.species.summary %>% group_by(cell.subsample, urban2) %>% sample_n(1) 
+  lm.thinned.diet <- lm(mean.diet.flipped ~ abslat * urban2 * hemisphere +
                      precip + log(number_checklists) + elevation, dat.thinned.diet)
   # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
   #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
   #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
   # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  predicted.diet[[i]] <- avg_predictions(lm.thinned.diet, by=c("abslat", "urban2"), transform=exponent, 
+  predicted.diet[[i]] <- avg_predictions(lm.thinned.diet, by=c("abslat", "urban2"),  
                                     newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("natural", "suburban", "urban"))) # store predictions for plotting
   ggeffects.slopes.diet[[i]] <- hypothesis_test(lm.thinned.diet, c("abslat", "urban2"), test = NULL) # see differences in slopes (using ggeffects)
   ggeffects.slopes.contrast.diet[[i]] <- hypothesis_test(lm.thinned.diet, c("abslat", "urban2"))
@@ -726,7 +731,7 @@ write.csv(ggeffects.slopes.diet.df, "thinned_results/thinned.diet.specialization
 
 
 ggeffects.slopes.contrast.diet.df <- bind_rows(ggeffects.slopes.contrast.diet)
-contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="urban-suburban") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="urban-suburban") %>% filter(p.value<0.05) # 0
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="natural-suburban") %>% filter(p.value<0.05) #1000
 contrast <- ggeffects.slopes.contrast.diet.df %>% filter(urban2=="natural-urban") %>% filter(p.value<0.05) # 1000
 # all significantly different slopes
@@ -735,12 +740,12 @@ ggeffects.contrast.hemisphere.diet_df <- bind_rows(ggeffects.slopes.contrast.hem
 
 contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="natural-natural", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 1000
 # steeper in N hemsiphere
-contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="urban-urban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 1000
-contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="suburban-suburban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 0
+contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="urban-urban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 2
+contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="suburban-suburban", hemisphere=="northern-southern") %>% filter(p.value<0.05) # 757
 
-contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="urban-suburban", hemisphere=="southern-southern") %>% filter(p.value<0.05) # 25
+contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="urban-suburban", hemisphere=="southern-southern") %>% filter(p.value<0.05) # 0
 # 718
-contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="urban-suburban", hemisphere=="northern-northern") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast.hemisphere.diet_df %>% filter(urban2=="urban-suburban", hemisphere=="northern-northern") %>% filter(p.value<0.05) # 0
 
 
 ########## Plot
@@ -750,12 +755,12 @@ diet.thinned.results.summary <- predicted_diet_df %>% group_by(abslat, urban2) %
 
 
 thinned.dietLDG <- ggplot()+
-  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
   geom_line(diet.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
   geom_ribbon(diet.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   theme_classic()+
-  labs(y="Mean diet specialization", x="Absolute latitude")+
+  labs(y="Mean diet breadth", x="Absolute latitude")+
   theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 # will need to account for spatial autocorrelation
 thinned.dietLDG
@@ -767,6 +772,21 @@ ggsave(thinned.specialization.plots, file="thinned.specializationLDG.png", heigh
 
 
 specializationLDG | thinned.specialization.plots
+
+
+
+###### Look at relationship between number of cells in a larger grid cell and specialization (are larger cities more specialized?)
+
+cells.no <- diet.species.summary %>% group_by(cell.subsample, urban2) %>% summarise(n=n(), mean.diet=mean(mean.diet)) %>% filter(urban2=="urban")
+
+ggplot(cells.no, aes(x=log(n), y=log(mean.diet)))+
+  geom_point()+
+  geom_smooth(method="lm")
+
+
+
+
+
 
 
 

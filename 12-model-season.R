@@ -214,13 +214,13 @@ xy=st_coordinates(vect)
 dat$cell.subsample<-cellFromXY(sample.grid, xy)
 
 
-dat.thinned <- dat %>% group_by(cell.subsample, season) %>% sample_n(1) 
+dat.thinned <- dat %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) 
 
 
 # run model
 lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere +
                    precip + log(number_checklists) + elevation, dat.thinned)
-dat.thinned$residuals <- residuals(lm.thinned)
+hist(residuals(lm.thinned))
 
 dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
 dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
@@ -260,7 +260,7 @@ ggeffects.slopes.season <- list()
 ggeffects.slopes.contrast.season <- list()
 set.seed(20)
 for (i in 1:1000){
-  dat.thinned <- dat %>% group_by(cell.subsample, season) %>% sample_n(1) 
+  dat.thinned <- dat %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
   lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere +
                      precip + log(number_checklists) + elevation, dat.thinned)
   
@@ -279,14 +279,13 @@ for (i in 1:1000){
   }
 
 # loop and store models
-beep()
 
 ## Save predicted values as a csv
 predicted.season.df <- bind_rows(predicted.season)
 write.csv(predicted.season.df, "thinned.seasonal.results.csv")
 
 
-saveRDS(thinned.results.season, file="thinned_results/thinned_anovas_season.rds") # save output of ANOVAS as RDS
+#saveRDS(thinned.results.season, file="thinned_results/thinned_anovas_season.rds") # save output of ANOVAS as RDS
 # 1) Look at mean species richness in each urbanization level and season 
 #seasonal_means_df <- list()
 #for (i in 1:1000){
@@ -300,6 +299,7 @@ seasonal_means_df <- read.csv("thinned_results/thinned_means_season.csv")
 
 seasonal_means_summary <- seasonal_means_df %>% group_by(urban2, season) %>% summarise(mean=mean(estimate), max.upper=max(conf.high), min.lower=min(conf.low))
 seasonal_means_summary
+# higher in summer than in winter for all urbaniation levels but the difference decreases with increasing urbanization
 
 # 2) Look at which slopes are different from one another
 contrast_sum_df <- list()
@@ -370,8 +370,9 @@ ggslopes_sum
 
 ggeffects.slopes.contrast.season <- bind_rows(ggeffects.slopes.contrast.season)
 
-contrast <- ggeffects.slopes.contrast.season %>% filter(urban2=="Suburban-Urban", season=="Summer-Summer") %>% filter(p.value<0.05)
-
+contrast <- ggeffects.slopes.contrast.season %>% filter(urban2=="Suburban-Urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 17
+contrast <- ggeffects.slopes.contrast.season %>% filter(urban2=="Suburban-Urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 1000
+# suburban is steeper than urban in Winter but not summer
 
 
 

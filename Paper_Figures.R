@@ -14,8 +14,9 @@ total.dat <- read.csv("modeling_data.csv")
 
 full.model <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    precip + log(number_checklists) + elevation, total.dat)
+# precipitation not singificant??
 
-
+anova(full.model)
 
 square <- function(x){
   x^2
@@ -39,21 +40,16 @@ hypothesis_test(full.model, terms=c("abslat", "urban2"), scale="response")
 
 ## Load seasonal data
 dat.season <- read.csv("season_modeling_data.csv")
+range(dat.season$abslat)
 
 season.model <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + 
                      precip + log(number_checklists) + elevation, dat.season)
+
 # look at means
 season.means <- marginal_means(season.model, variables=c("abslat", "urban2", "season"), cross=TRUE, transform=square)
 
 # Analyse model
-#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer")) # all significantly negative, urban and suburban NS
-#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Winter")) # all significantly negative, urban and suburban significantly different
-#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer", hemisphere="northern")) # slope overlaps 0 in urb in N hemisphere, suburban and urban NS diff
-#lstrends(season.model, pairwise ~ urban2, var=c("abslat"), at=c(season="Summer", hemisphere="southern")) # slope negative for all, suburb and urb NS diff.
-
-# significantly negative slope for all of them
-#lstrends(season.model, pairwise ~ urban2, var="abslat", at=c(season="Winter"))
-
+anova(season.model)
 #hypothesis_test(season.model, c("abslat", "urban2", "season", "hemisphere"), test = NULL, scale=exp) # ggeffects
 
 # urban summer in the northern hemisphere the slope overlaps 0
@@ -320,11 +316,11 @@ thinned.results <- read.csv("thinned.results.csv")
 #thinned.results.summary <- thinned.results %>% group_by(x, group) %>% summarise(mean_x=mean(predicted), max.conf.high = quantile(conf.high, 0.975), min.conf.low = quantile(conf.low, 0.25))
 thinned.results.summary <- thinned.results %>% group_by(abslat, urban2) %>% summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 avg.slope.nat <- thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Natural")
-(198-97.8)/7
+(198-97.8)/7 # 14
 avg.slope.sub <- thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Suburban")
-(148-84)/7
+(148-84)/7 # 9
 avg.slope.urb <- thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Urban")
-(127-82)/7
+(127-81.9)/7 #6
 
 thinned.plots <- ggplot()+
   # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
@@ -377,17 +373,17 @@ seasonal.thinned.results <- read.csv("thinned.seasonal.results.csv")
 seasonal.thinned.results.summary <- seasonal.thinned.results %>% group_by(abslat, urban2, season) %>% 
   summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
 avg.slope.nat.sum <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Natural"& season=="Summer")
-(129-82.7)/7
+(129-84)/7
 avg.slope.nat.wint <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Natural"& season=="Winter")
-(206-15.5)/7
+(206-16.7)/7
 avg.slope.sub.sum <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Suburban"& season=="Summer")
-(81.4-66.3)/7
+(84.1-67.9)/7
 avg.slope.sub.wint <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Suburban"& season=="Winter")
-(150-21.3)/7
+(153-22.1)/7
 avg.slope.urb.sum <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Urban" & season=="Summer")
-(71.2-62.3)/7
+(72.2-63.7)/7
 avg.slope.urb.wint <- seasonal.thinned.results.summary %>% filter(abslat%in%c(0,70) & urban2=="Urban"& season=="Winter")
-(123-31)/7
+(123-30.8)/7
 
 # Plot thinned models together
 season.thinned.plot <- ggplot()+
@@ -395,8 +391,6 @@ season.thinned.plot <- ggplot()+
   geom_point(dat.season, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(seasonal.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
   geom_ribbon(seasonal.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
-  geom_line(predicted.season, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5, lty=2)+
-  geom_ribbon(predicted.season, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
@@ -455,7 +449,7 @@ summer.thinned.plot <- ggplot()+
 
 summer.thinned.plot
 #ggsave(summer.thinned.plot, file="summer.thinned.plot.png", height=4, width=4)
-
+library(ggpubr)
 season.thinned.plot <- ggarrange(summer.thinned.plot, winter.thinned.plot, align="hv")
 ggsave(season.thinned.plot, file="season.thinned.plot.png", height=6, width=9)
 
@@ -489,15 +483,15 @@ full.proportion.results <- predicted.full %>% select(estimate, urban2, abslat, c
 
 
 # Empty proportion plot (for predictions slides)
-proportion.empty <- ggplot(predicted.proportion, aes(x=abslat, y=proportion.urb))+
-  # geom_line(aes(x=abslat, y=proportion.urb), color="red")+
-  #geom_line(aes(x=abslat, y=proportion.suburb))+
-  ylim(0,1)+
-  xlim(0,90)+
-  theme_classic()+
-  labs(y="Proportion of natural diversity", x="Absolute latitude")+
-  theme(text=element_text(size=15))
-ggsave(proportion.empty, file="proportion.empty.png", height=5, width=6)
+#proportion.empty <- ggplot(predicted.proportion, aes(x=abslat, y=proportion.urb))+
+#  # geom_line(aes(x=abslat, y=proportion.urb), color="red")+
+#  #geom_line(aes(x=abslat, y=proportion.suburb))+
+#  ylim(0,1)+
+#  xlim(0,90)+
+#  theme_classic()+
+#  labs(y="Proportion of natural diversity", x="Absolute latitude")+
+#  theme(text=element_text(size=15))
+#ggsave(proportion.empty, file="proportion.empty.png", height=5, width=6)
 
 
 ### Trying different way of calculating proportion where I subtract the values from the predicted natural value for each point and then plot that 
@@ -520,9 +514,9 @@ season.proportion.results <- seasonal.thinned.results.summary %>% select(mean_x,
 
 proportion.plot.wint <- ggplot(season.proportion.results, aes(x=abslat, y=proportion.urb.wint))+
   geom_line(aes(x=abslat, y=proportion.urb.wint), color="#000000", lwd=1)+
-  geom_ribbon(aes(x=abslat, ymax=UCL.urb.wint, ymin=LCL.urb.wint), alpha=0.2)+
+#  geom_ribbon(aes(x=abslat, ymax=UCL.urb.wint, ymin=LCL.urb.wint), alpha=0.2)+
   geom_line(aes(x=abslat, y=proportion.suburb.wint), color="#CC79A7", lwd=1)+
-  geom_ribbon(aes(x=abslat, ymax=UCL.suburb.wint, ymin=LCL.suburb.wint), alpha=0.2)+
+#  geom_ribbon(aes(x=abslat, ymax=UCL.suburb.wint, ymin=LCL.suburb.wint), alpha=0.2)+
   geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
   theme_classic()+
   labs(y="Proportion of natural diversity", x="Absolute Latitude")+
@@ -530,9 +524,9 @@ proportion.plot.wint <- ggplot(season.proportion.results, aes(x=abslat, y=propor
 
 proportion.plot.sum <- ggplot(season.proportion.results, aes(x=abslat, y=proportion.urb.sum))+
   geom_line(aes(x=abslat, y=proportion.urb.sum), color="#000000", lwd=1)+
-  geom_ribbon(aes(x=abslat, ymax=UCL.urb.sum, ymin=LCL.urb.sum), alpha=0.2)+
+#  geom_ribbon(aes(x=abslat, ymax=UCL.urb.sum, ymin=LCL.urb.sum), alpha=0.2)+
   geom_line(aes(x=abslat, y=proportion.suburb.sum), color="#CC79A7", lwd=1)+
-  geom_ribbon(aes(x=abslat, ymax=UCL.suburb.sum, ymin=LCL.suburb.sum), alpha=0.2)+
+ # geom_ribbon(aes(x=abslat, ymax=UCL.suburb.sum, ymin=LCL.suburb.sum), alpha=0.2)+
   geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
   theme_classic()+
   labs(y="Proportion of natural diversity", x="Absolute Latitude")+
@@ -551,32 +545,72 @@ ggsave(proportion.plot.sum, file="proportion.plot.sum.png", height=4, width=5)
 
 
 
-########## Old plots with emmeans ##########
+########### Specialization plots (thinned)
+### Habitat
+global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filter(lat <= 70 & lat >=-55)
+# this is a list of species for each cell
+# Merge with habitat data
+habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
+#habitat$habitat.scaled.before <- scales::rescale(habitat$Habitat_breadth_IUCN)
 
-## Full model
+uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
 
-# Plotting with emmeans
-#predicted.ggeffect <- ggemmeans(full.model, terms=c("abslat", "urban2"))
-#plot.full.model <-
-#  plot(predicted.ggeffect, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-#       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-#  theme_classic()+
-#  scale_x_continuous(expand=c(0, 0))+
-#  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-#  theme(text=element_text(size=15), legend.spacing.y = unit(1, 'cm'), legend.title=element_blank(), legend.position = c(.8, .85), axis.title = element_blank())
-#plot.full.model
-
+habitat.species.summary <- uniquesp_habitat %>% group_by(cell, long, lat, urban2) %>% drop_na(Habitat_breadth_IUCN) %>% 
+  summarise(mean.habitat=mean(Habitat_breadth_IUCN)) 
+# scale habitat then subtract from 1
 
 
-## Seasonal model
-#predicted.ggeffect.season <- ggemmeans(season.model, terms=c("abslat", "urban2", "season")) 
-#seasonal.results.plot<-
-#  plot(predicted.ggeffect.season, facet = TRUE, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, 
-#       line.size=1.5, show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-#  theme_classic()+
-#  scale_x_continuous(expand=c(0, 0))+
-#  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-#  theme(text=element_text(size=15), legend.spacing.y = unit(1, 'cm'), legend.title=element_blank(), legend.position = "none", axis.title.y=element_blank())
+### Diet
+diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
+uniquesp_diet <- merge(global_uniquesp, diet[, c(9,21,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific")
+uniquesp_diet$gini.flipped <- 1-uniquesp_diet$gini.index
+diet.species.summary <- uniquesp_diet %>% group_by(cell, long, lat, urban2) %>% drop_na(gini.flipped) %>% 
+  summarise(mean.diet.flipped=mean(gini.flipped), mean.diet=mean(gini.index))
+# this is the same difference
+diet.species.summary$abslat <- abs(diet.species.summary$lat)
+
+#habitat.species.summary$habitat.scaled <- scales::rescale(habitat.species.summary$mean.habitat)
+
+habitat.species.summary$abslat <- abs(habitat.species.summary$lat)
+
+predicted_habitat_df <- read.csv("thinned_results/thinned.habitat.specialization.csv")
+habitat.thinned.results.summary <- predicted_habitat_df %>% group_by(abslat, urban2) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+
+thinned.habitatLDG <- ggplot()+
+  geom_point(habitat.species.summary, mapping=aes(x=abslat, y=mean.habitat, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(habitat.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(habitat.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean habitat breadth", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
+# will need to account for spatial autocorrelation
+thinned.habitatLDG
+
+
+
+
+predicted_diet_df <- read.csv("thinned_results/thinned.diet.specialization.csv")
+diet.thinned.results.summary <- predicted_diet_df %>% group_by(abslat, urban2) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+
+thinned.dietLDG <- ggplot()+
+  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(diet.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(diet.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean diet breadth", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
+# will need to account for spatial autocorrelation
+thinned.dietLDG
+
+thinned.specialization.plots <- thinned.habitatLDG / thinned.dietLDG
+thinned.specialization.plots
+ggsave(thinned.specialization.plots, file="thinned.specializationLDG.png", height=7, width=5)
 
 
 
@@ -584,6 +618,71 @@ ggsave(proportion.plot.sum, file="proportion.plot.sum.png", height=4, width=5)
 
 
 
+####### Seasonal specialization plots
+season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
+season_sp_habitat <- merge(season_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
 
+season.habitat.summary <- season_sp_habitat %>% group_by(cell, long, lat, urban2, season) %>% drop_na(Habitat_breadth_IUCN) %>% 
+  summarise(mean.habitat=mean(Habitat_breadth_IUCN))
+season.habitat.summary$abslat <- abs(season.habitat.summary$lat)
+
+
+
+
+diet<- read.csv("/Volumes/Expansion/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") 
+season_sp_diet <- merge(season_uniquesp, diet[, c(9,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific")
+season_sp_diet$gini.flipped <- 1-season_sp_diet$gini.index
+
+diet.species.summary <- season_sp_diet %>% group_by(cell, long, lat, urban2, season) %>% drop_na(gini.index) %>% 
+  summarise(mean.diet=mean(gini.index), mean.diet.flipped=mean(gini.flipped))
+diet.species.summary$abslat <- abs(diet.species.summary$lat)
+
+
+predicted_habitat_season_df <- read.csv("thinned_results/thinned.habitat.specialization.season.csv")
+
+habitat.thinned.results.summary <- predicted_habitat_season_df %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+
+thinned.habitatLDG <- ggplot()+
+  geom_point(season.habitat.summary, mapping=aes(x=abslat, y=mean.habitat, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(habitat.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(habitat.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean habitat breadth", x="Absolute latitude")+
+  facet_wrap(~season)+
+  theme(legend.title=element_blank(), text=element_text(size=18), legend.position="none", axis.title.x=element_blank(), strip.text=element_blank())
+# will need to account for spatial autocorrelation
+thinned.habitatLDG
+
+
+ggsave(thinned.habitatLDG, file="thinned.habitat.specialization.season.png", width=6, height=3.5)
+
+
+
+
+
+
+
+predicted_diet_df <- read.csv("thinned_results/thinned.diet.specialization.season.csv")
+diet.thinned.results.summary <- predicted_diet_df %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+
+thinned.dietLDG <- ggplot()+
+  geom_point(diet.species.summary, mapping=aes(x=abslat, y=mean.diet.flipped, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(diet.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(diet.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_classic()+
+  labs(y="Mean diet breadth", x="Absolute latitude")+
+  theme(legend.title=element_blank(), text=element_text(size=18), legend.position="none", axis.title.x=element_blank(), strip.text=element_blank())+
+  facet_wrap(~season)
+# will need to account for spatial autocorrelation
+thinned.dietLDG
+
+ggsave(thinned.dietLDG, file="thinned.diet.specialization.season.png", width=6, height=3.5)
 
 

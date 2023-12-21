@@ -332,6 +332,9 @@ moran # yes this is autocorrelated, so the other one is accurate
 
 
 ###### Start looping model and store results
+#### Do in parallel
+
+
 square <- function(x){
   x^2
 } # make function to square
@@ -345,7 +348,7 @@ ggeffects.slopes.contrast.hemisphere <- list()
 set.seed(30)
 
 for (i in 1:1000){
-  dat.thinned <- dat %>% group_by(cell.subsample) %>% sample_n(1) 
+  dat.thinned <- dat %>% group_by(cell.subsample, urban2) %>% sample_n(1) 
   lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
                      precip + log(number_checklists) + elevation, dat.thinned)
   # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
@@ -362,6 +365,7 @@ for (i in 1:1000){
   ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"))
   ggeffects.slopes.contrast.hemisphere[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "hemisphere"))
   }
+
 
 predicted_df <- bind_rows(predicted)
 write.csv(predicted_df, "thinned.results.csv")
@@ -422,14 +426,18 @@ contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter
 ggeffects.contrast.hemisphere_df <- bind_rows(ggeffects.slopes.contrast.hemisphere)
 write.csv(ggeffects.contrast.hemisphere_df, file="thinned_results/thinned_constrasts_hemisphere.csv")
 
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Natural-Natural", hemisphere=="northern-southern") %>% filter(p.value<0.05)
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Natural-Natural", 
+                                                        hemisphere=="northern-southern") %>% filter(p.value<0.05) #1000
 # steeper in N hemsiphere
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Urban", hemisphere=="northern-southern") %>% filter(p.value<0.05)
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Suburban-Suburban", hemisphere=="northern-southern") %>% filter(p.value<0.05)
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Urban", 
+                                                        hemisphere=="northern-southern") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Suburban-Suburban", 
+                                                        hemisphere=="northern-southern") %>% filter(p.value<0.05) # 1000
 
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", hemisphere=="southern-southern") %>% filter(p.value<0.05)
-# 718
-contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", hemisphere=="northern-northern") %>% filter(p.value<0.05)
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", 
+                                                        hemisphere=="southern-southern") %>% filter(p.value<0.05) # 519
+contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", 
+                                                        hemisphere=="northern-northern") %>% filter(p.value<0.05) # 1000
 
 ## Run full model and plot model fits from that with these confidence intervals
 #predicted.full <- ggpredict(mod1.lm, terms = c("abslat", "urban2")) 

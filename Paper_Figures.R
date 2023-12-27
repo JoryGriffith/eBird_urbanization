@@ -64,7 +64,7 @@ hypothesis_test(season.model, c("abslat", "urban2", "season"))
 # Full
 full.map<-ggplot(data=world)+
   geom_sf(lwd=0.15, fill="white") +
-  geom_point(data=total.dat, aes(x=long, y=lat, color=urban2, shape=urban2), size=2, alpha=0.5) +
+  geom_point(data=total.dat, aes(x=long, y=lat, color=urban2, shape=urban2), size=1, alpha=0.5) +
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   coord_sf(crs = 4326, expand = TRUE, xlim=c(-180, 180), ylim=c(-70, 70)) +
   labs(x="Longitude", y="Latitude")+
@@ -79,7 +79,7 @@ ggsave(full.map, file="coverage.map.png", height=12, width=8)
 # Seasonal
 season.map<-ggplot(data=world)+
   geom_sf(lwd=0.15, fill="white") +
-  geom_point(data=dat.season, aes(x=long, y=lat, color=urban2, shape=urban2), size=1, alpha=0.5) +
+  geom_point(data=dat.season, aes(x=long, y=lat, color=urban2, shape=urban2), size=0.75, alpha=0.5) +
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   coord_sf(crs = 4326, expand = TRUE, xlim=c(-180, 180), ylim=c(-70, 70)) +
   labs(x="Longitude", y="Latitude")+
@@ -357,11 +357,11 @@ thinned.proportion.plot <- ggplot(thinned.proportion.results, aes(x=abslat, y=pr
   geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
   ylim(0,1)+
   theme_classic()+
-  labs(y="Proportion of natural diversity", x="Latitude")+
-  theme(axis.title.x=element_blank())+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme()+
   theme(text=element_text(size=18))
 
-ggsave(thinned.proportion.plot, file="thinned.proportion.plot.png", height=4, width=5)
+ggsave(thinned.proportion.plot, file="thinned.proportion.plot.png", height=6, width=7)
 
 
 
@@ -396,10 +396,10 @@ season.thinned.plot <- ggplot()+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
   facet_wrap(~season, ncol=1)+
-  theme(legend.title=element_blank(), legend.position = c(0.2, 0.9), text=element_text(size=15), strip.text=element_blank())
+  theme(legend.title=element_blank(), legend.position = c(0.2, 0.9), text=element_text(size=16), strip.text=element_blank())
 # this is the plot with the 95% of the confidence intervals
 season.thinned.plot
-ggsave(season.thinned.plot, file="season.thinned.plot.png", height=8, width=6)
+ggsave(season.thinned.plot, file="season.thinned.plot.png", height=5, width=10)
 
 ldg.results2 <- thinned.plots / season.thinned.plot + plot_layout(heights = c(2, 1))+ 
   labs(tag = "Species Richness") +
@@ -483,16 +483,15 @@ full.proportion.results <- predicted.full %>% select(estimate, urban2, abslat, c
 
 
 # Empty proportion plot (for predictions slides)
-#proportion.empty <- ggplot(predicted.proportion, aes(x=abslat, y=proportion.urb))+
-#  # geom_line(aes(x=abslat, y=proportion.urb), color="red")+
-#  #geom_line(aes(x=abslat, y=proportion.suburb))+
-#  ylim(0,1)+
-#  xlim(0,90)+
-#  theme_classic()+
-#  labs(y="Proportion of natural diversity", x="Absolute latitude")+
-#  theme(text=element_text(size=15))
-#ggsave(proportion.empty, file="proportion.empty.png", height=5, width=6)
-
+proportion.empty <- ggplot(full.proportion.results, aes(x=abslat, y=proportion.urb))+
+  # geom_line(aes(x=abslat, y=proportion.urb), color="red")+
+  #geom_line(aes(x=abslat, y=proportion.suburb))+
+  ylim(0,1)+
+  xlim(0,90)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute latitude")+
+  theme(text=element_text(size=18))
+ggsave(proportion.empty, file="proportion.empty.png", height=5, width=6)
 
 ### Trying different way of calculating proportion where I subtract the values from the predicted natural value for each point and then plot that 
 ## Instead of subtracting the model fits 
@@ -534,8 +533,8 @@ proportion.plot.sum <- ggplot(season.proportion.results, aes(x=abslat, y=proport
 
 
 proportion.plot.season <- proportion.plot.wint / proportion.plot.sum
-ggsave(proportion.plot.wint, file="proportion.plot.wint.png", height=4, width=5)
-ggsave(proportion.plot.sum, file="proportion.plot.sum.png", height=4, width=5)
+ggsave(proportion.plot.wint, file="proportion.plot.wint.png", height=4, width=6)
+ggsave(proportion.plot.sum, file="proportion.plot.sum.png", height=4, width=6)
 
 
 
@@ -609,9 +608,10 @@ thinned.dietLDG <- ggplot()+
 thinned.dietLDG
 
 thinned.specialization.plots <- thinned.habitatLDG / thinned.dietLDG
-thinned.specialization.plots
+thinned.specialization.plots2 <- thinned.habitatLDG | thinned.dietLDG
+thinned.specialization.plots2
 ggsave(thinned.specialization.plots, file="thinned.specializationLDG.png", height=7, width=5)
-
+ggsave(thinned.specialization.plots2, file="thinned.specializationLDG.png", height=5, width=10)
 
 
 
@@ -684,5 +684,83 @@ thinned.dietLDG <- ggplot()+
 thinned.dietLDG
 
 ggsave(thinned.dietLDG, file="thinned.diet.specialization.season.png", width=6, height=3.5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+###### Results for seasonal data - build
+
+
+
+#predicted.season<-avg_predictions(season.model, by=c("abslat", "urban2", "season"), transform=square, newdata="mean")
+
+dat.nat <- dat.season %>% filter(urban2=="Natural")
+predicted.nat <- seasonal.thinned.results.summary %>% filter(urban2=="Natural")
+seasonLDGplot.natural <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
+  ggplot()+
+  geom_point(dat.nat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.nat, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.nat, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~factor(season, levels=c('Winter', 'Summer')))+
+  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=16))
+seasonLDGplot.natural
+# beautiful!
+
+
+ggsave(seasonLDGplot.natural, file="ldg.season.nat.png", height=5, width=10)
+
+
+dat.naturb <- dat.season %>% filter(urban2%in%c("Natural", "Urban"))
+predicted.naturb <- seasonal.thinned.results.summary %>% filter(urban2%in%c("Natural", "Urban"))
+seasonLDGplot.naturb <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
+  ggplot()+
+  geom_point(dat.naturb, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.naturb, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.naturb, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~factor(season, levels=c('Winter', 'Summer')))+
+  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=16))
+seasonLDGplot.naturb
+# beautiful!
+
+
+ggsave(seasonLDGplot.naturb, file="ldg.season.nat.urb.png", height=5, width=10)
+
+
+
+seasonLDGplot.vert <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
+  ggplot()+
+  geom_point(dat.season, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(seasonal.thinned.results.summary, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(seasonal.thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~factor(season, levels=c('Winter', 'Summer')), ncol=1)+
+  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=16))
+
+ggsave(seasonLDGplot.vert, file="ldg.season.vert.png", height=8, width=5.5)
+
+
 
 

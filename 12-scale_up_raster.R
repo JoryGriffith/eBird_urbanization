@@ -10,18 +10,62 @@ library(doParallel)
 library(iNEXT)
 
 
+
+####### Load GHSL layer, aggregate to larger resolution, combine with GHM layer, and assign urbanization scores #####
+
 # load original reprojected raster file
 
-#GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+#### Bin into 3 categories
+GHSL <- subst(GHSL, 10, NA) # turn water into NA
+GHSL <- subst(GHSL, 30, 3) # turn urban into 3
+GHSL <- subst(GHSL, 11, 1)
+GHSL <- subst(GHSL, 12, 1) 
+GHSL <- subst(GHSL, 13, 1) # turn 11,12, and 13 into natural
+GHSL <- subst(GHSL, 21, 2)
+GHSL <- subst(GHSL, 22, 2)
+GHSL <- subst(GHSL, 23, 2) # turn 21,22,23 into suburban
+plot(GHSL)
+?terra::aggregate
+GHSL_5km <- aggregate(GHSL, fact=5, fun="modal", cores=4)
+plot(GHSL_5km)
+# maybe should aggregate by mode instead?? So majority will categorize it into the right category
+# went by mode, which is not the best probably but will do for now
 
-#GHSL_5km <- aggregate(GHSL, fact=5, fun="mean", cores=4, filename="/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 
-#plot(GHSL_5km)
+# Combine with human modification layer and remove anything with modification greater than 0.5
+## load human modification layer
+GHM <- rast("/Volumes/Expansion/eBird/gHM/gHM.tif")
+crs(GHM)==crs(GHSL) # they are in the same CRS
+## Aggregate GHM into 5x5km
+GHM_5km <- aggregate(GHM, fact=5, fun="mean", cores=4)
+
+
+# Make cells align with cubic spline interpolation
+dat <- resample(GHM_5km, GHSL_5km, method="cubicspline")
+stack <- c(dat, GHSL_5km)
+plot(dat)
+# remove natural cells with human footprint > 0.5
+GHSL.test = GHSL_5km 
+GHSL.test[(dat > 0.5 & GHSL.test == 1)] <- NA # turn everything that is natural and over 0.5 as NA
+plot(GHSL.test)
+
+writeRaster(GHSL.test, filename="/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
+# created new raster
+
+
+
+
+
+
+
+
+
 
 GHSL_5km <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
-# yay! created the new raster
 
-# Now I need to aggregate the eBird data into that raster and summarise
+
+
 
 ########## 1) extract cell no. for each point ########
 names <- c("r1c1", "r1c2", "r1c3", "r1c4",
@@ -49,11 +93,11 @@ doParallel::registerDoParallel(cl = my.cluster)
 foreach::getDoParRegistered()
 
 
-for (j in 6:6) {
+for (j in 1:1) {
 
-# foreach  (i = 6:length(names),
- #           .combine = 'c') %dopar% {
-for(i in 6:length(names)){
+ foreach  (i = 1:length(names),
+            .combine = 'c') %dopar% {
+#for(i in 6:length(names)){
   dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j],"_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), 
                     header=TRUE, na.strings="")
   # turn into spatvector

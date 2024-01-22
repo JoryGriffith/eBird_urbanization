@@ -725,14 +725,14 @@ ggsave(seasonLDGplot.natural, file="ldg.season.nat.png", height=5, width=10)
 
 
 dat.naturb <- dat.season %>% filter(urban2%in%c("Natural", "Urban"))
-predicted.naturb <- seasonal.thinned.results.summary %>% filter(urban2%in%c("Natural", "Urban"))
+predicted.naturb <- seasonal.thinned.results.summary %>% filter(urban2%in%c("Natural", "Urban", "Suburban"))
 seasonLDGplot.naturb <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
   geom_point(dat.naturb, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.naturb, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.naturb, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.3)+
-  scale_color_manual(values=c("#009E73", "#000000"))+
-  scale_fill_manual(values=c("#009E73", "#000000"))+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
@@ -742,7 +742,7 @@ seasonLDGplot.naturb
 # beautiful!
 
 
-ggsave(seasonLDGplot.naturb, file="ldg.season.nat.urb.png", height=5, width=10)
+ggsave(seasonLDGplot.naturb, file="ldg.season.horz.png", height=5, width=10)
 
 
 

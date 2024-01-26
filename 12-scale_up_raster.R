@@ -26,7 +26,7 @@ GHSL <- subst(GHSL, 21, 2)
 GHSL <- subst(GHSL, 22, 2)
 GHSL <- subst(GHSL, 23, 2) # turn 21,22,23 into suburban
 plot(GHSL)
-?terra::aggregate
+
 GHSL_5km <- aggregate(GHSL, fact=5, fun="modal", cores=4)
 plot(GHSL_5km)
 # maybe should aggregate by mode instead?? So majority will categorize it into the right category
@@ -93,11 +93,11 @@ doParallel::registerDoParallel(cl = my.cluster)
 foreach::getDoParRegistered()
 
 
-for (j in 1:1) {
+for (j in 1:length(years)) {
 
- foreach  (i = 1:length(names),
-            .combine = 'c') %dopar% {
-#for(i in 6:length(names)){
+# foreach  (i = 1:length(names),
+ #           .combine = 'c') %dopar% {
+for(i in 1:length(names)){
   dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j],"_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), 
                     header=TRUE, na.strings="")
   # turn into spatvector
@@ -122,7 +122,7 @@ beep_on_error()
 
 
 ############# 2) Summarise by cell no. ########
-for (j in 5:9){ # skipped 5-9, need to run on other computer
+for (j in 1:length(names)){ 
   datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {

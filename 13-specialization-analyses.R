@@ -794,6 +794,79 @@ ggplot(cells.no, aes(x=log(n), y=log(mean.diet)))+
 
 
 
+
+
+######## Make density distributions of species at different binned latitudes ########
+
+## habitat
+global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filter(lat <= 70 & lat >=-55)
+# this is a list of species for each cell
+# Merge with habitat data
+habitat <- read.csv("/Volumes/Backup/eBird/Traits/habitat_breadth.csv")
+#habitat$habitat.scaled.before <- scales::rescale(habitat$Habitat_breadth_IUCN)
+
+uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
+uniquesp_habitat$abslat <- abs(uniquesp_habitat$lat)
+
+# bin by latitude zones
+uniquesp_habitat <- uniquesp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 70), 
+                                                                labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
+# make list of unique species in each zone bin
+unique_zone_bin <- uniquesp_habitat %>% distinct(zone_bin, urban2, SCIENTIFIC.NAME)
+# merge with habitat data
+unique_zone_bin <- merge(unique_zone_bin, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial", all.x=TRUE)
+?merge
+# merge with diet data
+unique_zone_bin <- merge(unique_zone_bin, diet[, c(9,21,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific", all.x=TRUE)
+unique_zone_bin$gini.flipped <- 1-unique_zone_bin$gini.index
+
+### Plot density plots
+## Habitat
+ggplot(unique_zone_bin, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~zone_bin)
+# this makes much more sense
+
+## Diet
+ggplot(unique_zone_bin, aes(x = gini.flipped, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~zone_bin)
+
+
+
+
+#### also try binning by smaller zones
+uniquesp_habitat <- uniquesp_habitat %>% mutate(small_bin = cut(abslat, breaks=c(0, 10, 20, 30, 40, 50, 60, 70)))
+unique_zone_small <- uniquesp_habitat %>% distinct(small_bin, urban2, SCIENTIFIC.NAME)
+# merge with habitat data
+unique_zone_small <- merge(unique_zone_small, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial", all.x=TRUE)
+
+# merge with diet data
+unique_zone_small <- merge(unique_zone_small, diet[, c(9,21,42)], by.x="SCIENTIFIC.NAME", by.y="Scientific", all.x=TRUE)
+unique_zone_small$gini.flipped <- 1-unique_zone_small$gini.index
+
+
+### Plot density plots
+## Habitat
+ggplot(unique_zone_small, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~small_bin)
+# this makes much more sense
+
+## Diet
+ggplot(unique_zone_small, aes(x = gini.flipped, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~small_bin)
+
+
+
+
+
+
+
+
+
+
 ########################################################
 ########### OLD WAY #######################
 #######################################

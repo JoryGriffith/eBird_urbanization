@@ -73,8 +73,13 @@ modeling_data.csv
 .RDataTmp1
 season_modeling_data.csv
 modeling_data.csv
+<<<<<<< HEAD
 ._.Rhistory
 ._12-scale_up_raster.R
 ._eBird_urbanization.Rproj
 ._global_richness_summary_5km.csv
 ._top_500_cells_5km.csv
+=======
+.RDataTmp2
+.RDataTmp3
+>>>>>>> 408ac03e1ca286a5138ff0713b60ff24f3803c26

@@ -26,7 +26,7 @@ GHSL <- subst(GHSL, 21, 2)
 GHSL <- subst(GHSL, 22, 2)
 GHSL <- subst(GHSL, 23, 2) # turn 21,22,23 into suburban
 plot(GHSL)
-?terra::aggregate
+
 GHSL_5km <- aggregate(GHSL, fact=5, fun="modal", cores=4)
 plot(GHSL_5km)
 # maybe should aggregate by mode instead?? So majority will categorize it into the right category
@@ -93,21 +93,22 @@ doParallel::registerDoParallel(cl = my.cluster)
 foreach::getDoParRegistered()
 
 
-for (j in 1:1) {
+for (j in 1:length(years)) {
 
- foreach  (i = 1:length(names),
-            .combine = 'c') %dopar% {
-#for(i in 6:length(names)){
+# foreach  (i = 1:length(names),
+ #           .combine = 'c') %dopar% {
+for(i in 1:length(names)){
   dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j],"_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), 
                     header=TRUE, na.strings="")
   # turn into spatvector
   
-  vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
+  vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+  vect2 <- st_transform(vect, crs=crs(GHSL_5km))
   
-  xy=geom(vect)
+  xy=st_coordinates(vect2)
   
   # get cell number that each point is in
-  dat$cell_5km_scale<-cellFromXY(GHSL_5km, xy[,3:4])
+  dat$cell_5km_scale<-cellFromXY(GHSL_5km, xy)
   # also get coordinates for the midpoint of each cell
   write.table(dat, paste("/Volumes/Expansion/eBird/eBird_", years[j],"_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), row.names=FALSE)
   print(paste("finished", names[i]))
@@ -122,7 +123,7 @@ beep_on_error()
 
 
 ############# 2) Summarise by cell no. ########
-for (j in 5:9){ # skipped 5-9, need to run on other computer
+for (j in 1:length(names)){ 
   datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
@@ -164,7 +165,7 @@ for (j in 5:9){ # skipped 5-9, need to run on other computer
   dat_summary2 <- merge(dat_summary, months_wide, by="cell_5km_scale")
   dat_summary2$square=names[j]
   # save as csv
-  write.csv(dat_summary2, paste("5yr_summary_5km/", names[j], "_SR_5km.csv", sep=""))
+  write.csv(dat_summary2, paste("5yr_summary_5km/", names[j], "_SR_5km.csv", sep=""), row.names=FALSE)
   print(paste("finished", names[j]))
 }
 
@@ -204,10 +205,10 @@ years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 # make this in parallel
 
 # filter out the cells that I want
-foreach  (j = 1:length(names),
-                     .combine = 'c') %dopar% {
+#foreach  (j = 1:length(names),
+ #                    .combine = 'c') %dopar% {
 
-#for (j in 1:length(names)) {
+for (j in 1:length(names)) {
   
   top_cell <- top_cells_5km %>% filter(square==names[j])
   # make list
@@ -238,7 +239,7 @@ coverage_list = vector("list", length = length(names))
 # do in parallel
 #foreach  (j = 1:length(names),
  #           .combine = 'c') %dopar% {
-for (j in 2:length(names)){ # 73 in r2c1
+for (j in 1:length(names)){ # 73 in r2c1
   
   dat_top <- read.csv(paste("thresholding_5km/", names[j], "_topcells_5km.csv", sep=""))
   
@@ -273,7 +274,7 @@ for (j in 2:length(names)){ # 73 in r2c1
       # convert this dataframe into data format for iNext
       temp_inext <- as.incfreq(temp)
       #and now using estimateD to get qD
-      out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=500, nboot=50)
+      out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=1000, nboot=50)
       out.inc.filt1<-out.inc$iNextEst$coverage_based %>% filter(Method=="Observed") # filter for observed coverage
       out.inc.filt2<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.95)==min(abs(SC-0.95)))  # filter for row that is closest to 95% coverage
       out.inc.filt3<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.97)==min(abs(SC-0.97))) # filter for row that is closest to 97% coverage

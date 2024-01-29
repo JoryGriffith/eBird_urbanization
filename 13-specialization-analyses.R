@@ -803,6 +803,7 @@ global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filt
 # this is a list of species for each cell
 # Merge with habitat data
 habitat <- read.csv("/Volumes/Backup/eBird/Traits/habitat_breadth.csv")
+diet<- read.csv("/Volumes/Backup/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv") # load diet data
 #habitat$habitat.scaled.before <- scales::rescale(habitat$Habitat_breadth_IUCN)
 
 uniquesp_habitat <- merge(global_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
@@ -848,7 +849,7 @@ unique_zone_small$gini.flipped <- 1-unique_zone_small$gini.index
 
 ### Plot density plots
 ## Habitat
-ggplot(unique_zone_small, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=urban2)) +
+ggplot(unique_zone_small, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=urban2)) +
   geom_density(alpha=0.6) +
   facet_wrap(~small_bin)
 # this makes much more sense
@@ -857,7 +858,6 @@ ggplot(unique_zone_small, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fil
 ggplot(unique_zone_small, aes(x = gini.flipped, y=after_stat(count), fill=urban2)) +
   geom_density(alpha=0.6) +
   facet_wrap(~small_bin)
-
 
 
 
@@ -911,12 +911,12 @@ birds_zones <- birds_zones %>% replace(is.na(.), 0)
 birds_zones$category <- NA
 
 for (i in 1:nrow(birds_zones)){
-  if (birds_zones$natural[i] >= 0 & birds_zones$urban[i] > 0) {
+  if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
     birds_zones$category[i] <- "in.urban"
   }
-  #  else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
-  #   birds_zones$category[i] <- "urban.only"
-  #  }
+    else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+     birds_zones$category[i] <- "urban.only"
+    }
   else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
     birds_zones$category[i] <- "natural.only"
   }
@@ -926,6 +926,16 @@ for (i in 1:nrow(birds_zones)){
 # look at birds in different categories and see where they are found
 urban.only <- birds_zones %>% filter(category=="urban.only") # remove urban only birds?
 urban.only2 <- urban.only %>% pivot_wider(names_from="zone_bin", values_from="urban")
+
+
+### denisty plot of trait values
+ggplot(birds_zones, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~zone_bin)
+
+
+
+
 
 #both <- birds_zones %>% filter(category=="both")
 #plot(both$natural~both$urban) # definitely a positive correlation
@@ -1111,6 +1121,19 @@ for (i in 1:nrow(diet_zones)){
     diet_zones$category[i] <- "natural.only"
   }
 }
+
+
+
+
+ggplot(diet_zones, aes(x = log(gini.index), y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~zone_bin)
+
+
+
+
+
+
 
 
 # including suburban

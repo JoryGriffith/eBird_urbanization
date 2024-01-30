@@ -15,24 +15,24 @@ dat <- read.csv("modeling_data.csv") %>% filter(number_checklists >= 198) # 30,7
 dat %>% filter(CONTINENT=="Antarctica") # there is one point in antarctica, latitude is -54.05 so it just misses the cutoff
 dat <- dat %>% filter(lat <= 70 & lat >=-55)
 # neither of the filters did anything
-full.model <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+model.98 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    precip + log(number_checklists) + elevation, dat)
-anova(full.model)
+
 
 square <- function(x){
   x^2
 } 
 
 ## plot results
-predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=square, 
+predicted.98<-avg_predictions(model.98, by=c("abslat", "urban2"), transform=square, 
                                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
 
 
 LDG98.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
   geom_point(dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
-  geom_line(predicted.full, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
-  geom_ribbon(predicted.full, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  geom_line(predicted.98, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.98, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
@@ -41,7 +41,7 @@ LDG98.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tra
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 LDG98.plot
 # yup looks pretty much the same!
-
+plot_slopes(model.98, variables="abslat", condition=c("urban2"))
 
 
 
@@ -60,15 +60,11 @@ summary_filt90$urban <- as.data.frame(terra::extract(GHSL, summary_filt90[,c(21:
 summary_filt90 %>% group_by(urban) %>% summarise(n=n())
 
 # remove ones with NaN urbanization score
-summary_filt <- summary_filt90 %>% filter(!is.na(urban)) # 110,211 datapoints now
+summary_filt90 <- summary_filt90 %>% filter(!is.na(urban)) # 110,211 datapoints now
 
-
-#### assign hemisphere
-summary_filt$hemisphere <- "northern"
-summary_filt$hemisphere[summary_filt$lat<0]<-"southern"
 
 # Turn into sf (spatial) object
-summary_sf <- st_as_sf(summary_filt, coords=c("x", "y"), crs=st_crs(GHSL))
+summary_sf <- st_as_sf(summary_filt90, coords=c("x", "y"), crs=st_crs(GHSL))
 
 ## Add elevation
 # need to convert the points back to lat long
@@ -82,11 +78,14 @@ dat_summary90 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutat
                                                                              y = sf::st_coordinates(.)[,2]))
 dat_summary90
 
+#### assign hemisphere
+dat_summary90$hemisphere <- "northern"
+dat_summary90$hemisphere[dat_summary90$lat<0]<-"southern"
 
 
 ## add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-dat_summary90$precip <- as.data.frame(terra::extract(precip, dat_summary90[,c(24:25)], method="bilinear"))$wc2.1_5m_bio_12
+dat_summary90$precip <- as.data.frame(terra::extract(precip, dat_summary90[,c(23:24)], method="bilinear"))$wc2.1_5m_bio_12
 
 dat_summary90$abslat <- abs(dat_summary90$lat)
 
@@ -105,7 +104,7 @@ dat_summary90$urban2 <- factor(dat_summary90$urban2, levels = c("1", "2", "3"),
 ###### Model
 model90 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    precip + log(number_checklists) + elevation, dat_summary90)
-anova(full.model)
+anova(model90)
 
 square <- function(x){
   x^2
@@ -130,6 +129,16 @@ LDG90.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tra
 LDG90.plot
 
 # these both change the lines a bit but the takeaways are still the same
+plot_slopes(model90, variables="abslat", condition=c("urban2"))
+
+
+
+
+
+
+
+
+
 
 
 ##### 2) Different thresholds of modification
@@ -173,7 +182,7 @@ GHMhighmod.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2")
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 GHMhighmod.plot
 ## yeah pretty much the same
-
+plot_slopes(high.model, variables="abslat", condition=c("urban2"))
 
 
 
@@ -214,7 +223,7 @@ dat_summary95
 
 ## add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(24:25)], method="bilinear"))$wc2.1_5m_bio_12
+dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(23:24)], method="bilinear"))$wc2.1_5m_bio_12
 
 dat_summary95$abslat <- abs(dat_summary95$lat)
 
@@ -256,6 +265,6 @@ GHMlowmod.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"),
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 GHMlowmod.plot
 
-
+plot_slopes(low.model, variables="abslat", condition=c("urban2"))
 
 

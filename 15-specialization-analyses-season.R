@@ -221,6 +221,18 @@ for (i in 1:nrow(season_zones)){
 ggplot(season_zones)+
   geom_boxplot(aes(x=zone_bin, y=log(Habitat_breadth_IUCN), fill=category))
 library(ggeffects)
+
+### density plot
+ggplot(season_zones, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(season~zone_bin)
+
+
+
+
+
+
+
 # run an anova
 season.habitat.aov <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category * season, data = season_zones)
 summary(season.habitat.aov)
@@ -264,7 +276,7 @@ ggsave(season.habitat.plot, file="season.habitat.plot.png", height=6, width=9)
 
 ## Diet
 season_sp_diet <- read.table("season_dietspec.txt", header=TRUE) %>% filter(!is.na(gini.index))
-
+season_sp_diet$gini.flipped <- 1-(season_sp_diet$gini.index)
 # Plot of habitat breadth and urbanization by latitude bin
 
 # Divide into urban only, both, and natural only
@@ -293,7 +305,7 @@ season_sp_diet <- read.table("season_dietspec.txt", header=TRUE) %>% filter(!is.
 #### Try binning by larger categories
 season_sp_diet <- season_sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
-season_zones_diet <- season_sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index, season) %>% count(.drop=FALSE) %>% 
+season_zones_diet <- season_sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.flipped, season) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
 
 season_zones_diet <- season_zones_diet %>% replace(is.na(.), 0)
@@ -311,6 +323,17 @@ for (i in 1:nrow(season_zones_diet)){
   #  season_zones_diet$category[i] <- "urban.only"
   #}
 }
+
+
+### Density plot
+ggplot(season_zones_diet, aes(x = log(gini.flipped), y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(season~zone_bin)
+
+
+
+
+
 
 
 ggplot(season_zones_diet)+
@@ -425,6 +448,54 @@ ggsave(total_bar, file="season_geographiczone.png", height=6, width=10)
 # this is the total number of species (not only the ones that matched up)
 proportion <- richness_category %>% pivot_wider(names_from="category", values_from="n") %>% mutate(total=sum(both+not.urban), prop = not.urban/total)
 # although there are less species overall in summer, the proportional richness loss is the same, which is likely why specialization is the same
+
+
+
+
+
+
+
+
+
+####### Ridgeline plots of trait values
+season_sp_data <- read.table("season_unique_species.txt", header=TRUE)
+diet<- read.csv("/Volumes/Backup/eBird/Traits/EltonTraits/BirdFuncDat_wgini.csv")
+diet$gini.flipped <- 1-diet$gini.index
+habitat <- read.csv("/Volumes/Backup/eBird/Traits/habitat_breadth.csv")
+season_sp_data <- season_sp_data %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 70), 
+                                                               labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
+# make list of unique species in each zone bin
+unique_zone_bin <- season_sp_data %>% distinct(zone_bin, urban2, SCIENTIFIC.NAME, season)
+# merge with habitat data
+unique_zone_bin <- merge(unique_zone_bin, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial", all.x=TRUE)
+# merge with diet data
+unique_zone_bin <- merge(unique_zone_bin, diet[, c(9,21,43)], by.x="SCIENTIFIC.NAME", by.y="Scientific", all.x=TRUE)
+
+### Make plots
+# habitat
+ggplot(unique_zone_bin, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(season~zone_bin)
+# diet
+ggplot(unique_zone_bin, aes(x = log(gini.flipped), y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(season~zone_bin)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -823,13 +823,13 @@ unique_zone_bin$gini.flipped <- 1-unique_zone_bin$gini.index
 
 ### Plot density plots
 ## Habitat
-ggplot(unique_zone_bin, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=urban2)) +
+ggplot(unique_zone_bin, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=urban2)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
 # this makes much more sense
 
 ## Diet
-ggplot(unique_zone_bin, aes(x = gini.flipped, y=after_stat(count), fill=urban2)) +
+ggplot(unique_zone_bin, aes(x = log(gini.flipped), y=after_stat(count), fill=urban2)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
 
@@ -911,12 +911,12 @@ birds_zones <- birds_zones %>% replace(is.na(.), 0)
 birds_zones$category <- NA
 
 for (i in 1:nrow(birds_zones)){
-  if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
+  if (birds_zones$natural[i] >= 0 & birds_zones$urban[i] > 0) {
     birds_zones$category[i] <- "in.urban"
   }
-    else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
-     birds_zones$category[i] <- "urban.only"
-    }
+   # else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+   #  birds_zones$category[i] <- "urban.only"
+   # }
   else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
     birds_zones$category[i] <- "natural.only"
   }
@@ -928,8 +928,8 @@ urban.only <- birds_zones %>% filter(category=="urban.only") # remove urban only
 urban.only2 <- urban.only %>% pivot_wider(names_from="zone_bin", values_from="urban")
 
 
-### denisty plot of trait values
-ggplot(birds_zones, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=category)) +
+##### denisty plot of trait values ##########
+ggplot(birds_zones, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
 
@@ -1088,7 +1088,7 @@ length(unique(sp_diet$SCIENTIFIC.NAME)) #
 
 sp_diet$abslat <- abs(sp_diet$lat)
 # boxplot of specialization
-
+sp_diet$gini.flipped <- 1-sp_diet$gini.index
 
 ####### Bin by geographical zone
 
@@ -1102,7 +1102,7 @@ summary(diet.aov3) # significant interaction
 means.diet3 <- marginal_means(diet.aov3, variables=c("zone_bin", "urban2"), cross=TRUE)
 # the difference is way larger in the tropics!
 
-diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.index, Diet.5Cat) %>% count(.drop=FALSE) %>% 
+diet_zones <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.flipped, Diet.5Cat) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>%
   pivot_wider(names_from="urban2", values_from="n")  
 
@@ -1125,12 +1125,14 @@ for (i in 1:nrow(diet_zones)){
 
 
 
-ggplot(diet_zones, aes(x = log(gini.index), y=after_stat(count), fill=category)) +
+ggplot(diet_zones, aes(x = log(gini.flipped), y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
 
 
-
+ggplot(diet_zones, aes(x = gini.flipped, y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6) +
+  facet_wrap(~zone_bin)
 
 
 

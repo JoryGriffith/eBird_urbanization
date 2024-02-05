@@ -7,6 +7,7 @@ library(terra)
 library(emmeans)
 library(marginaleffects)
 library(ggeffects)
+library(infer)
 ##### Winter #################
 
 winter.model.data <- read.csv("season_modeling_data.csv") %>% filter(season=="winter")
@@ -207,13 +208,13 @@ season_zones$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(season_zones)){
   if (season_zones$natural[i] >= 0 & season_zones$urban[i] > 0) {
-    season_zones$category[i] <- "In urban"
+    season_zones$category[i] <- "in.urban"
   }
  # else if (season_zones$natural[i] > 0 & season_zones$urban[i] == 0) {
   #  season_zones$category[i] <- "Not in urban"
   #}
   else if (season_zones$natural[i] > 0 & season_zones$urban[i] == 0) {
-    season_zones$category[i] <- "Not in urban"
+    season_zones$category[i] <- "natural.only"
   }
 }
 
@@ -226,6 +227,55 @@ library(ggeffects)
 ggplot(season_zones, aes(x = log(Habitat_breadth_IUCN), y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(season~zone_bin)
+
+
+
+
+##### Now randomize and recalculate mean differences
+# Permute!
+actual_results <- season_zones %>% group_by(zone_bin, category, season) %>% 
+  summarise(mean=mean(Habitat_breadth_IUCN))
+
+actual_diff <- actual_results %>% pivot_wider(names_from="category", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+
+
+##### Now randomize and recalculate mean differences
+# Permute!
+library(infer)
+season_perm <- season_zones %>% 
+  rep_sample_n(size = nrow(season_zones), reps = 999) %>%
+  group_by(zone_bin, season) %>%
+  mutate(category.new = sample(category))
+
+perm_results <- season_perm %>% group_by(zone_bin, replicate, category.new, season) %>% 
+  summarise(mean=mean(Habitat_breadth_IUCN))  
+
+ggplot()+
+  geom_point(perm_results, mapping=aes(x=zone_bin, y=mean, color=category.new), position=position_dodge(width=0.2))+
+  geom_point(actual_results, mapping=aes(y=mean, x=zone_bin, shape=category), color="black", position=position_dodge(width=0.2), size=4)+
+  facet_wrap(~season)
+# interesting!
+# now want to see distribution of differences within zones
+
+
+perm_diffs <- perm_results %>% pivot_wider(names_from="category.new", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+ggplot()+
+  geom_histogram(perm_diffs, mapping=aes(x=difference))+
+  geom_vline(actual_diff, mapping=aes(xintercept = difference), color = "purple")+
+  facet_grid(season~zone_bin)
+# wow! 
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -303,7 +353,8 @@ season_sp_diet$gini.flipped <- 1-(season_sp_diet$gini.index)
 # geom_boxplot(aes(x=lat_bin, y=log(Habitat_breadth_IUCN), fill=category))
 
 #### Try binning by larger categories
-season_sp_diet <- season_sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
+season_sp_diet <- season_sp_diet %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 90), 
+                                                           labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 season_zones_diet <- season_sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.flipped, season) %>% count(.drop=FALSE) %>% 
   filter(!urban2=="suburban") %>% pivot_wider(names_from="urban2", values_from="n")  
@@ -314,10 +365,10 @@ season_zones_diet$category <- NA
 # to make it simpler I will take out surburban for now
 for (i in 1:nrow(season_zones_diet)){
   if (season_zones_diet$natural[i] >= 0 & season_zones_diet$urban[i] > 0) {
-    season_zones_diet$category[i] <- "In urban"
+    season_zones_diet$category[i] <- "in.urban"
   }
   else if (season_zones_diet$natural[i] > 0 & season_zones_diet$urban[i] == 0) {
-    season_zones_diet$category[i] <- "Not in urban"
+    season_zones_diet$category[i] <- "natural.only"
   }
   # else if (season_zones_diet$natural[i] == 0 & season_zones_diet$urban[i] > 0) {
   #  season_zones_diet$category[i] <- "urban.only"
@@ -329,6 +380,51 @@ for (i in 1:nrow(season_zones_diet)){
 ggplot(season_zones_diet, aes(x = log(gini.flipped), y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(season~zone_bin)
+
+
+
+# Permute!
+actual_results <- season_zones_diet %>% group_by(zone_bin, category, season) %>% 
+  summarise(mean=mean(gini.flipped))
+
+actual_diff <- actual_results %>% pivot_wider(names_from="category", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+
+
+##### Now randomize and recalculate mean differences
+# Permute!
+library(infer)
+season_perm_diet <- season_zones_diet %>% 
+  rep_sample_n(size = nrow(season_zones_diet), reps = 999) %>%
+  group_by(zone_bin, season) %>%
+  mutate(category.new = sample(category))
+
+perm_results <- season_perm_diet %>% group_by(zone_bin, replicate, category.new, season) %>% 
+  summarise(mean=mean(gini.flipped))  
+
+ggplot()+
+  geom_point(perm_results, mapping=aes(x=zone_bin, y=mean, color=category.new), position=position_dodge(width=0.2))+
+  geom_point(actual_results, mapping=aes(y=mean, x=zone_bin, shape=category), color="black", position=position_dodge(width=0.2), size=4)+
+  facet_wrap(~season)
+# interesting!
+# now want to see distribution of differences within zones
+
+
+perm_diffs <- perm_results %>% pivot_wider(names_from="category.new", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+ggplot()+
+  geom_histogram(perm_diffs, mapping=aes(x=difference))+
+  geom_vline(actual_diff, mapping=aes(xintercept = difference), color = "purple")+
+  facet_grid(season~zone_bin)
+# wow! 
+
+
+
+
+
+
+
+
 
 
 

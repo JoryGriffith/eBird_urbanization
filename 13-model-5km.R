@@ -1,11 +1,9 @@
 ### Modelling with the scaled up data ######
-
 library(tidyverse)
 library(terra)
 library(sf)
 library(elevatr)
-library(spdep)
-library(spatialreg)
+library(marginaleffects)
 
 ###########################
 # Preparing regular data for modelling
@@ -17,130 +15,163 @@ summary <- read.csv("global_richness_summary_5km.csv")
 ### Use coverage to threshold the data
 coverage <- read.csv("coverage_top500_5km.csv")
 
-quantile(coverage$sampsize_95, 0.95) # 102
+quantile(coverage$sampsize_95, 0.95) # 103
 
 # Remove data with a sample size less than 102
-summary_filt95 <- summary %>% filter(number_checklists >= 102) # went from 569861 to 57873
+summary_filt95 <- summary %>% filter(number_checklists >= 103) # went from 569861 to 57873
 
 
 #### Now I need to load the urbanization data and figure out a threshold for that
-GHSL_5km <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_cellsize.tif")
+GHSL_5km <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 
-summary(values(GHSL_5km))
-# right now it is an average, so I need to figure out thresholds for each category
 
 plot(GHSL_5km)
 
-# Load original data
-GHSLreproj<-rast("/Volumes/Expansion/eBird/SMOD_global/reprojected.SMOD_global.tif")
-unique(values(GHSLreproj))
-summary(values(GHSLreproj)) # NAs 4029
-# recategorize to 1, 2, and 3
 
-GHSLreproj[(GHSLreproj==10)] <- NA
-GHSLreproj <- subst(GHSLreproj, c(11,12, 13), 1)
-GHSLreproj <- subst(GHSLreproj, c(21,22,23), 2)
-GHSLreproj <- subst(GHSLreproj, 30, 3)
-
-# aggregate
-# make 2 layers, one with the percentage of water (NA) cells and one with the mean values
-# calculate percentage of NAs
-GHSL_percNA <- aggregate(is.na(GHSLreproj$SMOD_global), fact=5, mean) * 100
-plot(GHSL_percNA)
-# this looks pretty good
-
-# now do another layer that is the mean of the rest
-GHSL_5km <- aggregate(GHSLreproj, fact=5, mean, na.rm=TRUE)
-#GHSL_5km.test <- GHSL_5km
-# remove the cells that are more than 20% water
-GHSL_5km[(GHSL_percNA > 20)] <- NA
-
-summary(values(GHSL_percNA))
-summary(values(GHSL_5km))
-#summary(values(GHSL_5km.test)) # ok that worked, removed squares that have over 20% water
-
-# Now I need to categorize the rest of the data
-# I think I should also do it by percentages
-# percentage of category 1 (rural)
-GHSL_perc1 <- aggregate(GHSLreproj$SMOD_global==1, fact=5, mean) * 100
-plot(GHSL_perc1)
-
-GHSL_perc2 <- aggregate(GHSLreproj$SMOD_global==2, fact=5, mean) * 100
-plot(GHSL_perc2)
-
-GHSL_perc3 <- aggregate(GHSLreproj$SMOD_global==3, fact=5, mean) * 100
-plot(GHSL_perc3)
-
-# Categorize cells that are more than 60% of one thing as that thing
-GHSL_5km[(GHSL_perc1 > 60)] <- 1 # categorize greater than 60% rural as rural
-GHSL_5km[(GHSL_perc2 > 60)] <- 2 # categorize greater than 60% peri-urban as peri-urban
-GHSL_5km[(GHSL_perc3 > 60)] <- 3 # categorize greater than 60% urban as urban
-# categorize everything else as NA
-GHSL_5km[(GHSL_5km$SMOD_global>1) & (GHSL_5km$SMOD_global<2)] <- NA
-GHSL_5km[(GHSL_5km$SMOD_global>2) & (GHSL_5km$SMOD_global<3)] <- NA
-unique(values(GHSL_5km))
-summary(values(GHSL_5km))
-
-plot(GHSL_5km)
-#GHSL.test <- GHSL_5km
-#GHSL.test[(GHSL.test$SMOD_global<=1.2)] <- 1
-#GHSL.test[(GHSL.test$SMOD_global>1.2) & (GHSL.test$SMOD_global<=1.9)] <- NA
-#GHSL.test[(GHSL.test$SMOD_global>=1.9) & (GHSL.test$SMOD_global<=2.1)] <- 2
-#GHSL.test[(GHSL.test$SMOD_global>2.1) & (GHSL.test$SMOD_global<2.8)] <- NA
-#GHSL.test[(GHSL.test$SMOD_global>=2.8)] <- 3
-
-writeRaster(GHSL_5km, "/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_3levels.tif")
 
 ##### Now extract the urbanization score for the summarised values
 summary_filt95$x <- xFromCell(GHSL_5km, summary_filt95$cell_5km_scale) # extract the coordinates from the cells
 summary_filt95$y <- yFromCell(GHSL_5km, summary_filt95$cell_5km_scale)
 
-summary_filt95$urban <- as.data.frame(terra::extract(GHSL_5km, summary_filt95[,c(21:22)]))$SMOD_global
+summary_filt95$urban <- as.data.frame(terra::extract(GHSL_5km, summary_filt95[,c(20:21)]))$SMOD_global
 
 summary_filt95 %>% group_by(urban) %>% summarise(n=n())
 
 summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # remove NAs - 44340
+summary_filt$urban2 <- factor(summary_filt$urban, levels = c("1", "2", "3"),
+                               labels = c("Natural", "Suburban", "Urban")) # rename as natural, suburban, and urban
 
-summary_filt <- rename(summary_filt, lat = y, long = x) # rename to lat and long
+# Turn into sf (spatial) object
+summary_filt_sf <- st_as_sf(summary_filt, coords=c("x", "y"), crs=st_crs(GHSL_5km))
 
-######## Assign Hemisphere
-summary_filt <- summary_filt %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
+## Add elevation
+# need to convert the points back to lat long
+summary_latlong <- st_transform(summary_filt_sf, crs=st_crs(4326))
+latlong_df <- summary_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
+                                         lat = sf::st_coordinates(.)[,2])
+
+latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL_5km), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+
+dat_summary95 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL_5km)) %>% mutate(x = sf::st_coordinates(.)[,1],
+                                                                                  y = sf::st_coordinates(.)[,2]))
+
+
 
 ######## Extract continent
-continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
-#plot(continents)
+#continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
+##plot(continents)
+#
+#dat_sf <- st_as_sf(dat_summary95, coords=c('long', "lat"), crs=st_crs(continents))
+#
+#dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature)
+#
+#
+######### Extract biome
+#biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
+#class(biomes) # sf and data frame
+#
+#dat_withbiome <- st_join(dat_sf, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
+#
+#
+## create seperate columns for lat long again
+#datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
+ #                                                       lat = sf::st_coordinates(.)[,2]))
 
-dat_sf <- st_as_sf(summary_filt, coords=c('long', "lat"), crs=st_crs(continents))
-
-dat_cont <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature)
-
-
-######## Extract biome
-biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
-class(biomes) # sf and data frame
-
-dat_withbiome <- st_join(dat_sf, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
-
-
-# create seperate columns for lat long again
-datFINAL <- as.data.frame(dat_withbiome[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
-                                                        lat = sf::st_coordinates(.)[,2]))
-
-summary(datFINAL)
+#summary(datFINAL)
 # save as csv
-write_csv(datFINAL, "modeling_data_5km.csv")
+#write_csv(datFINAL, "modeling_data_5km.csv")
 
 ################
-### Add elevation
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_3levels.tif")
-dat.mod <- read.csv("modeling_data_5km.csv")
-dat.mod2 <- dat.mod[,c(24,25,1:23)] # reorder because lat and long need to be the first and second column
+### Add precipitation
+precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
+dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(23:24)], method="bilinear"))$wc2.1_5m_bio_12
 
-dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
 
-dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
 
-write_csv(dat.mod.ele.df, "modeling_data_5km.csv")
+######## Assign Hemisphere
+dat_summary95$hemisphere <- "northern"
+dat_summary95$hemisphere[dat_summary95$lat<0]<-"southern"
+
+
+dat_summary95$abslat <- abs(dat_summary95$lat)
+
+write_csv(dat_summary95, "modeling_data_5km.csv")
+
+
+
+
+
+########################### MODELLING ###################
+full.dat <- read.csv("modeling_data_5km.csv")
+
+
+full.dat %>% group_by(urban) %>% summarise(n=n())
+summary(full.dat)
+hist(full.dat$total_SR, breaks=50)
+
+hist(log(full.dat$total_SR))
+hist(sqrt(full.dat$total_SR), breaks=50) # this looks pretty good
+hist(full.dat$number_checklists)
+
+# filter out latitudes without urban cells
+full.dat <- full.dat %>% filter(lat <= 70 & lat >=-55)
+
+
+ggplot(full.dat, aes(x=abslat, y=total_SR, color=urban2))+
+#  geom_point(alpha=0.1)+
+  geom_smooth(method="lm")
+
+# Run models
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+             precip + log(number_checklists) + elevation, full.dat)
+
+
+# Plot results of model
+square <- function(x){
+  x^2
+} 
+
+## plot results
+predicted.5km<-avg_predictions(mod1, by=c("abslat", "urban2"), 
+                              newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                 urban2=c("Natural", "Suburban", "Urban")))
+
+
+mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
+  ggplot()+
+  geom_point(full.dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.5km, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.5km, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
+mod_5km.plot
+# yup looks pretty much the same!
+plot_slopes(mod1, variables="abslat", condition=c("urban2"))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -270,108 +301,65 @@ results.plot <-
   theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
   guides(fill = guide_legend(byrow = TRUE))
 
-###################
-# Try spatial models
-dat.full.samp <- dat[sample(nrow(full.dat), 10000), ]
-
-lm1.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant 
-               + BIOME + log(number_checklists) + elevation, dat.full.samp) # model
-
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
-dat.samp.sf <- st_as_sf(dat.full.samp, coords=c('long', "lat"), crs=st_crs(GHSL))
-
-
-dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=10) # calculate distances
-dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE) # turn from matrix to list
-# Moran's test
-lm.morantest(lm1.samp, dat.samp.lw, zero.policy = T) # very spatially autocorrelated
-beep()
-lm.LMtests(lm1.samp, dat.samp.lw, test="all", zero.policy = T) # test for spatial error - very significant
-
-# Try LMerr model
-dat.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
-                                         BIOME + log(number_checklists), data = dat.full.samp, listw = dat.samp.lw, zero.policy = TRUE)
-
-dat.full.samp$residuals.sem <- residuals(dat.sem)
-moran.mc(dat.full.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-
-# plot results
-predicted <- predict(dat.sem, interval='confidence')
-dat.samp.test <- cbind(dat.full.samp, predicted)
-
-ggplot(dat.samp.test, aes(x=abs(lat), y=fit^2, color=urban2))+
-  geom_point(alpha=0.1)+
-  geom_smooth(method="lm")
-
-###################################
-#### Modelling spatial data #######
-##################################
-
-dat.seas <- read.csv("season_model_data_5km.csv")
-
-dat.seas$BIOME <- as.factor(dat.seas$BIOME)
-dat.seas$urban <- as.factor(dat.seas$urban)
-
-dat.seas %>% group_by(urban) %>% summarise(n=n())
-summary(dat.seas)
-hist(dat.seas$total_SR, breaks=50)
-
-hist(log(dat.seas$total_SR))
-hist(sqrt(dat.seas$total_SR), breaks=50) # this looks pretty good
-hist(dat.seas$number_checklists)
-
-dat.seas$abslat <- abs(dat.seas$lat)
-
-# Quadrant
-for (i in 1:nrow(dat.seas)){
-  if (dat.seas$long[i] < 0 & dat.seas$hemisphere[i] == "northern") { # quadrant 1 is North America
-    dat.seas$quadrant[i] <- 1
-  }
-  else if (dat.seas$long[i] > 0 & dat.seas$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
-    dat.seas$quadrant[i] <- 2
-  }
-  else if (dat.seas$long[i] < 0 & dat.seas$hemisphere[i] == "southern") { # quadrant 3 is south america 
-    dat.seas$quadrant[i] <- 3 
-  }
-  else {dat.seas$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
-}
-dat.seas$quadrant <- as.factor(dat.seas$quadrant)
-
-dat <- dat.seas %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
-
-###### Run linear model and test for spatial autocorrelation
-dat.seas.samp <- dat[sample(nrow(dat.seas), 20000), ]
-
-lm1.seas.samp <- lm(sqrt(total_SR) ~ abslat * urban * season + quadrant 
-               + BIOME + log(number_checklists) + elevation, dat.seas.samp) # model
-
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtered.tif")
-dat.samp.sf <- st_as_sf(dat.seas.samp, coords=c('long', "lat"), crs=st_crs(GHSL))
-
-
-dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=10) # calculate distances
-dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE) # turn from matrix to list
-# Moran's test
-lm.morantest(lm1.seas.samp, dat.samp.lw, zero.policy = T) # no spatial autocorrelation in this model
-
-# Try spatial model
-dat.seas.sem <- spatialreg::errorsarlm(sqrt(total_SR) ~ abslat * urban * season + quadrant + 
-                                    BIOME + log(number_checklists), data = dat.seas.samp, listw = dat.samp.lw, zero.policy = TRUE)
-
-dat.seas.samp$residuals.sem <- residuals(dat.seas.sem)
-moran.mc(dat.seas.samp$residuals.sem, dat.samp.lw, nsim = 999, zero.policy = TRUE)
-
-# plot results
-predicted <- predict(dat.seas.sem, interval='confidence')
-dat.seas.test <- cbind(dat.seas.samp, predicted)
-
-ggplot(dat.seas.test, aes(x=abs(lat), y=fit^2, color=urban))+
-  geom_point(alpha=0.1)+
-  geom_smooth(method="lm")
 
 
 
 
 
+
+
+
+######### Old code for categorizing by season
+
+
+# aggregate
+# make 2 layers, one with the percentage of water (NA) cells and one with the mean values
+# calculate percentage of NAs
+#GHSL_percNA <- aggregate(is.na(GHSLreproj$SMOD_global), fact=5, mean) * 100
+#plot(GHSL_percNA)
+## this looks pretty good
+#
+## now do another layer that is the mean of the rest
+#GHSL_5km <- aggregate(GHSLreproj, fact=5, mean, na.rm=TRUE)
+##GHSL_5km.test <- GHSL_5km
+## remove the cells that are more than 20% water
+#GHSL_5km[(GHSL_percNA > 20)] <- NA
+#
+#summary(values(GHSL_percNA))
+#summary(values(GHSL_5km))
+##summary(values(GHSL_5km.test)) # ok that worked, removed squares that have over 20% water
+#
+## Now I need to categorize the rest of the data
+## I think I should also do it by percentages
+## percentage of category 1 (rural)
+#GHSL_perc1 <- aggregate(GHSLreproj$SMOD_global==1, fact=5, mean) * 100
+#plot(GHSL_perc1)
+#
+#GHSL_perc2 <- aggregate(GHSLreproj$SMOD_global==2, fact=5, mean) * 100
+#plot(GHSL_perc2)
+#
+#GHSL_perc3 <- aggregate(GHSLreproj$SMOD_global==3, fact=5, mean) * 100
+#plot(GHSL_perc3)
+#
+## Categorize cells that are more than 60% of one thing as that thing
+#GHSL_5km[(GHSL_perc1 > 60)] <- 1 # categorize greater than 60% rural as rural
+#GHSL_5km[(GHSL_perc2 > 60)] <- 2 # categorize greater than 60% peri-urban as peri-urban
+#GHSL_5km[(GHSL_perc3 > 60)] <- 3 # categorize greater than 60% urban as urban
+## categorize everything else as NA
+#GHSL_5km[(GHSL_5km$SMOD_global>1) & (GHSL_5km$SMOD_global<2)] <- NA
+#GHSL_5km[(GHSL_5km$SMOD_global>2) & (GHSL_5km$SMOD_global<3)] <- NA
+#unique(values(GHSL_5km))
+#summary(values(GHSL_5km))
+#
+#plot(GHSL_5km)
+##GHSL.test <- GHSL_5km
+##GHSL.test[(GHSL.test$SMOD_global<=1.2)] <- 1
+##GHSL.test[(GHSL.test$SMOD_global>1.2) & (GHSL.test$SMOD_global<=1.9)] <- NA
+##GHSL.test[(GHSL.test$SMOD_global>=1.9) & (GHSL.test$SMOD_global<=2.1)] <- 2
+##GHSL.test[(GHSL.test$SMOD_global>2.1) & (GHSL.test$SMOD_global<2.8)] <- NA
+##GHSL.test[(GHSL.test$SMOD_global>=2.8)] <- 3
+#
+#writeRaster(GHSL_5km, "/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_3levels.tif")
+#
 
 

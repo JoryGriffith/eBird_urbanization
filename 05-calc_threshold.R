@@ -185,7 +185,7 @@ quantile(coverage$sampsize_98, 0.95) # 198
 
 # load summary data
 summary <- read.csv("global_richness_summary.csv") # 2.1 mil
-
+# threshold for 90 coverage
 summary_filt90 <- summary %>% filter(number_checklists >= 44) # 143,762
 # threshold for 95 coverage
 summary_filt95 <- summary %>% filter(number_checklists >= 83) # 87,117

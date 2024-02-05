@@ -85,4 +85,30 @@ plot(filt, col=colors, ext=extent)
 png(file="new.raster.example.png")
 plot(filt, col=colors, ext=extent)
 dev.off()
-?png
+
+
+
+
+############### Running with different thresholds of modification ############
+
+## threshold of 0.25
+GHSL.test <- GHSL
+GHSL.test[(dat > 0.25 & GHSL.test %in% c(11,12,13))] <- NA # turn everything that is natural and over 0.5 as NA
+GHSL.test[(GHSL.test==10)] <- NA # turn water into NA
+plot(GHSL.test)
+writeRaster(GHSL.test, "/Volumes/Backup/eBird/SMOD_global/GHSL_filtHighThreshold.tif", overwrite=TRUE)
+
+
+## threshold of 0.75
+GHSL.test <- GHSL
+GHSL.test[(dat > 0.75 & GHSL.test %in% c(11,12,13))] <- NA # turn everything that is natural and over 0.5 as NA
+GHSL.test[(GHSL.test==10)] <- NA # turn water into NA
+GHSL[(GHSL==10)] <- NA
+plot(GHSL.test)
+writeRaster(GHSL.test, "/Volumes/Backup/eBird/SMOD_global/GHSL_filtLowThreshold.tif", overwrite=TRUE)
+
+
+
+
+
+

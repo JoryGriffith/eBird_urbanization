@@ -309,7 +309,7 @@ for (j in 1:length(names)){ # 73 in r2c1
   print(paste("finished", names[j]))
 }
 
-coverage <- dplyr::bind_rows(coverage_list)
+ coverage <- dplyr::bind_rows(coverage_list)
 
 coverage %>% group_by(square) %>% summarise(n=n()) 
 

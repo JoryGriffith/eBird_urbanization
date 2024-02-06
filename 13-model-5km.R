@@ -24,7 +24,6 @@ summary_filt95 <- summary %>% filter(number_checklists >= 103) # went from 56986
 #### Now I need to load the urbanization data and figure out a threshold for that
 GHSL_5km <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 
-
 plot(GHSL_5km)
 
 
@@ -37,7 +36,7 @@ summary_filt95$urban <- as.data.frame(terra::extract(GHSL_5km, summary_filt95[,c
 
 summary_filt95 %>% group_by(urban) %>% summarise(n=n())
 
-summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # remove NAs - 44340
+summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # remove NAs - 40366
 summary_filt$urban2 <- factor(summary_filt$urban, levels = c("1", "2", "3"),
                                labels = c("Natural", "Suburban", "Urban")) # rename as natural, suburban, and urban
 
@@ -50,11 +49,11 @@ summary_latlong <- st_transform(summary_filt_sf, crs=st_crs(4326))
 latlong_df <- summary_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                          lat = sf::st_coordinates(.)[,2])
 
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL_5km), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+latlong_df <- get_elev_point(latlong_df[,c(23,24, 1:21)], prj=crs(summary_latlong), src="aws", overwrite=TRUE)
+
 
 dat_summary95 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL_5km)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                   y = sf::st_coordinates(.)[,2]))
-
 
 
 ######## Extract continent
@@ -84,7 +83,7 @@ dat_summary95 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL_5km)) %>% m
 ################
 ### Add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(23:24)], method="bilinear"))$wc2.1_5m_bio_12
+dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 
 
 
@@ -122,9 +121,10 @@ ggplot(full.dat, aes(x=abslat, y=total_SR, color=urban2))+
   geom_smooth(method="lm")
 
 # Run models
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + precip + log(number_checklists), full.dat)
+# something is going wrong with the elevation
 mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
              precip + log(number_checklists) + elevation, full.dat)
-
 
 # Plot results of model
 square <- function(x){
@@ -132,7 +132,7 @@ square <- function(x){
 } 
 
 ## plot results
-predicted.5km<-avg_predictions(mod1, by=c("abslat", "urban2"), 
+predicted.5km<-avg_predictions(mod1, by=c("abslat", "urban2"), transform=square, 
                               newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
                                                  urban2=c("Natural", "Suburban", "Urban")))
 
@@ -149,7 +149,7 @@ mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), t
   scale_x_continuous(expand=c(0, 0))+
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 mod_5km.plot
-# yup looks pretty much the same!
+
 plot_slopes(mod1, variables="abslat", condition=c("urban2"))
 
 
@@ -183,9 +183,11 @@ plot_slopes(mod1, variables="abslat", condition=c("urban2"))
 # load data
 summer <- read.csv("summer_richness_summary_5km.csv")
 winter <- read.csv("winter_richness_summary_5km.csv")
+# ok something went wrong here
+
 
 # extract urbanization values for each
-GHSL_5km <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_5km_3levels.tif")
+GHSL_5km <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_5km_cellsize.tif")
 plot(GHSL_5km)
 
 summer$x <- xFromCell(GHSL_5km, summer$cell_5km) # extract the coordinates from the cells
@@ -203,7 +205,7 @@ winter$season <- "winter"
 
 season_dat <- rbind(summer, winter) # put them together
 # threshold to 102
-season_dat_filt <- season_dat %>% filter(number_checklists >=102)
+season_dat_filt <- season_dat %>% filter(number_checklists >=103)
 season_dat_filt <- season_dat_filt %>% filter(!is.na(urban))
 
 season_dat_filt %>% group_by(season) %>% summarise(n=n()) # 12,359 summer and 15,254 winter
@@ -211,34 +213,34 @@ season_dat_filt %>% group_by(urban) %>% summarise(n=n())
 
 #####################
 # extract continent 
-continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
-#plot(continents)
-
-dat_sf <- st_as_sf(season_dat_filt, coords=c('x', "y"), crs=st_crs(continents))
-
-dat_cont_seas <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
+#continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
+##plot(continents)
+#
+#dat_sf <- st_as_sf(season_dat_filt, coords=c('x', "y"), crs=st_crs(continents))
+#
+#dat_cont_seas <- st_join(dat_sf, continents[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
 
 ###################
 # extract biome 
-biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
-
-dat_withbiome_seas <- st_join(dat_cont_seas, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
-
-# create seperate columns for lat long again
-datFINAL_seas <- as.data.frame(dat_withbiome_seas[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
-                                                        lat = sf::st_coordinates(.)[,2]))
-
-datFINAL_seas <- datFINAL_seas %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
-
-# save final data as csv
-write_csv(datFINAL_seas, "season_model_data_5km.csv")
+#biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
+#
+#dat_withbiome_seas <- st_join(dat_cont_seas, biomes[,"BIOME"], left=TRUE, join=st_nearest_feature)
+#
+## create seperate columns for lat long again
+#datFINAL_seas <- as.data.frame(dat_withbiome_seas[,-1] %>% mutate(long = sf::st_coordinates(.)[,1],
+#                                                        lat = sf::st_coordinates(.)[,2]))
+#
+#datFINAL_seas <- datFINAL_seas %>% mutate(hemisphere = if_else(lat>0, "northern", "southern"))
+#
+## save final data as csv
+#write_csv(datFINAL_seas, "season_model_data_5km.csv")
 
 ################
 ### Add elevation
 dat.mod <- read.csv("season_model_data_5km.csv")
-dat.mod2 <- dat.mod[,c(13,14, 1:12,15)] # reorder because lat and long need to be the first and second column
+dat.mod2 <- dat.mod[,c(15,16, 1:12,)] # reorder because lat and long need to be the first and second column
 
-dat.mod.ele <- get_elev_point(dat.mod2, prj=crs(GHSL), src="aws") # extract elevations from amazon web services
+dat.mod.ele <- get_elev_point(dat.mod2[,c(15,16)], prj=st_crs(4328), src="aws") # extract elevations from amazon web services
 
 dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
 
@@ -309,7 +311,7 @@ results.plot <-
 
 
 
-######### Old code for categorizing by season
+######### Old code for categorizing by urbanization
 
 
 # aggregate

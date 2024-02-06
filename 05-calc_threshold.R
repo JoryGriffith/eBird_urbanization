@@ -201,7 +201,7 @@ summary_filt98 <- summary %>% filter(number_checklists >= 198) # 40,298
 
 # now need to put this in raster form and merge with the urbanization raster
 # this raster layer has the places with high human impact removed
-GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
 plot(GHSL)
 
 # need to extract cell numbers, urbanization scores, and x and y coordinates from the raster
@@ -225,7 +225,7 @@ write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 #### PREPARE DATA FOR MODELLING
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
 plot(GHSL)
 
 # load thresholded summary data
@@ -236,7 +236,7 @@ dat <- read.csv("5yr_summary/summary_thresholded.csv")
 
 ##################
 # Add continent
-continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
+continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
 continents_moll <- st_transform(continents, crs=crs(GHSL)) 
 
 #plot(continents)
@@ -249,7 +249,7 @@ dat_cont <- st_join(dat_sf, continents_moll[,"CONTINENT"], left=TRUE, join=st_ne
 #########################
 # Add biome - downloaded from WWF ecoregions of the world
 # Classifying points into biomes using a terrestrial biomes shapefile
-biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
+biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
 biomes_moll <- st_transform(biomes, crs=crs(GHSL)) 
 
 class(biomes) # sf and data frame
@@ -271,12 +271,13 @@ class(dat_withbiome)
 dat_latlong <- st_transform(dat_withbiome, crs=st_crs(4326))
 latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                             lat = sf::st_coordinates(.)[,2])
+#latlong_df_old <- latlong_df
+#latlong_df_old$elevation <- as.data.frame(get_elev_point(latlong_df_old, prj=crs(dat_latlong), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+# ^^ wrong way
+latlong_df <- get_elev_point(latlong_df[,c(26,27,2:24)], prj=crs(dat_latlong), src="aws", overwrite=TRUE)
 
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
-
-datFINAL <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
+dat <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                y = sf::st_coordinates(.)[,2]))
-dat <- datFINAL[,-1]
 
 
 #### assign hemisphere
@@ -299,22 +300,22 @@ dat$urban2 <- as.factor(dat$urban2) # turn into factor for modelling
 dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
                      labels = c("Natural", "Suburban", "Urban")) # rename as natural, suburban, and urban
 
-# Divide globe into 4 quadrants at the prime meridian and antimeridian
-dat$quadrant <- NA
-
-for (i in 1:nrow(dat)){
-  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
-    dat$quadrant[i] <- 1
-  }
-  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
-    dat$quadrant[i] <- 2
-  }
-  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
-    dat$quadrant[i] <- 3 
-  }
-  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
-}
-dat$quadrant <- as.factor(dat$quadrant)
+## Divide globe into 4 quadrants at the prime meridian and antimeridian
+#dat$quadrant <- NA
+#
+#for (i in 1:nrow(dat)){
+#  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+#    dat$quadrant[i] <- 1
+#  }
+#  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+#    dat$quadrant[i] <- 2
+#  }
+#  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+#    dat$quadrant[i] <- 3 
+#  }
+#  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+#}
+#dat$quadrant <- as.factor(dat$quadrant)
 
 ### Seeing what the highest latitude is for urbanand suburban and removing points above that latitude (so they are comparable)
 urb <- dat %>% filter(urban2=="Urban")
@@ -339,11 +340,12 @@ unique(dat$CONTINENT)
 
 ##### Add precipitation data
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
+plot(precip)
 #dat <- read.csv("modeling_data.csv")
-dat$precip <- as.data.frame(terra::extract(precip, dat[,c(27:28)], method="bilinear"))$wc2.1_5m_bio_12
+dat$precip <- as.data.frame(terra::extract(precip, dat[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 
 ###### Save data
-write.csv(dat, "modeling_data.csv", row.names=FALSE)
+write_csv(dat, "modeling_data.csv")
 
 
 

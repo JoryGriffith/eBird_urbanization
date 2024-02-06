@@ -13,9 +13,10 @@ library(iNEXT)
 
 ####### Load GHSL layer, aggregate to larger resolution, combine with GHM layer, and assign urbanization scores #####
 
-# load original reprojected raster file
+# load original raster file
 
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+
 #### Bin into 3 categories
 GHSL <- subst(GHSL, 10, NA) # turn water into NA
 GHSL <- subst(GHSL, 30, 3) # turn urban into 3
@@ -57,8 +58,28 @@ writeRaster(GHSL.test, filename="/Volumes/Expansion/eBird/SMOD_global/SMOD_5km_c
 
 
 
+### Another way
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filt_3cat.tif")
 
 
+custom <- function(x){
+  uniq_v <- unique(x)
+  output <- uniq_v[which.max(tabulate(match(x, uniq_v)))]
+  sum(x == output)/length(x)
+}
+
+maj_raster <- terra::aggregate(GHSL, fact = 5, fun = modal)
+perc_raster <- terra::aggregate(GHSL, fact = 5, fun = custom, cores=4)
+plot(perc_raster)
+plot(maj_raster)
+# delete everything where its less than 60%
+raster.new <- maj_raster
+raster.new[(perc_raster < 0.7)] <- NA
+plot(maj_raster)
+plot(raster.new)
+
+
+writeRaster(raster.new, filename="/Volumes/Backup/eBird/SMOD_global/SMOD_5km_cellsize.tif", overwrite=TRUE)
 
 
 

@@ -72,7 +72,11 @@ summary_latlong <- st_transform(summary_sf, crs=st_crs(4326))
 latlong_df <- summary_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                      lat = sf::st_coordinates(.)[,2])
 
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+crs(summary_latlong)
+latlong_df <- get_elev_point(latlong_df[,c(23,24,2:21)], prj=crs(summary_latlong), src="aws", overwrite=TRUE) # extract elevations from amazon web services
+# does the crs change anything
+#test <- latlong_df
+#test$elevation <- as.data.frame(get_elev_point(test, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1]
 
 dat_summary90 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                              y = sf::st_coordinates(.)[,2]))
@@ -85,7 +89,7 @@ dat_summary90$hemisphere[dat_summary90$lat<0]<-"southern"
 
 ## add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-dat_summary90$precip <- as.data.frame(terra::extract(precip, dat_summary90[,c(23:24)], method="bilinear"))$wc2.1_5m_bio_12
+dat_summary90$precip <- as.data.frame(terra::extract(precip, dat_summary90[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 
 dat_summary90$abslat <- abs(dat_summary90$lat)
 
@@ -211,7 +215,7 @@ summary_latlong <- st_transform(summary.95_sf, crs=st_crs(4326))
 latlong_df <- summary_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                          lat = sf::st_coordinates(.)[,2])
 
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+latlong_df <- get_elev_point(latlong_df[,c(23,24,2:21)], prj=crs(summary_latlong), src="aws", overwrite=TRUE) # extract elevations from amazon web services
 
 dat_summary95 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                   y = sf::st_coordinates(.)[,2]))
@@ -223,7 +227,7 @@ dat_summary95
 
 ## add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(23:24)], method="bilinear"))$wc2.1_5m_bio_12
+dat_summary95$precip <- as.data.frame(terra::extract(precip, dat_summary95[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 
 dat_summary95$abslat <- abs(dat_summary95$lat)
 
@@ -254,7 +258,7 @@ predicted.highmod<-avg_predictions(low.model, by=c("abslat", "urban2"), transfor
 
 GHMlowmod.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
-  geom_point(dat_highmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(dat_lowmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.highmod, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.highmod, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+

@@ -316,6 +316,12 @@ coverage %>% group_by(square) %>% summarise(n=n())
 write.csv(coverage, "coverage_top500_5km.csv", row.names=FALSE)
 
 
+
+
+
+
+
+
 #################################
 #################################
 
@@ -337,12 +343,13 @@ for (j in 1:length(years)){
     
     dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
     # turn into spatvector
-    vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
+    vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+    vect2 <- st_transform(vect, crs=crs(GHSL_5km))
     
-    xy=geom(vect)
+    xy=st_coordinates(vect2)
     
     # get cell number that each point is in
-    dat$cell_5km<-cellFromXY(GHSL_5km, xy[,3:4])
+    dat$cell_5km<-cellFromXY(GHSL_5km, xy)
     # also get coordinates for the midpoint of each cell
     write.table(dat, paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), row.names=FALSE)
     print(paste("finished", names[i]))
@@ -358,12 +365,12 @@ for (j in 1:length(years)){
     
     dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
     # turn into spatvector
-    vect <- vect(dat, crs=crs(GHSL_5km),geom=c("LONGITUDE","LATITUDE"))
+    vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+    vect2 <- st_transform(vect, crs=crs(GHSL_5km))
     
-    xy=geom(vect)
-    
+    xy=st_coordinates(vect2)
     # get cell number that each point is in
-    dat$cell_5km<-cellFromXY(GHSL_5km, xy[,3:4])
+    dat$cell_5km<-cellFromXY(GHSL_5km, xy)
     # also get coordinates for the midpoint of each cell
     write.table(dat, paste("/Volumes/Expansion/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), row.names=FALSE)
     print(paste("finished", names[i]))

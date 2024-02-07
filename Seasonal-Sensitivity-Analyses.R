@@ -69,12 +69,12 @@ summary_sf <- st_as_sf(season_dat.90, coords=c("x", "y"), crs=st_crs(GHSL))
 dat_latlong <- st_transform(summary_sf, crs=st_crs(4326)) # get lat long coordinates as well for the elevation extraction
 latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                      lat = sf::st_coordinates(.)[,2])
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+latlong_df <- get_elev_point(latlong_df[,c(12,13,2:10)], prj=crs(summary_sf), src="aws", overwrite=TRUE) # extract elevations from amazon web services
 season_dat.90 <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                              y = sf::st_coordinates(.)[,2]))
 # add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-season_dat.90$precip <- as.data.frame(terra::extract(precip, season_dat.90[,c(12:13)], method="bilinear"))$wc2.1_5m_bio_12
+season_dat.90$precip <- as.data.frame(terra::extract(precip, season_dat.90[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 # add hemisphere
 season_dat.90$hemisphere <- "northern"
 season_dat.90$hemisphere[season_dat.90$lat<0]<-"southern"
@@ -116,6 +116,9 @@ seasonLDGplot.90
 # yup pretty much the same result
 plot_slopes(season.model.90, variables="abslat", condition=c("urban2", "season"))
 # yes, the slope overlaps 0 in summer urban still!!
+
+
+
 
 
 
@@ -184,12 +187,12 @@ summary_sf <- st_as_sf(season_dat.lowmod, coords=c("x", "y"), crs=st_crs(lowmod)
 dat_latlong <- st_transform(summary_sf, crs=st_crs(4326)) # get lat long coordinates as well for the elevation extraction
 latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                      lat = sf::st_coordinates(.)[,2])
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+latlong_df <- get_elev_point(latlong_df[,c(12,13,2:10)], prj=crs(summary_sf), src="aws", overwrite=TRUE) # extract elevations from amazon web services
 season_dat.lowmod <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                   y = sf::st_coordinates(.)[,2]))
 # add precipitation
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
-season_dat.lowmod$precip <- as.data.frame(terra::extract(precip, season_dat.lowmod[,c(12:13)], method="bilinear"))$wc2.1_5m_bio_12
+season_dat.lowmod$precip <- as.data.frame(terra::extract(precip, season_dat.lowmod[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 # add hemisphere
 season_dat.lowmod$hemisphere <- "northern"
 season_dat.lowmod$hemisphere[season_dat.lowmod$lat<0]<-"southern"

@@ -11,6 +11,10 @@ library(cowplot)
 library(tidyterra)
 library(ggeffects)
 library(patchwork)
+library(permute)
+
+
+
 ## First I want to thin the data so that for each cell, there is only one row for each species 
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
@@ -924,17 +928,44 @@ for (i in 1:nrow(birds_zones)){
 }
 
 # look at birds in different categories and see where they are found
-urban.only <- birds_zones %>% filter(category=="urban.only") # remove urban only birds?
-urban.only2 <- urban.only %>% pivot_wider(names_from="zone_bin", values_from="urban")
-
 
 ##### denisty plot of trait values ##########
 ggplot(birds_zones, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
 
+actual_results <- birds_zones %>% group_by(zone_bin, category) %>% 
+  summarise(mean=mean(Habitat_breadth_IUCN))
+
+actual_diff <- actual_results %>% pivot_wider(names_from="category", values_from="mean") %>% mutate(difference = in.urban-natural.only)
 
 
+
+##### Now randomize and recalculate mean differences
+# Permute!
+library(infer)
+year_perm <- birds_zones %>% 
+  rep_sample_n(size = nrow(diet_zones), reps = 999) %>%
+  group_by(zone_bin) %>%
+  mutate(category.new = sample(category))
+  
+perm_results <- year_perm %>% group_by(zone_bin, replicate, category.new) %>% 
+  summarise(mean=mean(Habitat_breadth_IUCN))  
+
+ggplot()+
+  geom_point(perm_results, mapping=aes(x=zone_bin, y=mean, color=category.new), position=position_dodge(width=0.2))+
+  geom_point(actual_results, mapping=aes(y=mean, x=zone_bin, shape=category), color="black", position=position_dodge(width=0.2), size=4)
+# interesting!
+# now want to see distribution of differences within zones
+
+
+perm_diffs <- perm_results %>% pivot_wider(names_from="category.new", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+ggplot()+
+  geom_histogram(perm_diffs, mapping=aes(x=difference))+
+  geom_vline(actual_diff, mapping=aes(xintercept = difference), color = "purple")+
+  facet_wrap(~zone_bin)
+# wow! 
 
 
 #both <- birds_zones %>% filter(category=="both")
@@ -1079,6 +1110,11 @@ ggplot(data=world)+
 ###########################################
 
 
+
+
+
+
+
 ### Diet specialization
 sp_diet <- read.table("unique_sp_dietspec.txt", header=T) %>% filter(!is.na(gini.index))
 
@@ -1112,7 +1148,7 @@ diet_zones$category <- NA
 
 for (i in 1:nrow(diet_zones)){
   if (diet_zones$natural[i] >= 0  & diet_zones$urban[i] > 0) {
-    diet_zones$category[i] <- "both"
+    diet_zones$category[i] <- "in.urban"
   }
   # else if (diet_zones$natural[i] == 0 & diet_zones$urban[i] > 0) {
   # diet_zones$category[i] <- "urban.only"
@@ -1133,6 +1169,55 @@ ggplot(diet_zones, aes(x = log(gini.flipped), y=after_stat(count), fill=category
 ggplot(diet_zones, aes(x = gini.flipped, y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
+
+
+
+# calucate actual means and mean difference
+actual_results <- diet_zones %>% group_by(zone_bin, category) %>% 
+  summarise(mean=mean(gini.flipped))
+
+actual_diff <- actual_results %>% pivot_wider(names_from="category", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+
+##### permute diet values!
+diet_perm <- diet_zones %>% 
+  rep_sample_n(size = nrow(diet_zones), reps = 999) %>%
+  group_by(zone_bin) %>%
+  mutate(category.new = sample(category))
+
+perm_results <- diet_perm %>% group_by(zone_bin, replicate, category.new) %>% 
+  summarise(mean=mean(gini.flipped))
+
+ggplot()+
+  geom_point(perm_results, mapping=aes(x=zone_bin, y=mean, color=category.new), position=position_dodge(width=0.2))+
+  geom_point(actual_results, mapping=aes(y=mean, x=zone_bin, shape=category), color="black", position=position_dodge(width=0.2), size=4)
+# interesting!
+# now want to see distribution of differences within zones
+
+
+perm_diffs <- perm_results %>% pivot_wider(names_from="category.new", values_from="mean") %>% mutate(difference = in.urban-natural.only)
+
+ggplot()+
+  geom_histogram(perm_diffs, mapping=aes(x=difference))+
+  geom_vline(actual_diff, mapping=aes(xintercept = difference), color = "purple")+
+  facet_wrap(~zone_bin)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1318,6 +1403,9 @@ total_bar
 
 # this is the total number of species (not only the ones that matched up)
 #ggsave(total_bar, file="total_species_zones.png", height=7, width=4)
+
+
+
 
 
 

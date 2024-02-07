@@ -302,7 +302,7 @@ summer_filt95 <- sum_dat %>% filter(number_checklists >= 62) # 26644
 winter_filt95 <- wint_dat %>% filter(number_checklists >= 73) # 28257
 
 ## Extract urbanization values for each
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
 # Summer
 summer_filt95$x <- xFromCell(GHSL, summer_filt95$cell) # extract the coordinates from the cells
 summer_filt95$y <- yFromCell(GHSL, summer_filt95$cell)
@@ -325,7 +325,7 @@ season_dat <- rbind(summer_filt95, winter_filt95)
 #season_dat <- season_dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
 
 ## Add continent
-continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
+continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
 continents_moll <- st_transform(continents, crs=crs(GHSL)) 
 
 season_dat_sf <- st_as_sf(season_dat, coords=c("x", "y"), crs=st_crs(GHSL))
@@ -333,7 +333,7 @@ season_dat_sf <- st_as_sf(season_dat, coords=c("x", "y"), crs=st_crs(GHSL))
 dat_cont <- st_join(season_dat_sf, continents_moll[,"CONTINENT"], left=TRUE, join=st_nearest_feature) # joining by nearest feature
 
 ## Extract biome
-biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
+biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
 biomes_moll <- st_transform(biomes, crs=crs(GHSL)) 
 dat_withbiome <- st_join(dat_cont, biomes_moll[,c("REALM", "BIOME")], left=TRUE, join=st_nearest_feature)
 
@@ -342,14 +342,13 @@ dat_latlong <- st_transform(dat_withbiome, crs=st_crs(4326)) # get lat long coor
 latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                      lat = sf::st_coordinates(.)[,2])
 
-latlong_df$elevation <- as.data.frame(get_elev_point(latlong_df, prj=crs(GHSL), src="aws", overwrite=TRUE))[,1] # extract elevations from amazon web services
+latlong_df <- get_elev_point(latlong_df[,c(15,16,2:13)], prj=crs(dat_latlong), src="aws", overwrite=TRUE) # extract elevations from amazon web services
 
-datFINAL <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
+dat <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                              y = sf::st_coordinates(.)[,2]))
 
 
 ######### Continue to prepare data for modelling
-dat <- datFINAL[,-1]
 
 # assign hemisphere
 dat$hemisphere <- "northern"
@@ -365,19 +364,19 @@ dat$urban2 <- as.factor(dat$urban2)
 dat$abslat <- abs(dat$lat) # absolute latitude
 
 # Divide by quartiles
-for (i in 1:nrow(dat)){
-  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
-    dat$quadrant[i] <- 1
-  }
-  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
-    dat$quadrant[i] <- 2
-  }
-  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
-    dat$quadrant[i] <- 3 
-  }
-  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
-}
-dat$quadrant <- as.factor(dat$quadrant)
+#for (i in 1:nrow(dat)){
+#  if (dat$long[i] < 0 & dat$hemisphere[i] == "northern") { # quadrant 1 is North America
+#    dat$quadrant[i] <- 1
+#  }
+#  else if (dat$long[i] > 0 & dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
+#    dat$quadrant[i] <- 2
+#  }
+#  else if (dat$long[i] < 0 & dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
+#    dat$quadrant[i] <- 3 
+#  }
+#  else {dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
+#}
+#dat$quadrant <- as.factor(dat$quadrant)
 
 #dat <- dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
 
@@ -403,7 +402,7 @@ dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
 #### Add precipitation data
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
 #dat <- read.csv("season_modeling_data.csv")
-dat$precip <- as.data.frame(terra::extract(precip, dat[,c(15:16)], method="bilinear"))$wc2.1_5m_bio_12
+dat$precip <- as.data.frame(terra::extract(precip, dat[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
 
 ## Save data
 write_csv(dat, "season_modeling_data.csv")

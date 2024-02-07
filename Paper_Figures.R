@@ -129,7 +129,7 @@ mainLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tr
 mainLDGplot
 # yay this plot is the same!
 #mainLDGplot | marginal.full
-
+plot_slopes(full.model, variables="abslat", condition=c("urban2"))
 
 
 
@@ -167,7 +167,7 @@ ggsave(proportion.plot, file="full.proportion.plot.png", height=5, width=6)
 ######## Plot results of seasonal data
 marginal.season <- plot_predictions(season.model, condition=c("abslat", "urban2", "season"), transform=square, points=0.01)
 
-plot_slopes(season.model, variables="abslat", condition=c("urban2", "hemisphere", "season"))
+plot_slopes(season.model, variables="abslat", condition=c("urban2", "season"))
 
 predicted.season <- avg_predictions(season.model, by=c("abslat", "urban2", "season"), transform=square, 
                                          newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),

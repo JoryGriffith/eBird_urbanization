@@ -120,8 +120,7 @@ ggplot(full.dat, aes(x=abslat, y=total_SR, color=urban2))+
 #  geom_point(alpha=0.1)+
   geom_smooth(method="lm")
 
-# Run models
-mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + precip + log(number_checklists), full.dat)
+
 # something is going wrong with the elevation
 mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
              precip + log(number_checklists) + elevation, full.dat)
@@ -211,6 +210,10 @@ season_dat_filt <- season_dat_filt %>% filter(!is.na(urban))
 season_dat_filt %>% group_by(season) %>% summarise(n=n()) # 12,359 summer and 15,254 winter
 season_dat_filt %>% group_by(urban) %>% summarise(n=n())
 
+
+season_dat_filt$urban2 <- factor(season_dat_filt$urban, levels = c("1", "2", "3"),
+                              labels = c("Natural", "Suburban", "Urban")) # rename as natural, suburban, and urban
+
 #####################
 # extract continent 
 #continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
@@ -237,73 +240,85 @@ season_dat_filt %>% group_by(urban) %>% summarise(n=n())
 
 ################
 ### Add elevation
-dat.mod <- read.csv("season_model_data_5km.csv")
-dat.mod2 <- dat.mod[,c(15,16, 1:12,)] # reorder because lat and long need to be the first and second column
+# Turn into sf (spatial) object
+season_dat_filt_sf <- st_as_sf(season_dat_filt, coords=c("x", "y"), crs=st_crs(GHSL_5km))
 
-dat.mod.ele <- get_elev_point(dat.mod2[,c(15,16)], prj=st_crs(4328), src="aws") # extract elevations from amazon web services
+summary_latlong <- st_transform(season_dat_filt_sf, crs=st_crs(4326)) # change crs
+latlong_df <- summary_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
+                                         lat = sf::st_coordinates(.)[,2])
 
-dat.mod.ele.df <- as.data.frame(dat.mod.ele) %>% rename(long=coords.x1, lat=coords.x2)
+latlong_df <- get_elev_point(latlong_df[,c(13,14,2:11)], prj=crs(summary_latlong), src="aws", overwrite=TRUE)
 
-write_csv(dat.mod.ele.df, "season_model_data_5km.csv")
+
+dat_season <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL_5km)) %>% mutate(x = sf::st_coordinates(.)[,1],
+                                                                                      y = sf::st_coordinates(.)[,2]))
+
+
+
+### Add precipitation
+precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
+dat_season$precip <- as.data.frame(terra::extract(precip, dat_season[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
+
+
+
+######## Assign Hemisphere
+dat_season$hemisphere <- "northern"
+dat_season$hemisphere[dat_season$lat<0]<-"southern"
+
+
+dat_season$abslat <- abs(dat_season$lat)
+
+
+write_csv(dat_season, "season_model_data_5km.csv")
 
 
 #################################
-#### Modeling regular data ########
+#### Modeling seasonal data ########
 ############################
 
-full.dat <- read.csv("modeling_data_5km.csv")
+season.dat <- read.csv("season_model_data_5km.csv")
 # need to rerun this because it did not save correctly
 
-full.dat$BIOME <- as.factor(full.dat$BIOME)
-full.dat$urban <- as.factor(full.dat$urban)
+season.dat %>% group_by(urban) %>% summarise(n=n())
+summary(season.dat)
+hist(season.dat$total_SR, breaks=50)
 
-full.dat %>% group_by(urban) %>% summarise(n=n())
-summary(full.dat)
-hist(full.dat$total_SR, breaks=50)
+hist(log(season.dat$total_SR))
+hist(sqrt(season.dat$total_SR), breaks=50) # this looks pretty good
+hist(season.dat$number_checklists)
 
-hist(log(full.dat$total_SR))
-hist(sqrt(full.dat$total_SR), breaks=50) # this looks pretty good
-hist(full.dat$number_checklists)
-
-# Quadrant
-for (i in 1:nrow(full.dat)){
-  if (full.dat$long[i] < 0 & full.dat$hemisphere[i] == "northern") { # quadrant 1 is North America
-    full.dat$quadrant[i] <- 1
-  }
-  else if (full.dat$long[i] > 0 & full.dat$hemisphere[i] == "northern") { # quadrant 2 is europe and asia and N Africa
-    full.dat$quadrant[i] <- 2
-  }
-  else if (full.dat$long[i] < 0 & full.dat$hemisphere[i] == "southern") { # quadrant 3 is south america 
-    full.dat$quadrant[i] <- 3 
-  }
-  else {full.dat$quadrant[i] <- 4} # quadrant 4 is oceania and southern africa
-}
-full.dat$quadrant <- as.factor(full.dat$quadrant)
-
-full.dat <- full.dat %>% filter(!CONTINENT == "Antarctica") # filter out antarctica
 
 # Run models
-mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
-             abs(lat):CONTINENT + BIOME + log(number_checklists), full.dat)
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season + hemisphere + 
+             precip + log(number_checklists) + elevation, season.dat)
+# added hemisphere as a intercept effect because model was rank deficient
 
 
-full.dat$abslat <- abs(full.dat$lat)
+square <- function(x){
+  x^2
+} 
 
-mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + abslat:hemisphere + 
-                   BIOME + log(number_checklists), full.dat) # square root transform total species richness
-
-# Plot results of model
-predicted <- ggpredict(mod2, terms = c("abslat", "urban")) 
-
-results.plot <-
-  plot(predicted, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-  theme_bw()+
-  labs(x="Absolute Latitude", y="Species Richness", color="Urban")+
-  theme(text=element_text(size=20), legend.spacing.y = unit(1, 'cm'))+
-  guides(fill = guide_legend(byrow = TRUE))
+## plot results
+predicted.season.5km<-avg_predictions(mod1, by=c("abslat", "urban2", "season"), transform=square, 
+                                      newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                                         season = c("summer", "winter")))
 
 
+mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
+  ggplot()+
+  geom_point(season.dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(predicted.season.5km, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.season.5km, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())+
+  facet_wrap(~season)
+mod_5km.plot
+
+plot_slopes(mod1, variables="abslat", condition=c("urban2", "season"))
 
 
 

@@ -102,7 +102,10 @@ write_csv(dat_summary95, "modeling_data_5km.csv")
 
 ########################### MODELLING ###################
 full.dat <- read.csv("modeling_data_5km.csv")
-
+urb <- full.dat %>% filter(urban2=="Urban")
+suburb <- full.dat %>% filter(urban2=="Suburban")
+range(urb$abslat)
+range(suburb$abslat) # only goes up to 47
 
 full.dat %>% group_by(urban) %>% summarise(n=n())
 summary(full.dat)
@@ -146,13 +149,34 @@ mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), t
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
-  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
+  theme(legend.title=element_blank(), text=element_text(size=15), legend.position="none", axis.title.x=element_blank())
 mod_5km.plot
 
-plot_slopes(mod1, variables="abslat", condition=c("urban2"))
+#plot_slopes(mod1, variables="abslat", condition=c("urban2"))
+ggsave(mod_5km.plot, file="supplement_figs/5km.full.plot.png", height=5, width=8)
+
+### proportion plot
+proportion.5km <- predicted.5km %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
+  pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
+  mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, 
+         LCL.urb = conf.low_Urban/conf.high_Natural,
+         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
+         LCL.suburb = conf.low_Suburban/conf.high_Natural)
 
 
+thinned.proportion.5km <- ggplot(proportion.5km, aes(x=abslat, y=proportion.urb))+
+  geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1.5)+
+  #  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
+  #  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  ylim(0.5,1)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme()+
+  theme(text=element_text(size=20))
 
+ggsave(thinned.proportion.5km, file="supplement_figs/thinned.proportion.5km.png", height=5, width=7)
 
 
 
@@ -314,11 +338,79 @@ mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), t
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
-  theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=15), 
+        strip.text=element_blank())+
   facet_wrap(~season)
 mod_5km.plot
 
+ggsave(mod_5km.plot, file="supplement_figs/5km.season.plot.png", height=5, width=8)
+
+
+
+
+
+
 plot_slopes(mod1, variables="abslat", condition=c("urban2", "season"))
+
+
+### proportion plots
+proportion.5km.wint <- predicted.season.5km %>% filter(season=="winter") %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
+  pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
+  mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, 
+         LCL.urb = conf.low_Urban/conf.high_Natural,
+         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
+         LCL.suburb = conf.low_Suburban/conf.high_Natural)
+
+
+thinned.proportion.5km.wint <- ggplot(proportion.5km.wint, aes(x=abslat, y=proportion.urb))+
+  geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1.5)+
+  #  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
+  #  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  ylim(0.5,1.5)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme()+
+  theme(text=element_text(size=20))
+
+ggsave(thinned.proportion.5km.wint, file="supplement_figs/thinned.proportion.5km.wint.png", height=5, width=7)
+
+
+
+proportion.5km.sum <- predicted.season.5km %>% filter(season=="summer") %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
+  pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
+  mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, 
+         LCL.urb = conf.low_Urban/conf.high_Natural,
+         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
+         LCL.suburb = conf.low_Suburban/conf.high_Natural)
+
+
+thinned.proportion.5km.sum <- ggplot(proportion.5km.sum, aes(x=abslat, y=proportion.urb))+
+  geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1.5)+
+  #  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
+  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
+  #  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
+  geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
+  ylim(0.5,1)+
+  theme_classic()+
+  labs(y="Proportion of natural diversity", x="Absolute Latitude")+
+  theme()+
+  theme(text=element_text(size=20))
+
+ggsave(thinned.proportion.5km.sum, file="supplement_figs/thinned.proportion.5km.sum.png", height=5, width=7)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

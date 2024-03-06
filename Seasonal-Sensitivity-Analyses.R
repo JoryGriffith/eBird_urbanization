@@ -4,6 +4,7 @@ library(terra)
 library(marginaleffects)
 library(sf)
 library(elevatr)
+library(ggeffects)
 
 
 ##### 1) Larger and smaller cutoff for number of checklists
@@ -45,6 +46,96 @@ seasonLDGplot.98
 # yup pretty much the same result
 plot_slopes(season.model.98, variables="abslat", condition=c("urban2", "season"))
 # yes, the slope overlaps 0 in summer urban still
+
+
+######## Thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat.98, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat.98$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- dat.98 %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere * season +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "season"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"), season=c("Summer", "Winter"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/98.coverage.thinned.results.season.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/98.coverage.thinned.slopes.season.csv")
+ggeffects.slopes.df <- read.csv("supplement_figs/98.coverage.thinned.slopes.season.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2, season) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 258
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) #1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.results.98 <- read.csv("supplement_figs/98.coverage.thinned.results.season.csv")
+thinned.results.summary.98 <- thinned.results.98 %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.98 <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(dat.98, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.summary.98, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary.98, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~season)+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), strip.text = element_blank(), axis.title=element_blank(),
+        axis.text.x=element_blank(), axis.ticks.x=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.98
+ggsave(thinned.plots.98, file="supplement_figs/thinned.results.coverage98.season.png", height=6, width=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ###### Now run lower coverage 
@@ -119,6 +210,91 @@ plot_slopes(season.model.90, variables="abslat", condition=c("urban2", "season")
 
 
 
+######## Thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(season_dat.90, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+season_dat.90$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- season_dat.90 %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere * season +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "season"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"), season=c("Summer", "Winter"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/90.coverage.thinned.results.season.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/90.coverage.thinned.slopes.season.csv")
+ggeffects.slopes.df <- read.csv("supplement_figs/90.coverage.thinned.slopes.season.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2, season) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 989
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) #1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.results.90 <- read.csv("supplement_figs/90.coverage.thinned.results.season.csv")
+thinned.results.summary.90 <- thinned.results.90 %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.90 <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(season_dat.90, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.summary.90, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary.90, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~season)+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), axis.title.y=element_blank(), 
+        axis.title=element_blank(), strip.text=element_blank(), axis.text=element_blank(), axis.ticks=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.90
+ggsave(thinned.plots.90, file="supplement_figs/thinned.results.coverage90.season.png", height=6, width=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -167,6 +343,96 @@ seasonLDGplot.highmod
 # yup pretty much the same result
 plot_slopes(season.highmod, variables="abslat", condition=c("urban2", "season"))
 # yes, the slope overlaps 0 in summer urban still!!
+
+
+### Thinning
+######## Thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat_highmod, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat_highmod$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- dat_highmod %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere * season +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "season"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"), season=c("Summer", "Winter"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/highmod.thinned.results.season.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/highmod.thinned.slopes.season.csv")
+ggeffects.slopes.df <- read.csv("supplement_figs/highmod.thinned.slopes.season.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2, season) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 989
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) #1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.highmod <- read.csv("supplement_figs/highmod.thinned.results.season.csv")
+thinned.results.highmod <- thinned.results.98 %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.highmod <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(dat_highmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.highmod, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.highmod, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~season)+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), strip.text=element_blank(), axis.title=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.highmod
+ggsave(thinned.plots.highmod, file="supplement_figs/thinned.results.highmod.season.png", height=6, width=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -235,6 +501,89 @@ seasonLDGplot.lowmod
 # yup pretty much the same result
 plot_slopes(season.lowmod, variables="abslat", condition=c("urban2", "season"))
 # yes, the slope overlaps 0 in summer urban still!!
+
+
+
+######## Thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(season_dat.lowmod, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+season_dat.lowmod$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- season_dat.lowmod %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere * season +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "season"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"), season=c("Summer", "Winter"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/lowmod.thinned.results.season.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/lowmod.thinned.slopes.season.csv")
+ggeffects.slopes.df <- read.csv("supplement_figs/lowmod.thinned.slopes.season.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2, season) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 989
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) #1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.lowmod <- read.csv("supplement_figs/lowmod.thinned.results.season.csv")
+thinned.results.lowmod <- thinned.results.98 %>% group_by(abslat, urban2, season) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.lowmod <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(season_dat.lowmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.highmod, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.highmod, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  facet_wrap(~season)+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), strip.text=element_blank(), axis.title=element_blank(),
+        axis.text.y=element_blank(), axis.ticks.y=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.lowmod
+ggsave(thinned.plots.lowmod, file="supplement_figs/thinned.results.lowmod.season.png", height=6, width=7)
+
+
+
+library(ggpubr)
+library(grid)
+figure <- ggarrange(thinned.plots.98, thinned.plots.90, thinned.plots.highmod, thinned.plots.lowmod)
+figure
+figure2 <- annotate_figure(figure, left = textGrob("Species richness", rot = 90, vjust = 1, gp = gpar(cex = 1.3)),
+                bottom = textGrob("Absolute latitude", gp = gpar(cex = 1.3)))
+
+ggsave(figure2, file="supplement_figs/thinned.sensitivity.seasonal.results.png", height=9, width=12)
+
 
 
 

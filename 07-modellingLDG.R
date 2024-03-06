@@ -17,6 +17,7 @@ library(foreach)
 library(doParallel)
 library(spatialreg)
 library(elevatr)
+library(marginaleffects)
 library(emmeans)
 
 
@@ -39,7 +40,9 @@ dat %>% group_by(precip) %>% summarise(n=n()) # look at how many observations pe
 
 dat %>% group_by(urban2) %>% count()
 
-
+ggplot(dat, aes(x=abslat, y=log(number_checklists), color=urban2))+
+  geom_point(alpha=0.2)+
+  geom_smooth()
 
 
 ###################################
@@ -76,6 +79,39 @@ AIC(mod1.trans, mod1.hemsiphere, mod1.trans.cont, mod1.trans.cont.intrxn)
 #mod1.quadrant <- lm(sqrt(total_SR) ~ abslat * urban2 * quadrant + 
  #                     precip + log(number_checklists) + elevation, dat) # model with quadrant instead
 
+###### Model with and without interaction between everything and number of checklists
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                   precip + log(number_checklists) + elevation, dat)
+plot_slopes(mod1, variables="abslat", condition=c("urban2")) # all very much different
+summary(mod1)
+
+
+
+mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere * log(number_checklists) +
+             precip + elevation, dat)
+summary(mod2)
+anova(mod2)
+# quadruple interaction is not significant, can probably remove
+AIC(mod1, mod2) # mod2 is better
+anova(mod2, mod1) # mod2 is better
+
+
+# The quadruple interaction is a bit complicated, let's try with simpler
+mod3 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + log(number_checklists) + 
+             hemisphere:log(number_checklists) + urban2:log(number_checklists) + abslat:log(number_checklists) +
+             precip + elevation, dat)
+
+plot_slopes(mod3, variables="abslat", condition=c("urban2")) # all very much different
+plot_slopes(mod2, variables="abslat", condition=c("urban2")) # all very much different
+
+
+
+plot_predictions(mod1, by=c("abslat", "urban2"), transform=square, 
+                newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
+plot_predictions(mod2, by=c("abslat", "urban2"), transform=square, 
+                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
+plot_predictions(mod3, by=c("abslat", "urban2"), transform=square, 
+                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
 
 
 ######## Look at results
@@ -138,7 +174,6 @@ effect_plot(mod1.trans, pred=CONTINENT, interval=TRUE)
 
 library(interactions)
 
-interact_plot(mod1.trans, lat, hemisphere)
 
 interact_plot(mod1.trans, abslat, urban, interval=TRUE)
 

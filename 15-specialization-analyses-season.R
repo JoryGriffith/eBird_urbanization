@@ -286,10 +286,15 @@ ggplot()+
 # run an anova
 season.habitat.aov <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category * season, data = season_zones)
 summary(season.habitat.aov)
-emmeans.results <- emmeans(season.habitat.aov, specs=c("season", "category"), by="zone_bin", facet=TRUE)
-hypothesis_test(season.habitat.aov, terms=c("season", "category", "zone_bin"))
+exponent <- function(x){
+  exp(x)
+}
+habitat.means.results <- marginal_means(season.habitat.aov, variables=c("zone_bin", "category", "season"), cross=TRUE, transform=exponent)
+
+?marginal_means
+#hypothesis_test(season.habitat.aov, terms=c("season", "category", "zone_bin"))
 ?hypothesis_test
-plot(emmeans.results)
+#plot(emmeans.results)
 #### Looks pretty similar to winter and overall
 # the average values of specialization are the same in winter and summer in each latitude bin
 
@@ -305,22 +310,61 @@ season_bar <-ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zon
 season_bar
 
 # Plot of habitat breadth means
-season.emmeans.df <- as.data.frame(emmeans.results)
 
-season.habitat.plot <- ggplot(season.emmeans.df, mapping=aes(x=zone_bin, y=emmean, group=interaction(category, season), color=category, shape=season))+
-  geom_point(size=2)+
-  scale_y_reverse()+
-  geom_line(linewidth=0.5, aes(group=interaction(category, season), linetype=season))+
+
+season.habitat.plot <- ggplot()+
+  geom_point(habitat.means.results, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(habitat.means.results, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+#  scale_y_reverse()+
+#  geom_line(habitat.means.results, linewidth=0.5, mapping=aes(group=interaction(category, season), linetype=season))+
   scale_color_manual(labels=c('In urban', 'Not in urban'), values=c("#000000","deepskyblue3"))+
   scale_linetype_manual(labels=c("Summer", "Winter"), values=c(1,2))+
   scale_shape_manual(labels=c("Summer", "Winter"), values=c(15,17))+
   labs(y="Habitat breadth")+
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
+#  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.25)+
   theme_classic()+
-  theme(axis.title.x=element_blank(), legend.title=element_blank(), legend.position=c(0.8, 0.8))
+  facet_wrap(~season)+
+  theme(axis.title.x=element_blank(), legend.title=element_blank())
 # specialization measures for urban and not urban are the same for summer and winter
 # difference between specialization are definitely decreasing with latitude
-ggsave(season.habitat.plot, file="season.habitat.plot.png", height=6, width=9)
+#ggsave(season.habitat.plot, file="season.habitat.plot.png", height=6, width=9)
+
+season.habitat.plot
+
+
+season_zones %>% group_by(zone_bin, season) %>% count()
+
+
+### Ridgeline plot
+density.plot <- ggplot() +
+  stat_density_ridges(season_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category, season), fill=category),
+                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+  geom_point(habitat.means.results, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(habitat.means.results, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  xlim(0,30)+
+  scale_fill_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  theme_classic() +
+  facet_wrap(~season)+
+  labs(x="Habitat breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank(), legend.position="none", strip.text=element_blank())
+density.plot
+
+ggsave(density.plot, file="supplement_figs/habitat.breadth.season.png", width=7, height=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ##############################################
 
@@ -425,23 +469,58 @@ ggplot()+
 
 
 
-
-
-
-
-
-
+season_zones_diet %>% group_by(zone_bin, season) %>% count()
 
 ggplot(season_zones_diet)+
   geom_boxplot(aes(x=zone_bin, y=gini.index, fill=category))
 
 # run an anova
-season.diet.aov <- aov(gini.index ~ zone_bin * category * season, data = season_zones_diet)
+season.diet.aov <- aov(log(gini.flipped+1) ~ zone_bin * category * season, data = season_zones_diet)
 summary(season.diet.aov)
-emmeans.results <- emmeans(season.diet.aov, specs=c("season", "category"), by="zone_bin", facet=TRUE)
-hypothesis_test(season.diet.aov, terms=c("season", "category", "zone_bin"))
-plot(emmeans.results)
-#### Looks pretty similar to winter and overall
+
+exponent.minus1 <- function(x){
+  exp(x)-1
+}
+
+means.diet.season <- marginal_means(diet.aov4, variables=c("zone_bin", "category", "season"), cross=TRUE, transform=exponent.minus1)
+
+
+
+
+
+
+####### Density plot
+density.plot <- ggplot() +
+  stat_density_ridges(season_zones_diet, mapping=aes(x = gini.flipped, y = zone_bin, group=interaction(zone_bin, category, season), fill=category),
+                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.diet.season, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.diet.season, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  xlim(0,0.4)+
+  scale_fill_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  theme_classic() +
+  facet_wrap(~season)+
+  labs(x="Diet breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank(), legend.position="none", strip.text=element_blank(),
+        axis.ticks.y=element_blank(), axis.text.y=element_blank())
+density.plot
+
+ggsave(density.plot, file="supplement_figs/diet.breadth.season.png", width=6, height=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 richness_category <- season_zones_diet %>% group_by(zone_bin, category, season) %>% count()
 season_bar <-ggplot(richness_category, aes(fill=reorder(category, n), y=n, x=zone_bin)) + 
@@ -1127,6 +1206,92 @@ ggsave(thinned.dietLDG, file="thinned.diet.specialization.season.png", width=6, 
 
 
 test <- diet.thinned.results.summary %>% filter(season=="Winter")
+
+
+
+
+
+
+##########################
+
+# Make density plots of species distributions with latitude
+season_uniquesp <- read.table("season_unique_species.txt", header=TRUE)
+
+
+season_uniquesp$abslat <- abs(season_uniquesp$lat)
+ggplot(season_uniquesp, aes(x=abslat, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6)
+
+number <- c(1:70)
+number2 <- c(0:68)
+test <- season_uniquesp %>% mutate(zone_bin = cut(abslat, breaks=number, labels=number2)) %>% 
+  distinct(zone_bin, SCIENTIFIC.NAME, urban2, season)
+unique(test$zone_bin)
+
+
+class(test$zone_bin)
+test$zone_bin <- as.numeric(test$zone_bin)
+
+ggplot(test, aes(x=zone_bin, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6)+
+  facet_wrap(~season)
+
+ggplot(test, aes(x=zone_bin, y=after_stat(count), fill=urban2)) +
+  geom_histogram(alpha=0.6)
+
+
+
+
+test2 <- test %>% group_by(SCIENTIFIC.NAME, urban2, season, zone_bin) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>%
+  pivot_wider(names_from="urban2", values_from="n")  
+
+
+test2 <- test2 %>% replace(is.na(.), 0)
+
+test2$category <- NA
+
+
+for (i in 1:nrow(test2)){
+  if (test2$natural[i] >= 0 & test2$urban[i] > 0) {
+    test2$category[i] <- "in.urban"
+  }
+  # else if (total_zones$natural[i] == 0 & total_zones$urban[i] > 0) {
+  #  total_zones$category[i] <- "urban.only"
+  #}
+  else if (test2$natural[i] > 0 & test2$urban[i] == 0) {
+    test2$category[i] <- "not.urban"
+  }
+}
+
+
+ggplot(test2, aes(x=zone_bin, y=after_stat(count), fill=season)) +
+  geom_density(alpha=0.6)+
+  facet_wrap(~category)
+
+
+test3 <- merge(test, test2, all.x=TRUE)
+
+
+ggplot(test3, aes(x=zone_bin, y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6)+
+  facet_wrap(~season)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

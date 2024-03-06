@@ -13,14 +13,42 @@ library(ggeffects)
 library(marginaleffects)
 library(emmeans)
 
+
+
 world <- ne_countries(scale = "medium", returnclass = "sf")
 # Load data
-dat <- read.csv("season_modeling_data.csv")
+dat.season <- read.csv("season_modeling_data.csv")
 
 # Plot relationship 
 
 # model
-mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + precip + log(number_checklists) + elevation, dat)
+mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + precip + log(number_checklists) + elevation, dat.season)
+
+mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere * log(number_checklists) + precip + elevation, dat.season)
+anova(mod1, mod2)
+mod3 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + 
+             log(number_checklists) + hemisphere:log(number_checklists) + urban2:log(number_checklists) + 
+             abslat:log(number_checklists) + season:log(number_checklists) +
+             precip + log(number_checklists) + elevation, dat.season)
+anova(mod3)
+
+plot_slopes(mod1, variables="abslat", condition=c("urban2", "season"))
+plot_slopes(mod2, variables="abslat", condition=c("urban2", "season")) # all very much different
+plot_slopes(mod3, variables="abslat", condition=c("urban2", "season")) # all very much different
+
+
+plot_predictions(mod1, by=c("abslat", "urban2", "season", "hemisphere"), transform=square, 
+                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"), 
+                                    season=c("Summer", "Winter"), hemisphere=c("northern", "southern")))
+plot_predictions(mod2, by=c("abslat", "urban2", "season"), transform=square, 
+                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                    season=c("Summer", "Winter")))
+plot_predictions(mod3, by=c("abslat", "urban2", "season"), transform=square, 
+                 newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                    season=c("Summer", "Winter")))
+
+
+
 
 #mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + precip + log(number_checklists) + elevation, dat)
 AIC(mod1, mod2) # better with the interaction
@@ -128,7 +156,6 @@ dat.samp.sf <- st_as_sf(dat.samp, coords=c("long", "lat"), crs=st_crs(GHSL))
 
 lm1.samp <- lm(sqrt(total_SR) ~ abslat * urban2 * season + quadrant 
                  + precip + log(number_checklists) + elevation, dat.samp)
-
 dat.samp.nb <- dnearneigh(dat.samp.sf, d1=0, d2=5)
 dat.samp.lw <- nb2listw(dat.samp.nb, style = "W", zero.policy = TRUE)
 
@@ -201,20 +228,20 @@ plot(ggeffects::ggpredict(mod.gam4, terms=c("lat", "urban2"), facets = TRUE), ad
 
 ################################
 ## Iterative thinned models to get rid of spatial autocorrelation
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 spat.extent <- ext(GHSL)
 sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
 
 
 
 # assign cell number to each point in my data
-vect <- st_as_sf(dat, crs=st_crs(GHSL), coords=c("x","y"))
+vect <- st_as_sf(dat.season, crs=st_crs(GHSL), coords=c("x","y"))
 xy=st_coordinates(vect)
 # get cell number that each point is in
-dat$cell.subsample<-cellFromXY(sample.grid, xy)
+dat.season$cell.subsample<-cellFromXY(sample.grid, xy)
 
 
-dat.thinned <- dat %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) 
+dat.thinned <- dat.season %>% group_by(cell.subsample, urban2, season) %>% sample_n(1) 
 
 
 # run model
@@ -252,6 +279,7 @@ square <- function(x){
 }
 thinned.results.season <- list()
 predicted.season <- list()
+predicted.season.hemisphere <- list()
 means.season <- list()
 emmeans.slopes.sum.N <- list()
 emmeans.slopes.sum.S <- list()
@@ -260,7 +288,7 @@ ggeffects.slopes.season <- list()
 ggeffects.slopes.contrast.season <- list()
 set.seed(20)
 for (i in 1:1000){
-  dat.thinned <- dat %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
+  dat.thinned <- dat.season %>% group_by(cell.subsample, season, urban2) %>% sample_n(1) 
   lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere +
                      precip + log(number_checklists) + elevation, dat.thinned)
   
@@ -269,22 +297,26 @@ for (i in 1:1000){
   predicted.season[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "season"), transform=square, 
                                            newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
                                                               season = c("Summer", "Winter")))
+  predicted.season.hemisphere[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "season", "hemisphere"), transform=square, 
+                                           newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                                              season = c("Summer", "Winter"), hemisphere=c("northern", "southern")))
   means.season[[i]] <- marginal_means(lm.thinned, variables=c("abslat", "urban2", "season"), transform=square, cross=TRUE)
-  emmeans.slopes.sum.N[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Summer", hemisphere="northern")) # so I can see differences in slopes for each model (using emmeans)
-  emmeans.slopes.sum.S[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Summer", hemisphere="southern"))
-  emmeans.slopes.wint[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Winter"))
-  ggeffects.slopes.season[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test=NULL) # see differences in slopes (using ggeffects)
-  ggeffects.slopes.contrast.season[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"))
+ # emmeans.slopes.sum.N[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Summer", hemisphere="northern")) # so I can see differences in slopes for each model (using emmeans)
+#  emmeans.slopes.sum.S[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Summer", hemisphere="southern"))
+#  emmeans.slopes.wint[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat", at=c(season="Winter"))
+ # ggeffects.slopes.season[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"), test=NULL) # see differences in slopes (using ggeffects)
+#  ggeffects.slopes.contrast.season[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season"))
  # ggeffects.slopes.contrast.hemisphere.season[[1]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "season", "hemisphere"))
   }
 
 # loop and store models
-
+predicted.season.hemisphere[[1]]
 ## Save predicted values as a csv
 predicted.season.df <- bind_rows(predicted.season)
 write.csv(predicted.season.df, "thinned.seasonal.results.csv")
 
-
+predicted.season.hemisphere.df <- bind_rows(predicted.season.hemisphere)
+write.csv(predicted.season.hemisphere.df, "supplement_figs/thinned.seasonal.hemisphere.results.csv")
 #saveRDS(thinned.results.season, file="thinned_results/thinned_anovas_season.rds") # save output of ANOVAS as RDS
 # 1) Look at mean species richness in each urbanization level and season 
 #seasonal_means_df <- list()
@@ -373,6 +405,19 @@ ggeffects.slopes.contrast.season <- bind_rows(ggeffects.slopes.contrast.season)
 contrast <- ggeffects.slopes.contrast.season %>% filter(urban2=="Suburban-Urban", season=="Summer-Summer") %>% filter(p.value<0.05) # 17
 contrast <- ggeffects.slopes.contrast.season %>% filter(urban2=="Suburban-Urban", season=="Winter-Winter") %>% filter(p.value<0.05) # 1000
 # suburban is steeper than urban in Winter but not summer
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

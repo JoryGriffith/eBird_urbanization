@@ -12,6 +12,7 @@ library(tidyterra)
 library(ggeffects)
 library(patchwork)
 library(permute)
+library(ggridges)
 
 
 
@@ -838,6 +839,39 @@ ggplot(unique_zone_bin, aes(x = log(gini.flipped), y=after_stat(count), fill=urb
   facet_wrap(~zone_bin)
 
 
+ggplot(unique_zone_bin) +
+  geom_density_ridges(aes(x = log(Habitat_breadth_IUCN), y = zone_bin, group=interaction(zone_bin, urban2), fill=urban2, height = after_stat(count)), 
+                      stat="density", alpha=0.7, scale=0.9, bandwidth=0.3) +
+  scale_fill_manual(labels=c("Natural", "Suburban", "Urban"), values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Log habitat breadth")+
+  theme_classic()+
+  theme(axis.title.y=element_blank(), legend.title=element_blank())
+
+means <- unique_zone_bin %>% group_by(zone_bin, urban2) %>% drop_na() %>% summarise(mean=mean(Habitat_breadth_IUCN))
+ggplot(means)+
+  geom_point(aes(x=mean, y=zone_bin, color=urban2))
+
+
+
+
+#
+#ggplot(unique_zone_bin)+
+ # geom_boxplot(mapping=aes(y = Habitat_breadth_IUCN, x = zone_bin, fill=urban2))+
+#  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))
+
+
+ggplot(unique_zone_bin) +
+  stat_density_ridges(aes(x = log(Habitat_breadth_IUCN), y = zone_bin, group=interaction(zone_bin, urban2), fill=urban2), 
+                      alpha=0.5, scale=0.95, panel_scaling=FALSE,
+                      quantiles = c(0.5), quantile_lines = TRUE, stat="density", bandwidth=0.3) +
+  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  theme_ridges()+
+  theme_classic()
+
+
+
+
+
 
 
 #### also try binning by smaller zones
@@ -864,6 +898,11 @@ ggplot(unique_zone_small, aes(x = gini.flipped, y=after_stat(count), fill=urban2
   facet_wrap(~small_bin)
 
 
+
+
+test <- birds_zones %>% filter(zone_bin=="Subtropical" & category=="in.urban")
+
+birds_zones %>% filter(SCIENTIFIC.NAME=="Amazilia boucardi")
 
 
 
@@ -895,14 +934,35 @@ sp_habitat$abslat <- abs(sp_habitat$lat) # add in absolute latitude
 sp_habitat <- sp_habitat %>% mutate(zone_bin = cut(abslat, breaks=c(0, 23.43621, 35, 50, 70), labels=c("Tropical", "Subtropical", "Temperate", "Subpolar")))
 
 # run anova on the raw habitat breadth with these larger zones
-habitat.aov3 <- aov(Habitat_breadth_IUCN ~ zone_bin * urban2, data = sp_habitat)
-summary(habitat.aov3) # significant interaction
+#habitat.aov3 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * urban2, data = sp_habitat)
+#summary(habitat.aov3) # significant interaction
 
 # look at just difference in specialization with latitude
-marginal_means(habitat.aov3, variables=c("zone_bin"))
+#marginal_means(habitat.aov3, variables=c("zone_bin"))
 
-means.habitat3 <- marginal_means(habitat.aov3, variables=c("zone_bin", "urban2"))
+library(marginaleffects)
 # the difference is way larger in the tropics!
+#plot(habitat.aov3)
+
+
+#habitat_point <- 
+#  ggplot(means.habitat3, aes(y=value, x=Mean, group=urban2, color=urban2))+
+#  geom_point(size=2)+
+#  geom_line(size=0.5)+
+#  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+#  #  scale_y_reverse()+
+#  labs(x="Habitat breadth")+
+#  geom_errorbar(aes(xmin=`2.5 %`, xmax=`97.5 %`), width=0.1)+
+#  # annotate("text", x=0.7, y=2.5, label="Generalist", angle=90)+
+#  #  annotate("text", x=0.7, y=1.4, label="Specialist", angle=90)+
+#  # annotate("segment", x = 0.7, y = 2.75, xend = 0.7, yend = 2.9, size=0.6,
+#  #         arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="last"))+
+#  #annotate("segment", x = 0.7, y = 1, xend = 0.7, yend = 1.15, size=0.5,
+#  #        arrow = arrow(type = "open", length = unit(0.05, "npc"), ends="first"))+
+#  coord_cartesian(clip = "off")+
+#  theme_classic()+
+#  theme(axis.title.y=element_blank(), legend.position="none") 
+#habitat_point
 
 
 
@@ -918,8 +978,8 @@ for (i in 1:nrow(birds_zones)){
   if (birds_zones$natural[i] >= 0 & birds_zones$urban[i] > 0) {
     birds_zones$category[i] <- "in.urban"
   }
-   # else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
-   #  birds_zones$category[i] <- "urban.only"
+ # else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+  #   birds_zones$category[i] <- "urban.only"
    # }
   else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
     birds_zones$category[i] <- "natural.only"
@@ -927,12 +987,79 @@ for (i in 1:nrow(birds_zones)){
   
 }
 
+birds_zones$category2 <- NA
+
+for (i in 1:nrow(birds_zones)){
+  if (birds_zones$natural[i] > 0 & birds_zones$urban[i] > 0) {
+    birds_zones$category2[i] <- "in.urban"
+  }
+  else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+    birds_zones$category2[i] <- "urban.only"
+  }
+  else if (birds_zones$natural[i] > 0 & birds_zones$urban[i] == 0) {
+    birds_zones$category2[i] <- "natural.only"
+  }
+  
+}
+
+birds_zones %>% filter(SCIENTIFIC.NAME == "Dromaius novaehollandiae")
+
 # look at birds in different categories and see where they are found
 
 ##### denisty plot of trait values ##########
 ggplot(birds_zones, aes(x = Habitat_breadth_IUCN, y=after_stat(count), fill=category)) +
   geom_density(alpha=0.6) +
   facet_wrap(~zone_bin)
+
+
+ggplot(birds_zones) +
+  geom_density_ridges(mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category), 
+                      stat="density", height=after_stat(count)) +
+  scale_fill_manual(labels=c('In Urban', 'In natural only'), values=c("grey30", "deepskyblue3"))+
+  xlim(0,30)+
+  xlim(0,30)+
+  labs(x="Habitat breadth") +
+  theme_classic() +
+  theme(legend.position="none")
+
+
+
+
+ggplot() +
+  stat_density_ridges(birds_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.4, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), size=1.5)+
+  geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), width=0.2)+
+  xlim(0,30)+
+  scale_fill_manual(labels=c('En urbain', 'Absente de urbain'), values=c("grey30", "deepskyblue3"))+
+  scale_color_manual(values=c("black", "deepskyblue4"))+
+  theme_classic() +
+  labs(x="Étendue de l'habitat")+
+  theme(legend.position="none", axis.title.y=element_blank(), text=element_text(size=15))
+
+
+
+
+birds_zones %>% group_by(zone_bin) %>% count()
+
+ggplot(birds_zones) +
+ geom_boxplot(aes(x = log(Habitat_breadth_IUCN+1), y = zone_bin, fill=category), alpha=0.7)+
+  scale_fill_manual(labels=c('In natural only', 'In urban'), values=c("deepskyblue3", "grey30"))+
+  geom_point()+
+  theme_classic() +
+  theme()
+
+
+
+ggplot(birds_zones) +
+  stat_density_ridges(aes(x = log(Habitat_breadth_IUCN), y = zone_bin, group=interaction(zone_bin, category), fill=category), 
+                      alpha=0.5, scale=0.95, panel_scaling=FALSE,
+                      quantile_lines = TRUE, quantile_fun=mean, bandwidth=0.2) +
+  scale_fill_manual(labels=c('In natural only', 'In urban'), values=c("deepskyblue3", "grey30"))+
+  theme_ridges()+
+  theme_classic()
+
+
 
 actual_results <- birds_zones %>% group_by(zone_bin, category) %>% 
   summarise(mean=mean(Habitat_breadth_IUCN))
@@ -991,14 +1118,78 @@ ggplot()+
 
 
 habitat.aov4 <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = birds_zones)
+plot(habitat.aov4)
 summary(habitat.aov4)
 # need to change transformation to exponent!
 exponent <- function(x){
   exp(x)
 } 
-means.habitat4 <- marginal_means(habitat.aov4, variables=c("zone_bin", "category"), cross=TRUE, transform=exponent)
-?marginal_means
+means.habitat4 <- as.data.frame(marginal_means(habitat.aov4, variables=c("zone_bin", "category"), cross=TRUE, transform=exponent))
+#?marginal_means
 #emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
+
+
+density.plot <- ggplot() +
+  stat_density_ridges(birds_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  xlim(0,30)+
+  scale_fill_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  theme_classic() +
+  labs(x="Habitat breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank())
+density.plot
+
+ggsave(density.plot, file="habitat.breadth.plot.png", width=6, height=7)
+
+
+
+
+
+###### Euler plot
+
+richness_category <- birds_zones %>% group_by(zone_bin, category2) %>% count()
+# put it into a dataframe that eulerr will understand
+library(eulerr)
+euler_df <- c(Ntrop=2934, Utrop=113, "Ntrop&Utrop"=4251, Nsub=939, Usub=77, "Nsub&Usub"=2918, 
+              Ntemp=383, Utemp=111, "Ntemp&Utemp"=1537, Npol=217, Upol=36, "Npol&Upol"=690) # tropical
+
+euler_trop <- euler(euler_df, shape="circle")
+plot(euler_trop)
+
+euler_plot <- plot(euler_trop, fills=c("deepskyblue3", "#000000", "deepskyblue3", "#000000", "deepskyblue3", "#000000", "deepskyblue3", "#000000"), labels="", alpha=0.8, nrow=1)
+euler_plot
+png("euler_plot.png", units="in", res=300, height=5, width=5)
+euler_plot
+dev.off()
+?png
+#density.plot.fr <- ggplot() +
+#  stat_density_ridges(birds_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+#                      alpha=0.4, scale=0.8, panel_scaling=FALSE) +
+#  coord_flip()+
+#  geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), size=1.5, position=position_nudge(0, -0.2))+
+#  geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), width=0.2, position=position_nudge(0, -0.2))+
+#  xlim(0,30)+
+#  scale_fill_manual(labels=c('In Urban', 'In natural only'), values=c("grey30", "deepskyblue3"))+
+#  scale_color_manual(labels=c('In Urban', 'In natural only'), values=c("black", "deepskyblue4"))+
+#  theme_classic() +
+#  labs(x="Étendu de l'habitat")+
+#  theme(legend.position="none", axis.title.x=element_blank(), text=element_text(size=15))
+#
+#
+#ggsave(density.plot.fr, file="QCBS_figs/density.plot.fr.png", width=8, height=4)
+#
+
+
+
+
+
+
+
+
+
 
 means.habitat4
 # Plot of richness of different categories
@@ -1043,7 +1234,7 @@ habitat_point <-
   ggplot(means.habitat4, aes(y=zone_bin, x=estimate, group=category, color=category))+
   geom_point(size=2)+
   geom_line(size=0.5)+
-  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  scale_color_manual(values=c("black", "deepskyblue3"))+
   #  scale_y_reverse()+
   labs(x="Habitat breadth")+
   geom_errorbar(aes(xmin=conf.low, xmax=conf.high), width=0.1)+
@@ -1072,16 +1263,7 @@ habitat_plot
 
 
 
-## Try making a plot using EulerR
-birds_zones %>% group_by(zone_bin) %>% count()
-richness_category <- birds_zones %>% group_by(zone_bin, category) %>% count()
-# put it into a dataframe that eulerr will understand
-library(eulerr)
-euler_df <- c(Ntrop=2934, Utrop=113, "Ntrop&Utrop"=4251, Nsub=939, Usub=77, "Nsub&Usub"=2918, 
-              Ntemp=383, Utemp=111, "Ntemp&Utemp"=1537, Npol=217, Upol=36, "Npol&Upol"=690) # tropical
 
-euler_trop <- euler(euler_df, shape="circle")
-plot(euler_trop)
 
 
 
@@ -1107,12 +1289,15 @@ ggplot(data=world)+
   labs(x="Longitude", y="Latitude")+
   theme_bw()
 
+
+
+
+
+
+
+
+
 ###########################################
-
-
-
-
-
 
 
 ### Diet specialization
@@ -1158,17 +1343,6 @@ for (i in 1:nrow(diet_zones)){
   }
 }
 
-
-
-
-ggplot(diet_zones, aes(x = log(gini.flipped), y=after_stat(count), fill=category)) +
-  geom_density(alpha=0.6) +
-  facet_wrap(~zone_bin)
-
-
-ggplot(diet_zones, aes(x = gini.flipped, y=after_stat(count), fill=category)) +
-  geom_density(alpha=0.6) +
-  facet_wrap(~zone_bin)
 
 
 
@@ -1237,13 +1411,45 @@ ggplot()+
 #  }
 #}
 
-
+range(diet_zones$gini.flipped)
 unique(diet_zones$zone_bin)
-diet.aov4 <- aov(gini.index ~ zone_bin * category, data = diet_zones)
+diet.aov4 <- aov(log(gini.flipped+1) ~ zone_bin * category, data = diet_zones)
+#diet.aov.no <- aov(gini.flipped ~ zone_bin * category, data = diet_zones)
+#diet.aov.no2 <- aov(sqrt(gini.flipped) ~ zone_bin * category, data = diet_zones)
+#AIC(diet.aov4, diet.aov.no, diet.aov.no2)
+# logged is the best
+
+hist(log(diet_zones$gini.flipped))
+plot(diet.aov4)
 summary(diet.aov4)
 
-means.diet4 <- marginal_means(diet.aov4, variables=c("zone_bin", "category"), cross=TRUE)
+exponent.minus1 <- function(x){
+  exp(x)-1
+}
+
+means.diet4 <- marginal_means(diet.aov4, variables=c("zone_bin", "category"), cross=TRUE, transform=exponent.minus1)
 #emmeans(diet.aov4, pairwise~zone_bin, by="category")
+
+
+density.plot <- ggplot() +
+  stat_density_ridges(diet_zones, mapping=aes(x = gini.flipped, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.diet4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.diet4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+   xlim(0,0.4)+
+  scale_fill_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  theme_classic() +
+  labs(x="Diet breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank(), legend.position="none")
+density.plot
+
+ggsave(density.plot, file="supplement_figs/diet.breadth.plot.png", width=6, height=7)
+
+diet_zones %>% group_by(zone_bin) %>% count()
+
+
+
 
 ##### Stacked bar plot of overall species loss
 richness_category <- diet_zones %>% group_by(zone_bin, category) %>% count()
@@ -1287,9 +1493,8 @@ diet_point <- means.diet4 %>%
   ggplot(aes(y=zone_bin, x=estimate, group=category, color=category))+
   geom_path(linewidth=0.5)+
   geom_point(size=2)+
-  scale_color_manual(values=c("grey30", "deepskyblue3"))+
+  scale_color_manual(values=c("black", "deepskyblue3"))+
   labs(x="Diet specialization")+
-  scale_x_reverse()+
   geom_errorbar(aes(xmin=conf.low, xmax=conf.high), width=0.25)+
   #  annotate("text", x=0.7, y=0.83, label="Generalist", angle=90)+
   #  annotate("text", x=0.7, y=0.92, label="Specialist", angle=90)+
@@ -1476,16 +1681,17 @@ for (i in 1:nrow(total_zones)){
 
 total_zones %>% group_by(zone_bin) %>% count()
 richness_category <- total_zones %>% group_by(zone_bin, category) %>% count()
+richness_category <- total_zones %>% group_by(category) %>% count()
+656/(11980+5829) # 3.6% of the species are urban only
 # put it into a dataframe that eulerr will understand
 library(eulerr)
 euler_trop_df <- c(Ntrop=3556, Utrop=217, "Ntrop&Utrop"=5180, Nsub=1315, Usub=178, 
                    "Nsub&Usub"=3734, Ntemp=608, Utemp=173, "Ntemp&Utemp"=2139, Npol=350, Upol=88, "Npol&Upol"=927) # tropical
-euler_subtrop_df <- c(Nsub=1315, Usub=178, "Nsub&Usub"=3734) # subtropical
-euler_temp_df <- c(Ntemp=608, Utemp=173, "Ntemp&Utemp"=2139) # temperate
-euler_subpol <- c(Npol=350, Upol=88, "Npol&Upol"=927) # subpolar
+
 
 euler_trop <- euler(euler_trop_df, shape="ellipse")
-euler_plot <- plot(euler_trop, fills=c("deepskyblue3", "grey30", "deepskyblue3", "grey30", "deepskyblue3", "grey30", "deepskyblue3", "grey30"), labels="")
+euler_plot <- plot(euler_trop, fills=c("deepskyblue3", "#000000", "deepskyblue3", "#000000", "deepskyblue3", "#000000", "deepskyblue3", "#000000"), labels="", alpha=0.8, nrow=1)
+euler_plot
 png("euler_plot.png")
 euler_plot
 dev.off()
@@ -1505,18 +1711,58 @@ ggplot(test)+
 
 
 
+# Make density plots of species distributions with latitude
+global_uniquesp <- read.table("global_unique_species.txt", header=TRUE) %>% filter(lat <= 70 & lat >=-55)
 
 
 
+global_uniquesp$abslat <- abs(global_uniquesp$lat)
+ggplot(global_uniquesp, aes(x=abslat, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6)
+
+number <- c(1:70)
+number2 <- c(0:68)
+test <- global_uniquesp %>% mutate(zone_bin = cut(abslat, breaks=number, labels=number2)) %>% 
+  distinct(zone_bin, SCIENTIFIC.NAME, urban2)
+unique(test$zone_bin)
+
+ggplot(test, aes(x=zone_bin, y=after_stat(count), fill=urban2)) +
+  geom_density(alpha=0.6)
+
+ggplot(test, aes(x=zone_bin, y=after_stat(count), fill=urban2)) +
+  geom_histogram(alpha=0.6)
 
 
+class(test$zone_bin)
+test$zone_bin <- as.numeric(test$zone_bin)
+
+test2 <- test %>% group_by(SCIENTIFIC.NAME, urban2) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="suburban") %>%
+  pivot_wider(names_from="urban2", values_from="n")  
+
+test2 <- test2 %>% replace(is.na(.), 0)
+
+test2$category <- NA
 
 
+for (i in 1:nrow(test2)){
+  if (test2$natural[i] >= 0 & test2$urban[i] > 0) {
+    test2$category[i] <- "in.urban"
+  }
+ # else if (total_zones$natural[i] == 0 & total_zones$urban[i] > 0) {
+  #  total_zones$category[i] <- "urban.only"
+  #}
+  else if (test2$natural[i] > 0 & test2$urban[i] == 0) {
+    test2$category[i] <- "not.urban"
+  }
+}
 
 
+test3 <- merge(test, test2, all.x=TRUE)
 
 
-
+ggplot(test3, aes(x=zone_bin, y=after_stat(count), fill=category)) +
+  geom_density(alpha=0.6)
 
 
 

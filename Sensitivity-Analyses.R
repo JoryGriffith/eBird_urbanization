@@ -4,6 +4,7 @@ library(terra)
 library(marginaleffects)
 library(sf)
 library(elevatr)
+library(ggeffects)
 
 ##### 1) Larger and smaller cutoff for number of checklists
 ## Threshold of 90% coverage is 44 checklists
@@ -11,14 +12,13 @@ library(elevatr)
 
 
 ## I'll start with higher coverage because I can just filter it from the modeling data
-dat <- read.csv("modeling_data.csv") %>% filter(number_checklists >= 198) # 30,736
-dat %>% filter(CONTINENT=="Antarctica") # there is one point in antarctica, latitude is -54.05 so it just misses the cutoff
-dat <- dat %>% filter(lat <= 70 & lat >=-55)
+dat.98 <- read.csv("modeling_data.csv") %>% filter(number_checklists >= 198) # 30,736
+dat.98 %>% filter(CONTINENT=="Antarctica") # there is one point in antarctica, latitude is -54.05 so it just misses the cutoff
+dat.98 <- dat.98 %>% filter(lat <= 70 & lat >=-55)
 # neither of the filters did anything
 model.98 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   precip + log(number_checklists) + elevation, dat)
-
-
+                   precip + log(number_checklists) + elevation, dat.98)
+summary(model.98)
 square <- function(x){
   x^2
 } 
@@ -30,7 +30,7 @@ predicted.98<-avg_predictions(model.98, by=c("abslat", "urban2"), transform=squa
 
 LDG98.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
-  geom_point(dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_point(dat.98, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.98, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.98, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
@@ -42,6 +42,80 @@ LDG98.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tra
 LDG98.plot
 # yup looks pretty much the same!
 plot_slopes(model.98, variables="abslat", condition=c("urban2"))
+
+
+######## Now thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat.98, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat.98$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- dat.98 %>% group_by(cell.subsample, urban2) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # store slopes
+    ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/98.coverage.thinned.results.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/98.coverage.thinned.slopes.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 989
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) #1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.results.98 <- read.csv("supplement_figs/98.coverage.thinned.results.csv")
+thinned.results.summary.98 <- thinned.results.98 %>% group_by(abslat, urban2) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.98 <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(dat.98, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.summary.98, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary.98, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), axis.title=element_blank(),
+        axis.text.x=element_blank(), axis.ticks.x=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.98
+#ggsave(thinned.plots.98, file="supplement_figs/thinned.results.coverage98.png", height=6, width=7)
+
+
+
+##############################
+###############################
+
 
 
 
@@ -106,8 +180,8 @@ dat_summary90$urban2 <- factor(dat_summary90$urban2, levels = c("1", "2", "3"),
 
 
 ###### Model
-model90 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   precip + log(number_checklists) + elevation, dat_summary90)
+model90 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + log(number_checklists) +
+                   precip + elevation, dat_summary90)
 anova(model90)
 
 square <- function(x){
@@ -116,7 +190,8 @@ square <- function(x){
 
 ## plot results
 predicted.full<-avg_predictions(model90, by=c("abslat", "urban2"), transform=square, 
-                                newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
+                                newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                   urban2=c("Natural", "Suburban", "Urban")))
 
 
 LDG90.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
@@ -134,6 +209,100 @@ LDG90.plot
 
 # these both change the lines a bit but the takeaways are still the same
 plot_slopes(model90, variables="abslat", condition=c("urban2"))
+
+
+########### THIN
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat_summary90, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat_summary90$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- dat_summary90 %>% group_by(cell.subsample, urban2) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/90.coverage.thinned.results.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/90.coverage.thinned.slopes.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), 
+                                                                   conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.results.90 <- read.csv("supplement_figs/90.coverage.thinned.results.csv")
+thinned.results.summary.90 <- thinned.results.90 %>% group_by(abslat, urban2) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.90 <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(dat_summary90, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.summary.90, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary.90, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), 
+        axis.title=element_blank(), axis.text=element_blank(), axis.ticks=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.90
+#ggsave(thinned.plots.90, file="supplement_figs/thinned.results.coverage90.png", height=6, width=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -187,6 +356,83 @@ GHMhighmod.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2")
 GHMhighmod.plot
 ## yeah pretty much the same
 plot_slopes(high.model, variables="abslat", condition=c("urban2"))
+
+
+### Thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat_highmod, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat_highmod$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- dat_highmod %>% group_by(cell.subsample, urban2) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/high.mod.thinned.results.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/high.mod.thinned.slopes.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), 
+                                                                   conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Urban-Suburban") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Urban-Natural") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.results.highmod <- read.csv("supplement_figs/high.mod.thinned.results.csv")
+thinned.results.summary.highmod <- thinned.results.highmod %>% group_by(abslat, urban2) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.highmod <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(dat_highmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.summary.highmod, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary.highmod, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), axis.title=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.highmod
+#ggsave(thinned.plots.highmod, file="supplement_figs/thinned.results.highmod.png", height=6, width=7)
+
+
+
+
+
+
+
+
+
 
 
 
@@ -252,15 +498,15 @@ square <- function(x){
 } 
 
 ## plot results
-predicted.highmod<-avg_predictions(low.model, by=c("abslat", "urban2"), transform=square, 
+predicted.lowmod<-avg_predictions(low.model, by=c("abslat", "urban2"), transform=square, 
                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
 
 
 GHMlowmod.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
   ggplot()+
   geom_point(dat_lowmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
-  geom_line(predicted.highmod, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
-  geom_ribbon(predicted.highmod, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
+  geom_line(predicted.lowmod, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
+  geom_ribbon(predicted.lowmod, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
@@ -270,5 +516,86 @@ GHMlowmod.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"),
 GHMlowmod.plot
 
 plot_slopes(low.model, variables="abslat", condition=c("urban2"))
+
+
+
+### Thinned
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
+spat.extent <- ext(GHSL)
+sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
+
+# assign cell number to each point in my data
+vect <- st_as_sf(dat_lowmod, crs=st_crs(GHSL), coords=c("x","y"))
+xy=st_coordinates(vect)
+# get cell number that each point is in
+dat_lowmod$cell.subsample<-cellFromXY(sample.grid, xy)
+
+
+square <- function(x){
+  x^2
+} # make function to square
+predicted <- list()
+ggeffects.slopes <- list()
+ggeffects.slopes.contrast <- list()
+set.seed(30)
+
+for (i in 1:1000){
+  dat.thinned <- dat_lowmod %>% group_by(cell.subsample, urban2) %>% sample_n(1) # randomly sample point from each vell
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     precip + log(number_checklists) + elevation, dat.thinned) # run model
+  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
+                                    newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                       urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # store slopes
+  ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2")) # store contrasts
+}
+
+predicted_df <- bind_rows(predicted)
+write.csv(predicted_df, "supplement_figs/low.mod.thinned.results.csv")
+
+ggeffects.slopes.df <- bind_rows(ggeffects.slopes)
+write.csv(ggeffects.slopes.df, file="supplement_figs/low.mod.thinned.slopes.csv")
+ggslopes <- ggeffects.slopes.df %>% group_by(urban2) %>% summarise(mean=mean(Slope), conf.high = max(conf.high), 
+                                                                   conf.low=min(conf.low))
+ggslopes
+
+
+ggeffects.contrast_df <- bind_rows(ggeffects.slopes.contrast)
+#write.csv(ggeffects.contrast_df, file="thinned_results/thinned_contrasts.csv")
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Suburban-Urban") %>% filter(p.value<0.05) # 999
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Suburban") %>% filter(p.value<0.05) # 1000
+contrast <- ggeffects.contrast_df %>% filter(urban2=="Natural-Urban") %>% filter(p.value<0.05) # 1000
+
+######## Plot results
+thinned.results.lowmod <- read.csv("supplement_figs/low.mod.thinned.results.csv")
+thinned.results.summary.lowmod <- thinned.results.lowmod %>% group_by(abslat, urban2) %>% 
+  summarise(mean_x=mean(estimate), max.conf.high = max(conf.high), min.conf.low = min(conf.low))
+
+thinned.plots.lowmod <- ggplot()+
+  # geom_point(predicted.mean, mapping=aes(x=x, y=mean_x, color=group))+
+  geom_point(dat_lowmod, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
+  geom_line(thinned.results.summary.lowmod, mapping=aes(x=abslat, y=mean_x, color=urban2), lwd=1.5)+
+  geom_ribbon(thinned.results.summary.lowmod, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
+  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  labs(x="Absolute latitude", y="Species richness")+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  theme_classic()+
+  scale_x_continuous(expand=c(0, 0))+
+  theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=18), axis.title=element_blank(),
+        axis.text.y=element_blank(), axis.ticks.y=element_blank())
+# this is the plot with the 95% of the confidence intervals
+thinned.plots.lowmod
+#ggsave(thinned.plots.lowmod, file="supplement_figs/thinned.results.lowmod.png", height=6, width=7)
+
+
+figure <- ggarrange(thinned.plots.98, thinned.plots.90, thinned.plots.highmod, thinned.plots.lowmod)
+figure
+figure2 <- annotate_figure(figure, left = textGrob("Species richness", rot = 90, vjust = 1, gp = gpar(cex = 1.3)),
+                           bottom = textGrob("Absolute latitude", gp = gpar(cex = 1.3)))
+
+ggsave(figure2, file="supplement_figs/thinned.sensitivity.results.png", height=9, width=12)
+
+
+
 
 

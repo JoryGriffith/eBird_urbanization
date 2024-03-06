@@ -271,7 +271,7 @@ lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
 
 ##### 3b. Trying much faster thinning method
 # Create raster grid and overlay and then randomly sample points from the grid
-GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/SMOD_global.tif")
+GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 spat.extent <- ext(GHSL)
 sample.grid <- rast(resolution=c(10000, 10000), extent = spat.extent, crs=crs(GHSL)) # sample grid
 
@@ -338,8 +338,9 @@ moran # yes this is autocorrelated, so the other one is accurate
 square <- function(x){
   x^2
 } # make function to square
-thinned.results <- list()
+thinned.results.summary <- list()
 predicted <- list()
+predicted.hemisphere <- list()
 means <- list()
 emmeans.slopes <- list()
 ggeffects.slopes <- list()
@@ -355,22 +356,66 @@ for (i in 1:1000){
   #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
   #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
   # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
-  thinned.results[[i]] <- anova(lm.thinned) # store summary data
+  thinned.results.summary[[i]] <- summary(lm.thinned) # store summary data
   predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
                                     newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+  predicted.hemisphere[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "hemisphere"), transform=square, 
+                                               newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                                                  hemisphere=c("northern", "southern")))
   means[[i]] <- marginal_means(lm.thinned, variables=c("abslat", "urban2"), transform=square)
   #  means[[i]] <- emmeans(lm.thinned, specs="urban2")
-  emmeans.slopes[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat") # so I can see differences in slopes for each model (using emmeans)
+ # emmeans.slopes[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat") # so I can see differences in slopes for each model (using emmeans)
   ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # see differences in slopes (using ggeffects)
   ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"))
   ggeffects.slopes.contrast.hemisphere[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "hemisphere"))
   }
 
 
+# get a mean of all of the model values to put in the table
+for (i in 1:10){
+  dat.thinned <- dat %>% group_by(cell.subsample, urban2) %>% sample_n(1) 
+  lm.thinned <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
+                     precip + log(number_checklists) + elevation, dat.thinned)
+  # dat.thinned.sf <- st_as_sf(dat.thinned, coords=c("long", "lat")) 
+  #dat.thinned.nb <- dnearneigh(dat.thinned.sf, d1=0, d2=200) # calculate distances
+  #  dat.thinned.lw <- nb2listw(dat.thinned.nb, style = "W", zero.policy = TRUE) # turn into weighted list
+  # moran <- lm.morantest(lm.thinned, dat.thinned.lw, zero.policy = T)
+  thinned.results.summary[[i]] <- summary(lm.thinned) # store summary data
+#  predicted[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2"), transform=square, 
+ #                                   newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"))) # store predictions for plotting
+#  predicted.hemisphere[[i]] <- avg_predictions(lm.thinned, by=c("abslat", "urban2", "hemisphere"), transform=square, 
+   #                                            newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+   #                                                               hemisphere=c("northern", "southern")))
+ # means[[i]] <- marginal_means(lm.thinned, variables=c("abslat", "urban2"), transform=square)
+  #  means[[i]] <- emmeans(lm.thinned, specs="urban2")
+  # emmeans.slopes[[i]] <- emtrends(lm.thinned, pairwise ~ urban2, var="abslat") # so I can see differences in slopes for each model (using emmeans)
+#  ggeffects.slopes[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"), test = NULL) # see differences in slopes (using ggeffects)
+ # ggeffects.slopes.contrast[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2"))
+#  ggeffects.slopes.contrast.hemisphere[[i]] <- hypothesis_test(lm.thinned, c("abslat", "urban2", "hemisphere"))
+}
+
+
+thinned.results.summary[[2]]$coefficients
+
+
+
+
+
+
+
+
+as.data.frame(thinned.results.summary[[1]]$coefficients)
+
+
+  thinned.results.summary[[1]]
+
 predicted_df <- bind_rows(predicted)
 write.csv(predicted_df, "thinned.results.csv")
 
-saveRDS(thinned.results, file="thinned_results/thinned_anovas.rds")
+predicted_hemisphere_df <- bind_rows(predicted.hemisphere)
+write.csv(predicted_hemisphere_df, "thinned.results.hemsiphere.csv")
+
+#saveRDS(thinned.results, file="thinned_results/thinned_anovas.rds")
 #test <- readRDS("thinned_results/thinned_anovas.rds")
 
 # 1) Look at mean species richness in each urbanization level
@@ -439,24 +484,6 @@ contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban"
 contrast <- ggeffects.contrast.hemisphere_df %>% filter(urban2=="Urban-Suburban", 
                                                         hemisphere=="northern-northern") %>% filter(p.value<0.05) # 1000
 
-## Run full model and plot model fits from that with these confidence intervals
-#predicted.full <- ggpredict(mod1.lm, terms = c("abslat", "urban2")) 
-#predicted.full$
-#
-#results.plot <-
-#  plot(predicted.full, add.data=TRUE, dot.size=0.5, alpha=0.4, dot.alpha=0.3, line.size=1.5, 
-#       show.title=FALSE, colors=c("#009E73", "#CC79A7", "#000000")) +
-#  theme_bw()+
-#  labs(x="Absolute Latitude", y="Species Richness", color="Urban") +
-#  geom_ribbon(predicted_df, mapping=aes(x=x, ymax=max.conf.high, ymin=min.conf.low, group=group), alpha=0.1)+
-#  theme(text=element_text(size=15), legend.spacing.y = unit(1, 'cm'), legend.title=element_blank())
-#results.plot
-#
-#ggplot()+
-##  geom_point(dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.5, alpha=0.2)+
-#  geom_line(predicted.full, mapping=aes(x=x, y=predicted, color=group))+
-#  geom_ribbon(predicted_df, mapping=aes(x=x, ymax=max.conf.high, ymin=min.conf.low, group=group), alpha=0.1)
-## this definitely does not work
 
 
 

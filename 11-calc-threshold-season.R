@@ -321,6 +321,30 @@ winter_filt95 <- winter_filt95 %>% filter(!is.na(urban)) # remove NAs for urbani
 ## Put them together 
 season_dat <- rbind(summer_filt95, winter_filt95)
 
+
+sum_long <- summer_filt95 %>% select(cell, total_SR) %>% rename(summer=total_SR)
+wint_long <- winter_filt95 %>% select(cell, total_SR) %>% rename(winter=total_SR)
+
+season_long <- merge(sum_long, wint_long, by="cell")
+season_long$x <- xFromCell(GHSL, season_long$cell)
+season_long$y <- yFromCell(GHSL, season_long$cell)
+
+season_long <- season_long %>% mutate(diff = summer - winter)
+world <- ne_countries(scale = "medium", returnclass = "sf")
+# plot
+full.map<-ggplot(data=world)+
+  geom_sf(lwd=0.15, fill="white") +
+  geom_point(data=season_long, aes(x=x, y=y, color=diff, size=diff), size=.65, alpha=0.5) +
+  #coord_sf(crs = 4326, expand = TRUE, xlim=c(-180, 180), ylim=c(-55, 70)) +
+  labs(x="Longitude", y="Latitude")+
+  theme_classic()+
+  scale_color_viridis_c()+
+  # geom_hline(yintercept=c(23.4, -23.4, 35, -35, 50, -50, 66.5, -66.5), alpha=0.7, lty=3)+ # geographic zones
+  geom_hline(yintercept=0, alpha=0.8, lty=3)  # for equator
+#  theme_classic() + theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=15),
+ #                         axis.text = element_blank(), axis.ticks = element_blank(), 
+  #                        axis.title=element_blank(), axis.line = element_blank(), strip.background=element_blank(), strip.text=element_blank()) 
+full.map
 ## Assign hemisphere
 #season_dat <- season_dat %>% mutate(hemisphere = if_else(x>0, "northern", "southern"))
 

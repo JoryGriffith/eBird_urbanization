@@ -1131,20 +1131,28 @@ means.habitat4 <- as.data.frame(marginal_means(habitat.aov4, variables=c("zone_b
 
 density.plot <- ggplot() +
   stat_density_ridges(birds_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
-                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+                      alpha=0.6, scale=.8, panel_scaling=TRUE) +
   geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
   geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
-  xlim(0,30)+
-  scale_fill_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
-  scale_color_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  scale_fill_manual(labels=c('Urban species', 'Urban excluded species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Urban excluded species'), values=c("black", "deepskyblue3"))+
   theme_classic() +
-  labs(x="Habitat breadth")+
-  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank())
+ scale_x_continuous(expand=c(0, 0), limits=c(-1,40)) +
+  labs(x="Habitat breadth", y="Density of specialization values") +
+  annotate("text", x=20, y=1.8, label="Tropical", color="grey30", size=5)+
+  annotate("text", x=20, y=2.8, label="Subropical", color="grey30", size=5)+
+  annotate("text", x=20, y=3.8, label="Temperate", color="grey30", size=5)+
+  annotate("text", x=30, y=2.8, label="Subpolar", color="grey30", size=5)+
+  annotate("text", x=27, y=1.15, label="n = 7298", color="grey30", size=5)+
+  annotate("text", x=27, y=2.15, label="n = 3934", color="grey30", size=5)+
+  annotate("text", x=27, y=3.15, label="n = 2031", color="grey30", size=5)+
+  annotate("text", x=27, y=4.15, label="n = 943", color="grey30", size=5)+
+  theme(axis.text.y=element_blank(), axis.ticks.y=element_blank(), text=element_text(size=15), 
+        legend.title=element_blank(), legend.position=c(.8, .08))
 density.plot
 
-ggsave(density.plot, file="habitat.breadth.plot.png", width=6, height=7)
-
-
+ggsave(density.plot, file="habitat.breadth.plot.png", width=7, height=8)
+?stat_density_ridges
 
 
 
@@ -1259,6 +1267,65 @@ habitat_plot
 
 #ggsave(habitat_plot, file="pecialistHabitatResults.png", height=4, width=8)
 # Try it as an inset
+
+
+
+
+## Run same analysis for suburban vs natural 
+birds_zones.suburb <- sp_habitat %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, Habitat_breadth_IUCN) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="urban") %>% 
+  pivot_wider(names_from="urban2", values_from="n")  
+
+birds_zones.suburb <- birds_zones.suburb %>% replace(is.na(.), 0)
+
+birds_zones.suburb$category <- NA
+
+for (i in 1:nrow(birds_zones.suburb)){
+  if (birds_zones.suburb$natural[i] >= 0 & birds_zones.suburb$suburban[i] > 0) {
+    birds_zones.suburb$category[i] <- "in.suburban"
+  }
+  # else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+  #   birds_zones$category[i] <- "urban.only"
+  # }
+  else if (birds_zones.suburb$natural[i] > 0 & birds_zones.suburb$suburban[i] == 0) {
+    birds_zones.suburb$category[i] <- "natural.only"
+  }
+}
+
+birds_zones.suburb %>% group_by(zone_bin) %>% 
+
+habitat.aov4.suburb <- aov(log(Habitat_breadth_IUCN) ~ zone_bin * category, data = birds_zones.suburb)
+plot(habitat.aov4.suburb)
+summary(habitat.aov4.suburb)
+# significant
+exponent <- function(x){
+  exp(x)
+} 
+# plot as suburban
+means.habitat4.suburb <- as.data.frame(marginal_means(habitat.aov4.suburb, variables=c("zone_bin", "category"), cross=TRUE, transform=exponent))
+#?marginal_means
+#emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
+
+
+density.plot.suburb.habitat <- ggplot() +
+  stat_density_ridges(birds_zones.suburb, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.habitat4.suburb, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.habitat4.suburb, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  xlim(0,30)+
+  scale_fill_manual(labels=c('Suburban species', 'Non - suburban species'), values=c("hotpink1", "deepskyblue3"))+
+  scale_color_manual(labels=c('Suburban species', 'Non - suburban species'), values=c("hotpink1", "deepskyblue3"))+
+  theme_classic() +
+  labs(x="Habitat breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank(), legend.position="none")
+density.plot.suburb.habitat
+
+
+
+
+
+
+
 
 
 
@@ -1528,24 +1595,94 @@ cor(habitat.diet$diet.breadth, habitat.diet$habitat.breadth) # negative because 
 
 
 
-#################### Figure out how to use taxise to merge data
 
-#res<-taxize::get_gbifid_(global_uniquesp$SCIENTIFIC.NAME, method="backbone") #finds GBIF info for each species 
-#all.names<-as.data.frame(matrix(data=NA,nrow=nrow(species.list),ncol=2))
-#names(all.names)=c("IUCN_Name","GBIF_Name")
-#for (i in 347:length(res)){
-#  all.names[i,1]=names(res)[i]
-#  
-#  if (length(which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT"))>0){
-#    all.names[i,2]=res[[i]]$species[which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT")]
-#  }
-#  
-#  if (length(which(res[[i]]$status=="ACCEPTED" & res[[i]]$matchtype=="EXACT"))==0){
-#    all.names[i,2]=res[[i]]$species[which(res[[i]]$status=="SYNONYM" & res[[i]]$matchtype=="EXACT")]
-#  }
-#  
-#  else(next)
-#}
+
+## Run same analysis for suburban vs natural - diet breadth
+diet_zones.suburb <- sp_diet %>% group_by(zone_bin, SCIENTIFIC.NAME, urban2, gini.flipped) %>% count(.drop=FALSE) %>% 
+  filter(!urban2=="urban") %>% 
+  pivot_wider(names_from="urban2", values_from="n")  
+
+diet_zones.suburb <- diet_zones.suburb %>% replace(is.na(.), 0)
+
+diet_zones.suburb$category <- NA
+
+for (i in 1:nrow(diet_zones.suburb)){
+  if (diet_zones.suburb$natural[i] >= 0 & diet_zones.suburb$suburban[i] > 0) {
+    diet_zones.suburb$category[i] <- "in.suburban"
+  }
+  # else if (birds_zones$natural[i] == 0 & birds_zones$urban[i] > 0){
+  #   birds_zones$category[i] <- "urban.only"
+  # }
+  else if (diet_zones.suburb$natural[i] > 0 & diet_zones.suburb$suburban[i] == 0) {
+    diet_zones.suburb$category[i] <- "natural.only"
+  }
+}
+
+diet_zones.suburb %>% group_by(zone_bin) %>% count()
+
+
+diet.aov4.suburb <- aov(log(gini.flipped + 1) ~ zone_bin * category, data = diet_zones.suburb)
+plot(diet.aov4.suburb)
+summary(diet.aov4.suburb)
+# significant
+exponent.minus1 <- function(x){
+  exp(x)-1
+} 
+# plot as suburban
+means.diet4.suburb <- as.data.frame(marginal_means(diet.aov4.suburb, variables=c("zone_bin", "category"), cross=TRUE, transform=exponent.minus1))
+#?marginal_means
+#emmeans(habitat.aov4, pairwise~zone_bin, by="category") # all means are significantly different from one another across zones
+
+
+density.plot.suburb.diet <- ggplot() +
+  stat_density_ridges(diet_zones.suburb, mapping=aes(x = gini.flipped, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.5, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.diet4.suburb, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.diet4.suburb, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  scale_fill_manual(labels=c('Suburban species', 'Non - suburban species'), values=c("hotpink1", "deepskyblue3"))+
+  scale_color_manual(labels=c('Suburban species', 'Non - suburban species'), values=c("hotpink1", "deepskyblue3"))+
+  theme_classic() +
+  coord_cartesian(clip = "off") +
+  xlim(c(0,0.4))+
+  labs(x="Diet breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank(), 
+        legend.position="none", axis.text.y=element_blank(), axis.ticks.y=element_blank())
+density.plot.suburb.diet
+
+#ggarrange(density.plot.suburb.habitat, density.plot.suburb.diet)
+?ggarrange
+
+library(patchwork)
+density.plot.suburb <- density.plot.suburb.habitat | density.plot.suburb.diet
+ggsave(density.plot.suburb, file="supplement_figs/density.plot.suburban.png", height=7, width=9)
+
+## save just for the legend
+legend <- ggplot() +
+  stat_density_ridges(diet_zones.suburb, mapping=aes(x = gini.flipped, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.6, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.diet4.suburb, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.diet4.suburb, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  scale_fill_manual(labels=c('Suburban species', 'Non - suburban species'), values=c("hotpink1", "deepskyblue3"))+
+  scale_color_manual(labels=c('Suburban species', 'Non - suburban species'), values=c("hotpink1", "deepskyblue3"))+
+  theme_classic() +
+  xlim(c(0,0.4))+
+  labs(x="Diet breadth")+
+  theme(axis.title.y=element_blank(), text=element_text(size=15), legend.title=element_blank(), 
+         axis.text.y=element_blank(), axis.ticks.y=element_blank())
+ggsave(legend, file="supplement_figs/density.plot.suburban.legend.png", height=7, width=9)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

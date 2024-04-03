@@ -20,14 +20,14 @@ h1.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_abline(aes(slope=-1.5, intercept=225, color="Suburban"), linewidth=1.2) +
   geom_abline(aes(slope=-1.5, intercept=150, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Species Richness") +
-  scale_x_continuous(expand=c(0,0))+
-  scale_y_continuous(limits=c(0,500), expand=c(0,0))+
+  scale_x_continuous(breaks=c(0,25,50,75),expand=c(0,0))+
+  scale_y_continuous(breaks=c(0,500), limits=c(0,500), expand=c(0,0))+
   theme_classic() +
   # annotate("Text", size=5, label="H1: Same proportion", color="grey20", x=45, y=380)+
   scale_color_manual(name="Urbanization", breaks=c('Natural', 'Suburban', 'Urban'),
                      values=c('Natural'='#009E73', 'Suburban'='#CC79A7', 'Urban'='#000000'))+
   theme(text=element_text(size=15), legend.position="none", legend.title=element_blank(), 
-        axis.title.x=element_blank(), axis.title.y=element_blank())
+        axis.title=element_blank(),  axis.text.y=element_blank(), axis.ticks.y=element_blank())
 h1.plot
 
 
@@ -74,11 +74,11 @@ winter.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_abline(slope=-.9, intercept=175, linewidth=1.2, color="#000000") +
   labs(x="Absolute Latitude", y="Species Richness") +
   scale_x_continuous(expand=c(0,0))+
-  scale_y_continuous(limits=c(0,500), expand=c(0,0))+
+  scale_y_continuous(breaks=c(0,500), limits=c(0,500), expand=c(0,0))+
   theme_classic()+
   #  annotate("Text", size=5, label="H4: Winter", color="grey20", x=45, y=380)+
-  theme(text=element_text(size=15), 
-        axis.title.x=element_blank(), axis.title.y=element_blank(), legend.position="none")
+  theme(text=element_text(size=15), legend.position="none", legend.title=element_blank(), 
+        axis.title=element_blank(),  axis.text.y=element_blank(), axis.ticks.y=element_blank())
 winter.plot
 
 #ggsave(winter.plot, file="committee_meeting_figs/pres_winter_hypothesis_fig.png", height=4, width=6)

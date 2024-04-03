@@ -45,6 +45,14 @@ ggplot(dat, aes(x=abslat, y=log(number_checklists), color=urban2))+
   geom_smooth()
 
 
+
+
+
+
+
+
+
+
 ###################################
 # START MODELLING
 

@@ -11,7 +11,6 @@ library(marginaleffects)
 
 ## Load summary data
 summary <- read.csv("global_richness_summary_5km.csv")
-
 ### Use coverage to threshold the data
 coverage <- read.csv("coverage_top500_5km.csv")
 
@@ -102,6 +101,7 @@ write_csv(dat_summary95, "modeling_data_5km.csv")
 
 ########################### MODELLING ###################
 full.dat <- read.csv("modeling_data_5km.csv")
+full.dat %>% group_by(urban2) %>% count()
 urb <- full.dat %>% filter(urban2=="Urban")
 suburb <- full.dat %>% filter(urban2=="Suburban")
 range(urb$abslat)
@@ -302,6 +302,7 @@ write_csv(dat_season, "season_model_data_5km.csv")
 
 season.dat <- read.csv("season_model_data_5km.csv")
 # need to rerun this because it did not save correctly
+season.dat %>% group_by(season, urban2) %>% count()
 
 season.dat %>% group_by(urban) %>% summarise(n=n())
 summary(season.dat)

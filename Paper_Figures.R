@@ -49,6 +49,27 @@ hypothesis_test(full.model, terms=c("abslat", "urban2"), scale="response")
 dat.season <- read.csv("season_modeling_data.csv")
 range(dat.season$abslat)
 
+
+### look at countries
+countries <- ne_countries(type = "countries", scale = "small")
+countries.vect <- vect(countries)
+
+dat.season$country <- as.data.frame(terra::extract(countries.vect, dat.season[,c(1:2)]))$admin
+
+panama <- dat.season %>% filter(country=="Panama")
+
+panama.mean <- panama %>% group_by(season) %>% summarise(mean=mean(total_SR))
+
+ggplot()+
+  geom_point(dat.season, mapping=aes(x=abslat, y=total_SR), size=.65, alpha=0.5, color="black")+
+  geom_point(panama, mapping=aes(x=abslat, y=total_SR), size=.65, alpha=0.5, color="red")+
+ # geom_point(panama.mean, mapping=aes(x=abslat, y=mean), color="green", size=1)+
+  facet_wrap(~season)
+
+
+
+
+
 season.model <- lm(sqrt(total_SR) ~ abslat * urban2 * season * hemisphere + 
                      precip + log(number_checklists) + elevation, dat.season)
 
@@ -56,7 +77,7 @@ summary(season.model)
 library(car)
 Anova(season.model)
 # look at means
-season.means <- marginal_means(season.model, variables=c("abslat", "urban2", "season"), cross=TRUE, transform=square)
+season.means <- marginal_means(season.model, variables=c("urban2", "season"), cross=TRUE, transform=square)
 
 
 plot_slopes(season.model, variables="abslat", condition=c("urban2", "season", "hemisphere"))
@@ -69,6 +90,7 @@ hypothesis_test(season.model, c("abslat", "urban2", "season"), test = NULL)
 # also overlaps 0 in full model because of the way it averages (way more points in N hemsiphere)
 hypothesis_test(season.model, c("abslat", "urban2", "season"))
 # suburban and urban significantly different in the summer but barely (P=0.045), prob won't be robust to thinning
+
 
 
 
@@ -140,6 +162,7 @@ hemisphereLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0)) +
+  scale_y_continuous(expand=c(0,0))+
   facet_wrap(~hemisphere)+
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15), axis.title=element_blank())
 hemisphereLDGplot
@@ -160,7 +183,8 @@ mainLDGplot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), tr
   geom_ribbon(predicted.full, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
-  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500), limits=c(0,562), expand=c(0,0))+
+  scale_x_continuous(expand=c(0,0))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
@@ -170,7 +194,7 @@ mainLDGplot
 #mainLDGplot | marginal.full
 plot_slopes(full.model, variables="abslat", condition=c("urban2"))
 
-
+range(total.dat$total_SR)
 
 ggsave(mainLDGplot, file="supplement_figs/LDGMainResults.png", height=6, width=7)
 #plot.full.model | thinned.plots # compare the full model with the thinned model
@@ -373,13 +397,14 @@ thinned.plots <- ggplot()+
   geom_ribbon(thinned.results.summary, mapping=aes(x=abslat, ymax=max.conf.high, ymin=min.conf.low, group=urban2), alpha=0.5)+
   scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
-  scale_y_continuous(breaks=c(0,100,200,300,400,500,600), limits=c(0,600))+
+  scale_y_continuous(breaks=c(0,100,200,300,400,500), limits=c(0,562), expand=c(0,0))+
+  scale_x_continuous(expand=c(0,0))+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
   theme(legend.title=element_blank(), legend.position = c(.8, .85), text=element_text(size=15))
 # this is the plot with the 95% of the confidence intervals
 thinned.plots
-ggsave(thinned.plots, file="main.thinned.results.png", height=6, width=7)
+ggsave(thinned.plots, file="main.thinned.results.png", height=7, width=7)
 
 
 
@@ -417,7 +442,8 @@ ggsave(thinned.proportion.plot, file="thinned.proportion.plot.png", height=5, wi
 
 
 
-#### Seasonal
+#### Seasonal-
+range(dat.season$total_SR)
 seasonal.thinned.results <- read.csv("thinned.seasonal.results.csv")
 
 seasonal.thinned.results.summary <- seasonal.thinned.results %>% group_by(abslat, urban2, season) %>% 
@@ -445,7 +471,7 @@ season.thinned.plot <- ggplot()+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
-  scale_y_continuous(breaks=c(0,100,200,300,400, 500), limits=c(0,500))+
+  scale_y_continuous(breaks=c(0,100,200,300,400, 500), limits=c(0,536))+
   facet_wrap(~season, ncol=2)+
   theme(legend.title=element_blank(), legend.position = "none", text=element_text(size=14), strip.text=element_blank())
 # this is the plot with the 95% of the confidence intervals
@@ -962,6 +988,20 @@ thinned.plots <- ggplot()+
 thinned.plots
 ggsave(thinned.plots, file="supplement_figs/hemisphere.season.results.png", height=8, width=10)
 
+
+
+##### Subset northern data and run an anova
+northern.dat <- dat.season %>% filter(abslat>=50&hemisphere=="northern")
+anova1 <- aov(sqrt(total_SR)~urban2*number_checklists*season, northern.dat)
+summary(anova1)
+plot(anova1)
+square <- function(x){
+  x^2
+}
+means <- as.data.frame(marginal_means(anova1, variables=c("urban2", "season"), cross=TRUE, transform=square))
+ggplot(means)+
+  geom_point(mapping=aes(x=urban2, y=estimate, color=season), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(mapping=aes(ymin=conf.low, ymax=conf.high, x=urban2, group=season, color=season))
 
 
 

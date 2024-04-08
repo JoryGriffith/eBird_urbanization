@@ -115,8 +115,8 @@ hist(log(full.dat$total_SR))
 hist(sqrt(full.dat$total_SR), breaks=50) # this looks pretty good
 hist(full.dat$number_checklists)
 
-# filter out latitudes without urban cells
-full.dat <- full.dat %>% filter(lat <= 70 & lat >=-55)
+# filter out latitudes without urban cells and also filter out suburban areas
+full.dat <- full.dat %>% filter(lat <= 70 & lat >=-55) %>% filter(urban2 != "Suburban")
 
 
 ggplot(full.dat, aes(x=abslat, y=total_SR, color=urban2))+
@@ -136,7 +136,7 @@ square <- function(x){
 ## plot results
 predicted.5km<-avg_predictions(mod1, by=c("abslat", "urban2"), transform=square, 
                               newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
-                                                 urban2=c("Natural", "Suburban", "Urban")))
+                                                 urban2=c("Natural", "Urban")))
 
 
 mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), transform=square, points=0.01) + 
@@ -144,8 +144,8 @@ mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), t
   geom_point(full.dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.5km, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.5km, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
-  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
-  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_color_manual(values=c("#009E73", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
@@ -159,15 +159,13 @@ ggsave(mod_5km.plot, file="supplement_figs/5km.full.plot.png", height=5, width=8
 proportion.5km <- predicted.5km %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
   pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
   mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, 
-         LCL.urb = conf.low_Urban/conf.high_Natural,
-         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
-         LCL.suburb = conf.low_Suburban/conf.high_Natural)
+         LCL.urb = conf.low_Urban/conf.high_Natural)
 
 
 thinned.proportion.5km <- ggplot(proportion.5km, aes(x=abslat, y=proportion.urb))+
   geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1.5)+
   #  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
-  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
+#  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
   #  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
   geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
   ylim(0.5,1)+
@@ -300,7 +298,7 @@ write_csv(dat_season, "season_model_data_5km.csv")
 #### Modeling seasonal data ########
 ############################
 
-season.dat <- read.csv("season_model_data_5km.csv")
+season.dat <- read.csv("season_model_data_5km.csv") %>% filter(urban2 != "Suburban")
 # need to rerun this because it did not save correctly
 season.dat %>% group_by(season, urban2) %>% count()
 
@@ -325,7 +323,7 @@ square <- function(x){
 
 ## plot results
 predicted.season.5km<-avg_predictions(mod1, by=c("abslat", "urban2", "season"), transform=square, 
-                                      newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban"),
+                                      newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Urban"),
                                                          season = c("summer", "winter")))
 
 
@@ -334,8 +332,8 @@ mod_5km.plot <- #plot_predictions(full.model, condition=c("abslat", "urban2"), t
   geom_point(season.dat, mapping=aes(x=abslat, y=total_SR, color=urban2), size=0.25, alpha=0.1)+
   geom_line(predicted.season.5km, mapping=aes(x=abslat, y=estimate, color=urban2), lwd=1.5)+
   geom_ribbon(predicted.season.5km, mapping=aes(x=abslat, ymax=conf.high, ymin=conf.low, group=urban2), alpha=0.3)+
-  scale_color_manual(values=c("#009E73", "#CC79A7", "#000000"))+
-  scale_fill_manual(values=c("#009E73", "#CC79A7", "#000000"))+
+  scale_color_manual(values=c("#009E73", "#000000"))+
+  scale_fill_manual(values=c("#009E73", "#000000"))+
   labs(x="Absolute latitude", y="Species richness")+
   theme_classic()+
   scale_x_continuous(expand=c(0, 0))+
@@ -358,15 +356,13 @@ plot_slopes(mod1, variables="abslat", condition=c("urban2", "season"))
 proportion.5km.wint <- predicted.season.5km %>% filter(season=="winter") %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
   pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
   mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, 
-         LCL.urb = conf.low_Urban/conf.high_Natural,
-         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
-         LCL.suburb = conf.low_Suburban/conf.high_Natural)
+         LCL.urb = conf.low_Urban/conf.high_Natural)
 
 
 thinned.proportion.5km.wint <- ggplot(proportion.5km.wint, aes(x=abslat, y=proportion.urb))+
   geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1.5)+
   #  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
-  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
+ # geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
   #  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
   geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
   ylim(0.5,1.5)+
@@ -382,15 +378,13 @@ ggsave(thinned.proportion.5km.wint, file="supplement_figs/thinned.proportion.5km
 proportion.5km.sum <- predicted.season.5km %>% filter(season=="summer") %>% select(estimate, urban2, abslat, conf.high, conf.low) %>% 
   pivot_wider(names_from=c("urban2"), values_from = c("estimate", "conf.high", "conf.low")) %>% 
   mutate(proportion.urb = estimate_Urban/estimate_Natural, UCL.urb = conf.high_Urban/conf.low_Natural, 
-         LCL.urb = conf.low_Urban/conf.high_Natural,
-         proportion.suburb = estimate_Suburban/estimate_Natural, UCL.suburb = conf.high_Suburban/conf.low_Natural, 
-         LCL.suburb = conf.low_Suburban/conf.high_Natural)
+         LCL.urb = conf.low_Urban/conf.high_Natural)
 
 
 thinned.proportion.5km.sum <- ggplot(proportion.5km.sum, aes(x=abslat, y=proportion.urb))+
   geom_line(aes(x=abslat, y=proportion.urb), color="#000000", lwd=1.5)+
   #  geom_ribbon(aes(x=abslat, ymax=UCL.urb, ymin=LCL.urb), alpha=0.2)+
-  geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
+ # geom_line(aes(x=abslat, y=proportion.suburb), color="#CC79A7", lwd=1.5)+
   #  geom_ribbon(aes(x=abslat, ymax=UCL.suburb, ymin=LCL.suburb), alpha=0.2)+
   geom_hline(yintercept=1, linetype=2, color="#009E73", lwd=1)+
   ylim(0.5,1)+

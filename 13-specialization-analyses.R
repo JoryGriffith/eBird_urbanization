@@ -1156,6 +1156,23 @@ ggsave(density.plot, file="habitat.breadth.plot.png", width=7, height=8)
 
 
 
+
+density.plot.long <- ggplot() +
+  stat_density_ridges(birds_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.5, scale=.8, panel_scaling=TRUE) +
+  geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  scale_fill_manual(labels=c('Urban species', 'Urban excluded species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Urban excluded species'), values=c("black", "deepskyblue3"))+
+  theme_classic() +
+  scale_x_continuous(limits=c(-1,40)) +
+  coord_flip()+
+  labs(x="Habitat breadth", y="Density of specialization values") +
+  theme(axis.text.x=element_blank(), axis.ticks.y=element_blank(), text=element_text(size=15), 
+        legend.title=element_blank(), legend.position="none")
+density.plot.long
+ggsave(density.plot.long, file="habitat.breadth.plot.long.png", width=8, height=4)
+
 ###### Euler plot
 
 richness_category <- birds_zones %>% group_by(zone_bin, category2) %>% count()
@@ -1457,27 +1474,6 @@ ggplot()+
 
 
 
-
-
-
-
-
-
-
-# including suburban
-#for (i in 1:nrow(diet_zones)){
-#  if (diet_zones$natural[i] >= 0 & diet_zones$suburban[i] >= 0 & diet_zones$urban[i] > 0) {
-#   diet_zones$category[i] <- "in.urban"
-# }
-#  else if (diet_zones$natural[i] >= 0 & diet_zones$suburban[i] > 0 & diet_zones$urban[i] == 0) {
-#   diet_zones$category[i] <- "in.suburban"
-# }
-
-#else if (diet_zones$natural[i] > 0 & diet_zones$suburban[i] == 0 & diet_zones$urban[i] == 0) {
-#   diet_zones$category[i] <- "natural.only"
-#  }
-#}
-
 range(diet_zones$gini.flipped)
 unique(diet_zones$zone_bin)
 diet.aov4 <- aov(log(gini.flipped+1) ~ zone_bin * category, data = diet_zones)
@@ -1514,6 +1510,22 @@ density.plot
 ggsave(density.plot, file="supplement_figs/diet.breadth.plot.png", width=6, height=7)
 
 diet_zones %>% group_by(zone_bin) %>% count()
+
+density.plot.long <- ggplot() +
+  stat_density_ridges(diet_zones, mapping=aes(x = gini.flipped, y = zone_bin, group=interaction(zone_bin, category), fill=category),
+                      alpha=0.5, scale=0.8, panel_scaling=FALSE) +
+  geom_point(means.diet4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
+  geom_errorbar(means.diet4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  xlim(0,0.4)+
+  coord_flip()+
+  scale_fill_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  scale_color_manual(labels=c('Urban species', 'Non - urban species'), values=c("black", "deepskyblue3"))+
+  theme_classic() +
+  labs(x="Diet breadth", y="Density of specialization values")+
+  theme(text=element_text(size=15), legend.title=element_blank(), legend.position="none",
+        axis.text.x = element_blank())
+density.plot.long
+ggsave(density.plot.long, file="diet.breadth.plot.wide.png", width=8, height=4)
 
 
 

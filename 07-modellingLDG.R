@@ -93,6 +93,13 @@ mod1 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere +
 plot_slopes(mod1, variables="abslat", condition=c("urban2")) # all very much different
 summary(mod1)
 
+# compute partial R2 and partial cohen's F2
+library(sensemakr)
+partial_r2 <- as.data.frame(partial_r2(mod1))
+partial_f2 <- as.data.frame(partial_f2(mod1))
+
+
+
 
 
 mod2 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere * log(number_checklists) +

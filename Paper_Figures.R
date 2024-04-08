@@ -405,7 +405,7 @@ thinned.plots <- ggplot()+
 # this is the plot with the 95% of the confidence intervals
 thinned.plots
 ggsave(thinned.plots, file="main.thinned.results.png", height=7, width=7)
-
+ggsave(thinned.plots, file="main.thinned.results.png", height=7, width=7)
 
 
 # compare with full plot

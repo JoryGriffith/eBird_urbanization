@@ -14,11 +14,43 @@ y <- runif(min=0, max=300, n=150)
 dat <- data.frame(x,y)
 # H1
 
-h1.plot <- ggplot(dat, aes(x=x, y=y))+
-  geom_point(alpha=0)+
-  geom_abline(aes(slope=-1.5, intercept=300, color="Natural"), linewidth=1.2) +
-  geom_abline(aes(slope=-1.5, intercept=225, color="Suburban"), linewidth=1.2) +
-  geom_abline(aes(slope=-1.5, intercept=150, color="Urban"), linewidth=1.2) +
+#h1.plot <- ggplot(dat, aes(x=x, y=y))+
+#  geom_point(alpha=0)+
+#  geom_abline(aes(slope=-1.5, intercept=300, color="Natural"), linewidth=1.2) +
+#  geom_abline(aes(slope=-1.5, intercept=225, color="Suburban"), linewidth=1.2) +
+#  geom_abline(aes(slope=-1.5, intercept=150, color="Urban"), linewidth=1.2) +
+#  labs(x="Absolute Latitude", y="Species Richness") +
+#  scale_x_continuous(breaks=c(0,25,50,75),expand=c(0,0))+
+#  scale_y_continuous(breaks=c(0,500), limits=c(0,500), expand=c(0,0))+
+#  theme_classic() +
+#  # annotate("Text", size=5, label="H1: Same proportion", color="grey20", x=45, y=380)+
+#  scale_color_manual(name="Urbanization", breaks=c('Natural', 'Suburban', 'Urban'),
+#                     values=c('Natural'='#009E73', 'Suburban'='#CC79A7', 'Urban'='#000000'))+
+#  theme(text=element_text(size=15), legend.position="none", legend.title=element_blank(), 
+#        axis.title=element_blank(),  axis.text.y=element_blank(), axis.ticks.y=element_blank())
+#h1.plot
+x1.urb=rnorm(90, 45, 40)
+error=rnorm(90,0,50)
+y1.urb=(-1.5*x1) + 300 + error
+
+x1.suburb=rnorm(90, 45, 40)
+error=rnorm(90,0,50)
+y1.suburb=(-1.5*x1) + 300 + error
+
+x1.nat=rnorm(90, 45, 40)
+error=rnorm(90,0,50)
+y1.nat=(-1.5*x1) + 300 + error
+
+sim.dat <- as.data.frame(cbind(x1,y1))
+#create the model
+
+h1.plot <- ggplot()+
+  geom_point(sim.dat, mapping=aes(x=x1.urb, y=y1.urb), color="red")+
+  geom_point(sim.dat, mapping=aes(x=x1.suburb, y=y1.suburb), color="blue")+
+  geom_point(sim.dat, mapping=aes(x=x1.nat, y=y1.nat), color="green")+
+  geom_abline(dat, mapping=aes(slope=-1.5, intercept=300, color="Natural"), linewidth=1.2) +
+  geom_abline(dat, mapping=aes(slope=-1.5, intercept=290, color="Suburban"), linewidth=1.2) +
+  geom_abline(dat, mapping=aes(slope=-1.5, intercept=280, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Species Richness") +
   scale_x_continuous(breaks=c(0,25,50,75),expand=c(0,0))+
   scale_y_continuous(breaks=c(0,500), limits=c(0,500), expand=c(0,0))+
@@ -144,11 +176,28 @@ summer.plot2
 
 
 ### Proportion plots
+#p1.plot <- ggplot(dat, aes(x=x, y=y))+
+#  geom_point(alpha=0)+
+#  geom_abline(aes(slope=0, intercept=1, color="Natural"), linewidth=1.5, lty=2) +
+#  geom_abline(aes(slope=-0.002, intercept=0.75, color="Suburban"), linewidth=1.2) +
+#  geom_abline(aes(slope=-0.002, intercept=0.5, color="Urban"), linewidth=1.2) +
+#  labs(x="Absolute Latitude", y="Proportion of natural") +
+#  scale_x_continuous(expand=c(0,0))+
+#  scale_y_continuous(limits=c(0.25,1), expand=c(0,0))+
+#  theme_classic() +
+#  # annotate("Text", size=5, label="H1: Same proportion", color="grey20", x=45, y=380)+
+#  scale_color_manual(name="Urbanization", breaks=c('Natural', 'Suburban', 'Urban'),
+#                     values=c('Natural'='#009E73', 'Suburban'='#CC79A7', 'Urban'='#000000'))+
+#  theme(text=element_text(size=15), legend.position="none", legend.title=element_blank(), 
+#        axis.title.x=element_blank())
+#p1.plot
+#ggsave(p1.plot, file="hypothesis_figs/proportionH1.plot.png", height=3, width=3)
+
 p1.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_point(alpha=0)+
   geom_abline(aes(slope=0, intercept=1, color="Natural"), linewidth=1.5, lty=2) +
-  geom_abline(aes(slope=-0.002, intercept=0.75, color="Suburban"), linewidth=1.2) +
-  geom_abline(aes(slope=-0.002, intercept=0.5, color="Urban"), linewidth=1.2) +
+  geom_abline(aes(slope=0, intercept=0.98, color="Suburban"), linewidth=1.2) +
+  geom_abline(aes(slope=0, intercept=0.95, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Proportion of natural") +
   scale_x_continuous(expand=c(0,0))+
   scale_y_continuous(limits=c(0.25,1), expand=c(0,0))+
@@ -160,7 +209,6 @@ p1.plot <- ggplot(dat, aes(x=x, y=y))+
         axis.title.x=element_blank())
 p1.plot
 ggsave(p1.plot, file="hypothesis_figs/proportionH1.plot.png", height=3, width=3)
-
 
 p2.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_point(alpha=0)+

@@ -9,15 +9,17 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
            "r3c1", "r3c2", "r3c3", "r3c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
-
+i=4
+j=5
+# skipped r2c1
 # loop for each square (skipped 5 because it's too big)
-for (j in 1:length(names)){
+for (j in 5:5){
 datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
                       header=TRUE) # load data
-  
+    if(nrow(dat)==0) next
     dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
     dat$OBSERVATION.DATE <- as.character(dat$OBSERVATION.DATE)
     dat$OBSERVER.ID <- as.character(dat$OBSERVER.ID)
@@ -29,7 +31,7 @@ datalist = vector("list", length = length(years))
 # bind lists together
 
 dat2 <- dplyr::bind_rows(datalist)
-
+if(nrow(dat2)==0) next
 # summarise
 dat2$month <- month(dat2$OBSERVATION.DATE)
 
@@ -104,7 +106,8 @@ for (j in 1:length(names)){
   for (i in 1:length(years)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
                       header=TRUE) # load data
-    dat %>% filter(effort_distance_km <= 2.5)
+    if(nrow(dat)==0) next
+    dat %>% filter(EFFORT.DISTANCE.KM <= 2.5)
     dat$SCIENTIFIC.NAME <- as.character(dat$SCIENTIFIC.NAME)
     dat$OBSERVATION.DATE <- as.character(dat$OBSERVATION.DATE)
     dat$OBSERVER.ID <- as.character(dat$OBSERVER.ID)
@@ -116,7 +119,7 @@ for (j in 1:length(names)){
   # bind lists together
   
   dat2 <- dplyr::bind_rows(datalist)
-  
+  if(nrow(dat2)==0) next
   ## aggregate to get number of checklists and raw richness per cell
   dat_summary <- dat2 %>%
     group_by(cell) %>%
@@ -124,13 +127,12 @@ for (j in 1:length(names)){
               total_SR=length(unique(SCIENTIFIC.NAME)),
               total_duration=sum(DURATION.MINUTES),
               avg_duration=mean(DURATION.MINUTES),
-              avg_distance=mean(effort_distance_km)
-              no_months=length(unique(month))
+              avg_distance=mean(EFFORT.DISTANCE.KM)
     )
   
   dat_summary$square=names[j]
   # save as csv
-  write.csv(dat_summary, paste("5yr_summary_2.5distance/", names[j], "_SR.csv", sep=""))
+  write.csv(dat_summary, paste("5yr_summary_2.5distance/", names[j], "_SR.2.5distance.csv", sep=""))
   print(paste("finished", names[j]))
   
   rm(dat)
@@ -206,7 +208,7 @@ for (j in 1:length(names)){
   
   dat_summary$square=names[j]
   # save as csv
-  write.csv(dat_summary, paste("5yr_summary_1kmdistance/", names[j], "_SR.csv", sep=""))
+  write.csv(dat_summary, paste("5yr_summary_1kmdistance/", names[j], "_SR1km.csv", sep=""))
   print(paste("finished", names[j]))
   
   rm(dat)

@@ -20,12 +20,12 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
-for (j in 2:length(years)){
+for (j in 1:length(years)){
 
   for (i in 1:length(names)){
 #  tryCatch(
   dat <- read.delim(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""),
-                    na.strings="", header=TRUE)
+               na.strings="", header=TRUE)
   # turn into spatvector
   if(nrow(dat)==0) next
  

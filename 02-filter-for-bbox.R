@@ -4,12 +4,6 @@ library(auk)
 library(beepr)
 
 # load datasets
-eBird_2017 <- auk_ebd("/Volumes/Backup/eBird/eBird_2017_data/ebd_2017.txt")
-eBird_2018 <- auk_ebd("/Volumes/Backup/eBird/eBird_2018_data/ebd_2018.txt")
-eBird_2019 <- auk_ebd("/Volumes/Backup/eBird/eBird_2019_data/ebd_2019.txt")
-eBird_2020 <- auk_ebd("/Volumes/Backup/eBird/eBird_2020_data/ebd_2020.txt")
-eBird_2021 <- auk_ebd("/Volumes/Backup/eBird/eBird_2021_data/ebd_2021.txt")
-eBird_2022 <- auk_ebd("/Volumes/Backup/eBird/eBird_2022_data/ebd_2022.txt")
 
 # load columns I want
 cols <- c("latitude", "longitude", "group identifier", "sampling event identifier",
@@ -48,13 +42,12 @@ bbox$ymax <- as.numeric(bbox$ymax)
 
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
-i=1
-j=1
+
 for (j in 1:length(years)){
   
-for (i in 1:19){
+for (i in 1:length(names)){
   
-  eBird_2017 %>% 
+  auk_ebd(paste0("/Volumes/Backup/eBird/eBird_", years[j], "_data/ebd_", years[j], ".txt")) %>% 
     auk_bbox(bbox=c(bbox$xmin[i], bbox$ymin[i], bbox$xmax[i], bbox$ymax[i])) %>% # filter out square
     auk_filter(file = paste0("/Volumes/Backup/eBird/eBird_", years[j], "_data/custom_bbox/", names[i], "_", years[j], "_unfilt.txt"), overwrite=TRUE) # make dataframe
   
@@ -70,5 +63,5 @@ for (i in 1:19){
 
 # start at r2c2
 
-?auk_unique
+
 

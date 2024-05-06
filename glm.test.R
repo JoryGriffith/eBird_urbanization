@@ -7,6 +7,7 @@ library(rnaturalearthdata)
 library(patchwork)
 library(marginaleffects)
 library(nlme)
+library(sf)
 
 
 total.dat <- read.csv("modeling_data.csv")
@@ -56,7 +57,8 @@ plot <- ggplot(res, aes(x = x, y = y)) + geom_point(aes(colour = Residuals)) +
 plot
 
 
-dat.samp <- total.dat[sample(nrow(total.dat), 20000), ]
+dat.samp <- total.dat[sample(nrow(total.dat), 5000), ]
+write.csv(dat.samp, file="/Users/jorygriffith/Desktop/Compute canada/model.data.sample.csv")
 
 glm.mod.samp <- glm(total_SR ~ abslat * urban2 + log(number_checklists), data=dat.samp, family=poisson(link="log"))
 

@@ -31,28 +31,30 @@ dat <- data.frame(x,y)
 #h1.plot
 x1.urb=rnorm(90, 45, 40)
 error=rnorm(90,0,50)
-y1.urb=(-1.5*x1) + 300 + error
+y1.urb=(-1.5*x1.urb) + 300 + error
 
 x1.suburb=rnorm(90, 45, 40)
 error=rnorm(90,0,50)
-y1.suburb=(-1.5*x1) + 300 + error
+y1.suburb=(-1.5*x1.suburb) + 280 + error
 
 x1.nat=rnorm(90, 45, 40)
 error=rnorm(90,0,50)
-y1.nat=(-1.5*x1) + 300 + error
+y1.nat=(-1.5*x1.nat) + 260 + error
 
-sim.dat <- as.data.frame(cbind(x1,y1))
+sim.dat.urb <- as.data.frame(cbind(x1.urb,y1.urb))
+sim.dat.nat <- as.data.frame(cbind(x1.nat,y1.nat))
+sim.dat.suburb <- as.data.frame(cbind(x1.suburb,y1.suburb))
 #create the model
 
 h1.plot <- ggplot()+
-  geom_point(sim.dat, mapping=aes(x=x1.urb, y=y1.urb), color="red")+
-  geom_point(sim.dat, mapping=aes(x=x1.suburb, y=y1.suburb), color="blue")+
-  geom_point(sim.dat, mapping=aes(x=x1.nat, y=y1.nat), color="green")+
+  geom_point(sim.dat.urb, mapping=aes(x=x1.urb, y=y1.urb), color="#000000")+
+  geom_point(sim.dat.nat, mapping=aes(x=x1.suburb, y=y1.suburb), color="#CC79A7")+
+  geom_point(sim.dat.suburb, mapping=aes(x=x1.nat, y=y1.nat), color="#009E73")+
   geom_abline(dat, mapping=aes(slope=-1.5, intercept=300, color="Natural"), linewidth=1.2) +
   geom_abline(dat, mapping=aes(slope=-1.5, intercept=290, color="Suburban"), linewidth=1.2) +
   geom_abline(dat, mapping=aes(slope=-1.5, intercept=280, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Species Richness") +
-  scale_x_continuous(breaks=c(0,25,50,75),expand=c(0,0))+
+  scale_x_continuous(breaks=c(0,25,50,75),expand=c(0,0), limits=c(0,90))+
   scale_y_continuous(breaks=c(0,500), limits=c(0,500), expand=c(0,0))+
   theme_classic() +
   # annotate("Text", size=5, label="H1: Same proportion", color="grey20", x=45, y=380)+
@@ -62,14 +64,30 @@ h1.plot <- ggplot()+
         axis.title=element_blank(),  axis.text.y=element_blank(), axis.ticks.y=element_blank())
 h1.plot
 
+x2.urb=rnorm(90, 45, 10)
+error=rnorm(90,0,50)
+y2.urb=(-1*x1.urb) + 40 
 
-h2.plot <- ggplot(dat, aes(x=x, y=y))+
-  geom_point(alpha=0)+
-  geom_abline(aes(slope=-2, intercept=300, color="Natural"), linewidth=1.2) +
-  geom_abline(aes(slope=-1.5, intercept=225, color="Suburban"), linewidth=1.2) +
-  geom_abline(aes(slope=-1, intercept=150, color="Urban"), linewidth=1.2) +
+x2.suburb=rnorm(90, 45, 10)
+error=rnorm(90,0,50)
+y2.suburb=(-1.5*x1.suburb) + 225 + error
+
+x2.nat=rnorm(90, 45, 10)
+error=rnorm(90,0,40)
+y2.nat=(-2*x1.nat) + 300 + error
+
+sim.dat.urb <- as.data.frame(cbind(x2.urb,y2.urb))
+sim.dat.nat <- as.data.frame(cbind(x2.nat,y2.nat))
+sim.dat.suburb <- as.data.frame(cbind(x2.suburb,y2.suburb))
+h2.plot <- ggplot()+
+ # geom_point(sim.dat.urb, mapping=aes(x=x1.urb, y=y1.urb), color="#000000")+
+#  geom_point(sim.dat.suburb, mapping=aes(x=x1.suburb, y=y1.suburb), color="#CC79A7")+
+#  geom_point(sim.dat.nat, mapping=aes(x=x1.nat, y=y1.nat), color="#009E73")+
+  geom_abline(dat, mapping=aes(slope=-2, intercept=300, color="Natural"), linewidth=1.2) +
+  geom_abline(dat, mapping=aes(slope=-1.5, intercept=225, color="Suburban"), linewidth=1.2) +
+  geom_abline(dat, mapping=aes(slope=-1, intercept=150, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Species Richness") +
-  scale_x_continuous(expand=c(0,0))+
+  scale_x_continuous(expand=c(0,0), limits=c(0,90))+
   scale_y_continuous(limits=c(0,500), expand=c(0,0))+
   theme_classic() +
   # annotate("Text", size=5, label="H1: Same proportion", color="grey20", x=45, y=380)+
@@ -230,8 +248,8 @@ ggsave(p2.plot, file="hypothesis_figs/proportionH2.plot.png", height=3, width=3)
 p3.plot <- ggplot(dat, aes(x=x, y=y))+
   geom_point(alpha=0)+
   geom_abline(aes(slope=0, intercept=1, color="Natural"), linewidth=1.5, lty=2) +
-  geom_abline(aes(slope=0.0027, intercept=0.75, color="Suburban"), linewidth=1.2) +
-  geom_abline(aes(slope=0.003, intercept=0.5, color="Urban"), linewidth=1.2) +
+  geom_abline(aes(slope=0.0023, intercept=0.75, color="Suburban"), linewidth=1.2) +
+  geom_abline(aes(slope=0.004, intercept=0.5, color="Urban"), linewidth=1.2) +
   labs(x="Absolute Latitude", y="Proportion of natural") +
   scale_x_continuous(expand=c(0,0))+
   scale_y_continuous(limits=c(0.25,1), expand=c(0,0))+

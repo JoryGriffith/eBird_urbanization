@@ -1132,17 +1132,17 @@ means.habitat4 <- as.data.frame(marginal_means(habitat.aov4, variables=c("zone_b
 density.plot <- ggplot() +
   stat_density_ridges(birds_zones, mapping=aes(x = Habitat_breadth_IUCN, y = zone_bin, group=interaction(zone_bin, category), fill=category),
                       alpha=0.6, scale=.8, panel_scaling=TRUE) +
-  geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.2), size=1.5)+
-  geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.2), width=0.1)+
+  geom_point(means.habitat4, mapping=aes(y=zone_bin, x=estimate, group=category, color=category), position=position_nudge(0, -0.1), size=1.5)+
+  geom_errorbar(means.habitat4, mapping=aes(xmin=conf.low, xmax=conf.high, y=zone_bin, color=category), position=position_nudge(0, -0.1), width=0.1)+
   scale_fill_manual(labels=c('Urban species', 'Urban excluded species'), values=c("black", "deepskyblue3"))+
   scale_color_manual(labels=c('Urban species', 'Urban excluded species'), values=c("black", "deepskyblue3"))+
   theme_classic() +
  scale_x_continuous(expand=c(0, 0), limits=c(-1,40)) +
   labs(x="Habitat breadth", y="Density of specialization values") +
-  annotate("text", x=20, y=1.8, label="Tropical", color="grey30", size=5)+
-  annotate("text", x=20, y=2.8, label="Subropical", color="grey30", size=5)+
-  annotate("text", x=20, y=3.8, label="Temperate", color="grey30", size=5)+
-  annotate("text", x=30, y=2.8, label="Subpolar", color="grey30", size=5)+
+  annotate("text", x=20, y=1.4, label="Tropical", color="grey30", size=5)+
+  annotate("text", x=20, y=2.4, label="Subropical", color="grey30", size=5)+
+  annotate("text", x=20, y=3.4, label="Temperate", color="grey30", size=5)+
+  annotate("text", x=20, y=4.4, label="Subpolar", color="grey30", size=5)+
   annotate("text", x=27, y=1.15, label="n = 7298", color="grey30", size=5)+
   annotate("text", x=27, y=2.15, label="n = 3934", color="grey30", size=5)+
   annotate("text", x=27, y=3.15, label="n = 2031", color="grey30", size=5)+

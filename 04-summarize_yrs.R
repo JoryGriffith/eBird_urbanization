@@ -9,11 +9,15 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
            "r3c1", "r3c2", "r3c3", "r3c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
-i=4
-j=5
+
+library(doParallel)
+numCores<-detectCores()
+cl <- makeCluster(numCores)
+registerDoParallel(numCores)
+
 # skipped r2c1
-# loop for each square (skipped 5 because it's too big)
-for (j in 5:5){
+# 
+foreach (j=6:9) %dopar%{
 datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
@@ -74,7 +78,7 @@ list_csv_files <- list.files(path = "5yr_summary/", pattern="*.csv")
 names <- tolower(gsub('_SR.csv', "", list_csv_files))
 
 
-for(i in 1:length(list_csv_files)) {                              # Head of for-loop
+for(i in 1:length(list_csv_files)) {                             
   assign(names[i],                                   # Read and store data frames
          read.csv(paste("5yr_summary/", list_csv_files[i], sep="")))
 }
@@ -99,10 +103,14 @@ write.csv(top_cells, "top_500_cells.csv", row.names=FALSE)
 
 
 #################### DOING A RICHNESS SUMMARY WHERE I ONLY USE DISTANCES LESS THAN 2.5KM
-# loop for each square (skipped 5 because it's too big)
-for (j in 1:length(names)){
+# loop for each square 
+
+#for (j in 1:length(names)){
+foreach (j=1:length(names)) %dopar%{
+  
   datalist = vector("list", length = length(years))
   # loop for each year
+  
   for (i in 1:length(years)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), 
                       header=TRUE) # load data
@@ -176,7 +184,7 @@ write.csv(top_cells, "top_500_cells_2.5distance.csv", row.names=FALSE)
 
 
 ################### AND ONE WITH DISTANCES LESS THAN 1 KM
-for (j in 1:length(names)){
+foreach (j=1:length(names)) %dopar%{
   datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {

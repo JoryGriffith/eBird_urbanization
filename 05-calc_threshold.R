@@ -1,15 +1,13 @@
 ###### This is where I use iNEXT to figure out the threshold that I need to reach 95% in the species accumulation curves
-
 library(terra)
 library(tidyverse)
 library(sf)
-library(beepr)
 library(scales)
 library(rnaturalearth)
 library(rnaturalearthdata)
 library(elevatr)
-library(rgdal)
 library(iNEXT)
+library(doParallel)
 
 # First I want to load and look at the top cells so that I know where they are coming from
 top_cells <- read.csv("top_500_cells.csv") 
@@ -25,7 +23,7 @@ names <- c("r1c1", "r1c2", "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # make loop for filter out cells that I want
-for (j in 1:length(names)) {
+foreach (j=1:length(names)) %dopar%{
   
   top_cell <- top_cells %>% filter(square==names[j])
 # make list
@@ -56,8 +54,8 @@ rm(data)
 # make datalist for output
 coverage_list = vector("list", length = length(names))
 
-for (j in 1:length(names)) {
-  
+#foreach (j=1:2) %dopar%{
+for(j in 3:length(names)){ 
   dat_top <- read.csv(paste("thresholding/", names[j], "_topcells.csv", sep=""))
   
   ebird.split <- dat_top %>% group_by(cell) %>% group_split()
@@ -77,7 +75,8 @@ for (j in 1:length(names)) {
   
   set.seed(20) # because it is bootstrapping
   withCallingHandlers ({
-    for(i in 1:length(ebird.split)){
+    for(i in 1:length(ebird.split)) {
+   #   foreach(i=1:length(ebird.split)) %dopar% {
       output$cell_ID[i] <- mean(ebird.split[[i]]$cell)
       
       w <- length(warnings())
@@ -93,7 +92,7 @@ for (j in 1:length(names)) {
       # convert this dataframe into data format for iNext
       temp_inext <- as.incfreq(temp)
       #and now using estimateD to get qD
-      out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=1000, nboot=50)
+      out.inc <- iNEXT(temp_inext, q=0, datatype="incidence_freq", knots=1000, nboot=50) # change back to 1000 and 50
       out.inc.filt1<-out.inc$iNextEst$coverage_based %>% filter(Method=="Observed") # filter for observed coverage
       out.inc.filt2<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.80)==min(abs(SC-0.80)))  # filter for row that is closest to 95% coverage
       out.inc.filt3<-out.inc$iNextEst$coverage_based %>% filter(abs(SC-0.90)==min(abs(SC-0.90)))  # filter for row that is closest to 95% coverage
@@ -123,19 +122,19 @@ for (j in 1:length(names)) {
       output$richness_98[i] <- out.inc.filt6$qD
       output$sampsize_98[i] <- out.inc.filt6$t
       # add new columns to data frame
-      print(paste("finished", i))
+     # print(paste("finished", i))
     }
   },
   warning = function(w){
     output$warnings[i] <<- w$message
-    invokeRestart("muffleWarning")
+    invokeRestart("muffleWarning")        
   })
   
   output$square <- names[j]
   coverage_list[[j]] <- output
   print(paste("finished", names[j]))
 }
-
+                                                                                                                                                                                      
 coverage <- dplyr::bind_rows(coverage_list)
 
 coverage %>% group_by(square) %>% summarise(n=n()) 
@@ -156,27 +155,27 @@ hist(coverage$richness_97)
 hist(coverage$richness_98)
 
 # look at mean richness at different coverages
-mean(coverage$obs.richness) # 364
-mean(coverage$richness_80) # 126
-mean(coverage$richness_90) # 164
-mean(coverage$richness_95) # 204
-mean(coverage$richness_97) # 232
-mean(coverage$richness_98) # 254
+mean(coverage$obs.richness) # 362
+mean(coverage$richness_80) # 130
+mean(coverage$richness_90) # 173
+mean(coverage$richness_95) # 216
+mean(coverage$richness_97) # 249
+mean(coverage$richness_98) # 274
 
 # look at the mean of sample size at different coverages
-mean(coverage$sampsize_obs) # 2255
-mean(coverage$sampsize_80) # 12
-mean(coverage$sampsize_90) # 23
-mean(coverage$sampsize_95) # 45
-mean(coverage$sampsize_97) # 74
-mean(coverage$sampsize_98) # 110
+mean(coverage$sampsize_obs) # 1523
+mean(coverage$sampsize_80) # 13
+mean(coverage$sampsize_90) # 27
+mean(coverage$sampsize_95) # 55
+mean(coverage$sampsize_97) # 93
+mean(coverage$sampsize_98) # 140
 
 # look at 95th quantile
-quantile(coverage$sampsize_80, 0.95) # 23
-quantile(coverage$sampsize_90, 0.95) # 44
-quantile(coverage$sampsize_95, 0.95) # 83
-quantile(coverage$sampsize_97, 0.95) # 134
-quantile(coverage$sampsize_98, 0.95) # 198
+quantile(coverage$sampsize_80, 0.95) # 26
+quantile(coverage$sampsize_90, 0.95) # 51
+quantile(coverage$sampsize_95, 0.95) # 102
+quantile(coverage$sampsize_97, 0.95) # 170
+quantile(coverage$sampsize_98, 0.95) # 258
 
 
 
@@ -186,13 +185,13 @@ quantile(coverage$sampsize_98, 0.95) # 198
 # load summary data
 summary <- read.csv("global_richness_summary.csv") # 2.1 mil
 # threshold for 90 coverage
-summary_filt90 <- summary %>% filter(number_checklists >= 44) # 143,762
+summary_filt90 <- summary %>% filter(number_checklists >= 51) # 103,584
 # threshold for 95 coverage
-summary_filt95 <- summary %>% filter(number_checklists >= 83) # 87,117
+summary_filt95 <- summary %>% filter(number_checklists >= 102) # 58,197
 # threshold for 97 coverage
-summary_filt97 <- summary %>% filter(number_checklists >= 134) # 57,892
+summary_filt97 <- summary %>% filter(number_checklists >= 170) # 36,387
 # threshold for 98 coverage
-summary_filt98 <- summary %>% filter(number_checklists >= 198) # 40,298
+summary_filt98 <- summary %>% filter(number_checklists >= 258) # 23,647
 
 # Going to use the 95% coverage filter for now
 
@@ -213,7 +212,7 @@ summary_filt95$urban <- as.data.frame(terra::extract(GHSL, summary_filt95[,c(21:
 summary_filt95 %>% group_by(urban) %>% summarise(n=n())
 
 # remove ones with NaN urbanization score
-summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # 66,667 datapoints now
+summary_filt <- summary_filt95 %>% filter(!is.na(urban)) # 44,245 datapoints now
 # save the thresholded data
 write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 

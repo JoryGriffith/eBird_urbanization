@@ -19,6 +19,10 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 ##### NEED TO ADD AUK UNIQUE AT THIS STEP?? Or maybe just filter out duplicate checklists
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
+i=5
+j=6
+length(names)
+# skipped 2020 because kept crashing
 
 for (j in 1:length(years)){
 
@@ -29,7 +33,9 @@ for (j in 1:length(years)){
   # turn into spatvector
   if(nrow(dat)==0) next
  
-  dat <- auk_unique( # remove duplicated group checklists
+  if (!all(is.na(dat$GROUP.IDENTIFIER))) {
+  # skip if there are no group identifiers
+    dat <- auk_unique( # remove duplicated group checklists
     dat,
     group_id = "GROUP.IDENTIFIER",
     checklist_id = "SAMPLING.EVENT.IDENTIFIER",
@@ -37,8 +43,8 @@ for (j in 1:length(years)){
     observer_id = "OBSERVER.ID",
     checklists_only = FALSE
   )
-  
-  vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
+  }
+   vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
   vect2 <- st_transform(vect, crs=crs(GHSL))
   
  

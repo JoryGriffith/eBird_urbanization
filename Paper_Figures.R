@@ -13,18 +13,24 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 total.dat <- read.csv("modeling_data.csv")
 
 total.dat %>% group_by(hemisphere) %>% count()
-4949/61690
+
 
 # only 8% of the data is in the southern hemisphere
-full.model <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
-                   precip + log(number_checklists) + elevation, total.dat)
+
+full.model <- lm(sqrt(total_SR) ~ abslat * urban2 + abslat:hemisphere + urban2:hemisphere + hemisphere + 
+                   log(number_checklists) + elevation, total.dat)
+# took out the triple interaction
+
+full.model2 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
+                   log(number_checklists) + elevation, total.dat)
 
 plot_slopes(full.model, variables="abslat", condition=c("urban2"))
 # precipitation not singificant??
 summary(full.model)
 anova(full.model)
 library(car)
-Anova(full.model)
+anova(full.model, full.model2)
+
 square <- function(x){
   x^2
 } 
@@ -170,7 +176,8 @@ hemisphereLDGplot
 # northern hemisphere is steeper
 
 predicted.full<-avg_predictions(full.model, by=c("abslat", "urban2"), transform=square, 
-                                newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), urban2=c("Natural", "Suburban", "Urban")))
+                                newdata = datagrid(abslat = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70), 
+                                                   urban2=c("Natural", "Suburban", "Urban")))
 
 
 # want to make this over a more limited set of predictors and somehow make not wiggly

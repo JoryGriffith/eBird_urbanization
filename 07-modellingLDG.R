@@ -24,13 +24,12 @@ library(emmeans)
 
 ############################################
 # Load data
-dat <- read.csv("modeling_data.csv")
-dat %>% filter(CONTINENT=="Antarctica") # there is one point in antarctica, latitude is -54.05 so it just misses the cutoff
-# this point is in the south sandwich islands
+dat <- read.csv("modeling_data.csv") %>% drop_na(precip)
+dat %>% filter(CONTINENT=="Antarctica") # There are no points in antarctica
 
 # look at everything above 65 degrees N
 test <- dat %>% filter(lat >=65)
-# there are 60 observations above 65 degrees N
+# there are 27 observations above 65 degrees N
 
 hist(log(dat$total_SR))
 hist(sqrt(dat$total_SR), breaks=50) # this looks pretty good
@@ -68,6 +67,14 @@ mod1 <- lm(total_SR ~ abs(lat) * urban + hemisphere + CONTINENT +
 # try a bunch of different models
 mod1.trans <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere + 
                    precip + log(number_checklists) + elevation, dat) # latitude and hemisphere interaction
+
+# precipitation not significant, remove
+mod1.trans2 <- lm(sqrt(total_SR) ~ abslat * urban2 * hemisphere
+                  + log(number_checklists) + elevation, dat)
+# removed precipitation because it was not significant
+library(car)
+anova(mod1.trans, mod1.trans2)
+
 
 mod1.hemsiphere <- lm(sqrt(total_SR) ~ abslat * urban2 + hemisphere + 
                    precip + log(number_checklists) + elevation, dat) # no interaction with hemisphere
@@ -146,7 +153,7 @@ lstrends(mod1.trans, pairwise ~ urban2, var="abslat")
 
 
 # Compare between continents
-predicted2 <- ggpredict(mod1.trans.cont.intrxn, terms = c("abslat", "urban2")) 
+predicted2 <- ggpredict(mod1.trans, terms = c("abslat", "urban2")) 
 # looks the same whether sqrt included in model or not
 
 results.plot2 <-
@@ -197,6 +204,7 @@ interact_plot(mod1.trans, abslat, urban, interval=TRUE)
 interact_plot(mod1.trans, abslat, urban)
 interact_plot(mod1.abslat, abslat, hemisphere)
 
+summary(mod1.trans)
 
 
 #####################

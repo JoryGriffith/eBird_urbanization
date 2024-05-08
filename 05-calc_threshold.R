@@ -30,7 +30,7 @@ foreach (j=1:length(names)) %dopar%{
    datalist = vector("list", length = length(years))
 
 for (i in 1:length(years)) {
-  dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), header=TRUE)
+  dat <- read.table(paste("/Volumes/Expansion/eBird/eBird_", years[i], "_data/custom_bbox/", names[j], "_", years[i], "_filt.txt", sep=""), header=TRUE)
   # filter out cells that are in the top cell
   dat_filt <- dat %>% filter(cell %in% top_cell$cell)
   # add to list
@@ -200,7 +200,7 @@ summary_filt98 <- summary %>% filter(number_checklists >= 258) # 23,647
 
 # now need to put this in raster form and merge with the urbanization raster
 # this raster layer has the places with high human impact removed
-GHSL<-rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
+GHSL<-rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
 plot(GHSL)
 
 # need to extract cell numbers, urbanization scores, and x and y coordinates from the raster
@@ -224,7 +224,7 @@ write.csv(summary_filt, "5yr_summary/summary_thresholded.csv", row.names=FALSE)
 #### PREPARE DATA FOR MODELLING
 
 #world <- ne_countries(scale = "medium", type="map_units", returnclass = "sf")
-GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
+GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
 plot(GHSL)
 
 # load thresholded summary data
@@ -235,7 +235,7 @@ dat <- read.csv("5yr_summary/summary_thresholded.csv")
 
 ##################
 # Add continent
-continents <- st_read("/Volumes/Backup/eBird/continent-poly/Continents.shp")
+continents <- st_read("/Volumes/Expansion/eBird/continent-poly/Continents.shp")
 continents_moll <- st_transform(continents, crs=crs(GHSL)) 
 
 #plot(continents)
@@ -248,7 +248,7 @@ dat_cont <- st_join(dat_sf, continents_moll[,"CONTINENT"], left=TRUE, join=st_ne
 #########################
 # Add biome - downloaded from WWF ecoregions of the world
 # Classifying points into biomes using a terrestrial biomes shapefile
-biomes <- st_read("/Volumes/Backup/eBird/wwf_biomes/wwf_terr_ecos.shp")
+biomes <- st_read("/Volumes/Expansion/eBird/wwf_biomes/wwf_terr_ecos.shp")
 biomes_moll <- st_transform(biomes, crs=crs(GHSL)) 
 
 class(biomes) # sf and data frame
@@ -277,7 +277,6 @@ latlong_df <- get_elev_point(latlong_df[,c(26,27,2:24)], prj=crs(dat_latlong), s
 
 dat <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                                y = sf::st_coordinates(.)[,2]))
-
 
 #### assign hemisphere
 dat$hemisphere <- "northern"
@@ -318,13 +317,13 @@ dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
 
 ### Seeing what the highest latitude is for urbanand suburban and removing points above that latitude (so they are comparable)
 urb <- dat %>% filter(urban2=="Urban")
-range(urb$lat) # the highest latitude is 69.67 and the lowest is -54.84
+range(urb$lat) # the highest latitude is 64 and the lowest is -54.84
 
 suburb <- dat %>% filter(urban2=="Suburban")
-range(suburb$lat) # highest latitude is 70.07 and lowest latitude is -54.84
+range(suburb$lat) # highest latitude is 65.76 and lowest latitude is -54.84
 
 nat <- dat %>% filter(urban2=="Natural")
-range(nat$lat) # highest latitude is 78 and the lowest is -54.92
+range(nat$lat) # highest latitude is 71 and the lowest is -54.92
 # not really a discrepancy between the southern latitudes
 
 # either cutoff at 70 or 71 degrees of latitude?

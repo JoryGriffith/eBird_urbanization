@@ -35,8 +35,8 @@ datalist.years <- list()
 datalist.names <- list()
 
 
-for (i in 16:16){ # come back to 16, 18
-  for (j in 5:6) {
+for (i in 1:length(names)){ # come back to 16, 18
+  for (j in 1:length(years)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/custom_bbox/", names[i], "_", years[j], "_filt.txt", sep=""), 
                       header=TRUE)
     dat.filt <- dat %>% filter(cell %in% model.data$cell) # filter for cells that are in the final dataset

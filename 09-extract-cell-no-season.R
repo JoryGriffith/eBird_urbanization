@@ -3,7 +3,6 @@ library(terra)
 library(sf)
 library(auk)
 library(tidyverse)
-library(lubridate)
 library(beepr)
 
 # load global raster script
@@ -17,12 +16,33 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
+library(doParallel)
+numCores<-detectCores()
+cl <- makeCluster(numCores)
+registerDoParallel(numCores)
+i=1
+j=2
 # Summer
-for (j in 1:length(years)){
+for (j in 4:4){ # do 4
   for (i in 1:length(names)){
-   
-     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep=""), header=TRUE, na.strings="")
+ # foreach (i=1:length(names)) %dopar%{ 
+     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/summer/", names[i], "_", years[j], "_summer_filt.txt", sep="")
+                       ,header=TRUE, na.strings="")
     # turn into spatvector
+   
+     if(nrow(dat)==0) next
+     
+     if (!all(is.na(dat$GROUP.IDENTIFIER))) {
+       # skip if there are no group identifiers
+       dat <- auk_unique( # remove duplicated group checklists
+         dat,
+         group_id = "GROUP.IDENTIFIER",
+         checklist_id = "SAMPLING.EVENT.IDENTIFIER",
+         species_id = "SCIENTIFIC.NAME",
+         observer_id = "OBSERVER.ID",
+         checklists_only = FALSE
+       )
+     }
      
      vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
      vect2 <- st_transform(vect, crs=crs(GHSL))
@@ -43,11 +63,29 @@ for (j in 1:length(years)){
 
 
 # Winter
-for (j in 1:length(years)){
+i=3
+j=1
+for (j in 4:6){
   for (i in 1:length(names)){
     
-    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
+    dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""),
+                      header=TRUE, na.strings="")
     # turn into spatvector
+    
+    if(nrow(dat)==0) next
+    
+    if (!all(is.na(dat$GROUP.IDENTIFIER))) {
+      # skip if there are no group identifiers
+      dat <- auk_unique( # remove duplicated group checklists
+        dat,
+        group_id = "GROUP.IDENTIFIER",
+        checklist_id = "SAMPLING.EVENT.IDENTIFIER",
+        species_id = "SCIENTIFIC.NAME",
+        observer_id = "OBSERVER.ID",
+        checklists_only = FALSE
+      )
+    }
+    
     vect <- st_as_sf(dat, crs=st_crs(4326), coords=c("LONGITUDE","LATITUDE"))
     vect2 <- st_transform(vect, crs=crs(GHSL))
     

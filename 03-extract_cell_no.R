@@ -69,5 +69,5 @@ library(beepr)
 beep()
 beep_on_error()
 
-
+?write.table
 

@@ -13,10 +13,16 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
            "r3c1", "r3c2", "r3c3", "r3c4",
            "r4c1", "r4c2", "r4c3", "r4c4")
-
+library(doParallel)
+numCores<-detectCores()
+cl <- makeCluster(numCores)
+registerDoParallel(numCores)
 ## Summer
-for (j in 1:length(names)){
-  datalist = vector("list", length = length(years))
+#foreach (j=1:2) %dopar%{
+i=1
+j=1
+for (j in 3:length(names)) {
+    datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/summer/", names[j], "_", years[i], "_summer_filt.txt", sep=""), 

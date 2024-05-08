@@ -12,13 +12,14 @@ library(elevatr)
 summer <- read.csv("summer_richness_summary.csv")
 summer_top_cells <- summer %>% slice_max(total_SR, n=500) # find top 500 cells
 unique(summer_top_cells$square)
+summer_top_cells %>% group_by(square) %>% count()
 
-names <- c("r1c1", "r1c2", "r1c3", "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2", "r3c3", "r3c4") # figure out names
+names <- c("r1c1", "r1c2", "r1c3", "r1c4", "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2", "r3c3", "r3c4") # figure out names
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # filter out cells that I want
-for (j in 1:length(names)) {
+for (j in 4:4) {
   
   top_cell <- summer_top_cells %>% filter(square==names[j])
   # make list
@@ -139,12 +140,12 @@ winter <- read.csv("winter_richness_summary.csv")
 winter_top_cells <- winter %>% slice_max(total_SR, n=500) # find top 500 cells
 unique(winter_top_cells$square)
 
-names <- c("r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4", "r3c2", "r3c3") # figure out names
+names <- c("r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c3", "r2c4", "r3c2", "r3c3", "r3c4") # figure out names
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # filter out cells that I want
-for (j in 1:length(names)) {
+for (j in 9:length(names)) {
   
   top_cell <- winter_top_cells %>% filter(square==names[j])
   # make list
@@ -171,7 +172,7 @@ for (j in 1:length(names)) {
 # calculate sample size needed to reach certain coverage
 coverage_list = vector("list", length = length(names))
 
-for (j in 1:length(names)) {
+for (j in 5:length(names)) {
   
   dat_top <- read.csv(paste("thresholding/winter/", names[j], "_topcells_wint.csv", sep=""))
   
@@ -271,11 +272,11 @@ hist(sum_threshold$richness_97)
 hist(sum_threshold$richness_98)
 
 # look at 95th quantile
-quantile(sum_threshold$sampsize_80, 0.95) # 16
-quantile(sum_threshold$sampsize_90, 0.95) # 33
-quantile(sum_threshold$sampsize_95, 0.95) # 62
-quantile(sum_threshold$sampsize_97, 0.95) # 99
-quantile(sum_threshold$sampsize_98, 0.95) # 144
+quantile(sum_threshold$sampsize_80, 0.95) # 21
+quantile(sum_threshold$sampsize_90, 0.95) # 42
+quantile(sum_threshold$sampsize_95, 0.95) # 86.5
+quantile(sum_threshold$sampsize_97, 0.95) # 139.25
+quantile(sum_threshold$sampsize_98, 0.95) # 201
 # they are lower than the full year which is good
 
 ### Winter
@@ -290,16 +291,17 @@ hist(wint_threshold$richness_97)
 hist(wint_threshold$richness_98)
 
 # look at 95th quantile
-quantile(wint_threshold$sampsize_80, 0.95) # 18
-quantile(wint_threshold$sampsize_90, 0.95) # 38
-quantile(wint_threshold$sampsize_95, 0.95) # 73
-quantile(wint_threshold$sampsize_97, 0.95) # 117
-quantile(wint_threshold$sampsize_98, 0.95) # 175
+quantile(wint_threshold$sampsize_80, 0.95) # 34.5
+quantile(wint_threshold$sampsize_90, 0.95) # 70
+quantile(wint_threshold$sampsize_95, 0.95) # 120.5
+quantile(wint_threshold$sampsize_97, 0.95) # 176.5
+quantile(wint_threshold$sampsize_98, 0.95) # 249.5
 # they are lower than the full year which is good, but not really that different. Interesting that winter is higher than summer.
 
 # I will threshold them at their respective thresholds (might as well)
-summer_filt95 <- sum_dat %>% filter(number_checklists >= 62) # 26644
-winter_filt95 <- wint_dat %>% filter(number_checklists >= 73) # 28257
+summer_filt95 <- sum_dat %>% filter(number_checklists >= 87) # 11109
+winter_filt95 <- wint_dat %>% filter(number_checklists >= 87) # 28257
+summary(wint_dat)
 
 ## Extract urbanization values for each
 GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")

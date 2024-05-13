@@ -170,11 +170,20 @@ mean(coverage$sampsize_95) # 55
 mean(coverage$sampsize_97) # 93
 mean(coverage$sampsize_98) # 140
 
+median(coverage$sampsize_obs) # 1523
+median(coverage$sampsize_80) # 13
+median(coverage$sampsize_90) # 27
+median(coverage$sampsize_95) # 55
+median(coverage$sampsize_97) # 93
+median(coverage$sampsize_98) # 140
+
 # look at 95th quantile
-quantile(coverage$sampsize_80, 0.95) # 26
-quantile(coverage$sampsize_90, 0.95) # 51
-quantile(coverage$sampsize_95, 0.95) # 102
-quantile(coverage$sampsize_97, 0.95) # 170
+quantile(coverage$sampsize_80, 0.75) # 26
+quantile(coverage$sampsize_90, 0.95) # 51 
+quantile(coverage$sampsize_95, 0.95) # 102 - use for year-round
+quantile(coverage$sampsize_95, 0.75) # 68 - use for seasonal
+quantile(coverage$sampsize_95, 0.5) # 48 
+quantile(coverage$sampsize_97, 0.75) # 170
 quantile(coverage$sampsize_98, 0.95) # 258
 
 

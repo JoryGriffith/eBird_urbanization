@@ -58,8 +58,10 @@ for (j in 3:length(names)) {
 }
 
 
+
+
 ## Winter
-for (j in 1:length(names)){
+for (j in 1:1){
   datalist = vector("list", length = length(years))
   # loop for each year
   for (i in 1:length(years)) {
@@ -114,9 +116,17 @@ dat <- bind_rows(r1c1, r1c2, r1c3, r1c4,
                  r3c1, r3c2, r3c3, r3c4, 
                  r4c1, r4c2, r4c3, r4c4)
 
-
+dat %>% filter(number_checklists>100) %>% count()
 #save all the summaries as a csv
 write.csv(dat, "winter_richness_summary.csv", row.names=FALSE)
+
+
+
+
+
+
+
+
 
 
 ############ put all together - summer

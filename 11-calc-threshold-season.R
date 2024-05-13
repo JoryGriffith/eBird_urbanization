@@ -19,6 +19,7 @@ names <- c("r1c1", "r1c2", "r1c3", "r1c4", "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # filter out cells that I want
+
 for (j in 4:4) {
   
   top_cell <- summer_top_cells %>% filter(square==names[j])
@@ -134,18 +135,38 @@ coverage %>% group_by(square) %>% summarise(n=n())
 
 write.csv(coverage, "thresholding/summer/summer_coverage_top500.csv", row.names=FALSE)
 
+summer.coverage <- read.csv("thresholding/summer/summer_coverage_top500.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ################### WINTER #################
 winter <- read.csv("winter_richness_summary.csv")
-winter_top_cells <- winter %>% slice_max(total_SR, n=500) # find top 500 cells
+winter_top_cells <- winter %>% slice_max(total_SR, n=500) # find top 500 cells and remove weird cell with no checklists ID
 unique(winter_top_cells$square)
-
+winter_top_cells %>% group_by(square) %>% count()
 names <- c("r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c3", "r2c4", "r3c2", "r3c3", "r3c4") # figure out names
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
 # filter out cells that I want
-for (j in 9:length(names)) {
+for (j in 2:length(names)) {
   
   top_cell <- winter_top_cells %>% filter(square==names[j])
   # make list
@@ -155,10 +176,12 @@ for (j in 9:length(names)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[i], "_data/winter/", names[j], "_", years[i], "_winter_filt.txt", sep=""), header=TRUE, na.strings="")
     # filter out cells that are in the top cell
     dat_filt <- dat %>% filter(cell %in% top_cell$cell)
+ #   dat_filt$OBSERVATION.COUNT <- as.character(dat_filt$OBSERVATION.COUNT)
     # add to list
     datalist[[i]] <- dat_filt
   }
   # bind lists together
+  
   data <- dplyr::bind_rows(datalist)
   # save as csv
   write.csv(data, paste("thresholding/winter/", names[j], "_topcells_wint.csv", sep=""))
@@ -168,11 +191,20 @@ for (j in 9:length(names)) {
   rm(data)
 }
 
+
+test <- data %>%
+  group_by(cell) %>%
+  summarize(number_checklists=length(unique(SAMPLING.EVENT.IDENTIFIER)),
+            total_SR=length(unique(SCIENTIFIC.NAME)))
+
+
+
+#test <- read.csv("thresholding/winter/r3c3_topcells_wint.csv")
 #########
 # calculate sample size needed to reach certain coverage
 coverage_list = vector("list", length = length(names))
-
-for (j in 5:length(names)) {
+#skipped r1c2 and r1c4
+for (j in 2:length(names)) {
   
   dat_top <- read.csv(paste("thresholding/winter/", names[j], "_topcells_wint.csv", sep=""))
   
@@ -193,7 +225,7 @@ for (j in 5:length(names)) {
   
   set.seed(20) # because it is bootstrapping
   withCallingHandlers ({
-    for(i in 1:length(ebird.split)){
+    for(i in 1:length(ebird.split)){ # skipped 6 and 13
       output$cell_ID[i] <- mean(ebird.split[[i]]$cell)
       
       w <- length(warnings())
@@ -271,6 +303,14 @@ hist(sum_threshold$richness_95)
 hist(sum_threshold$richness_97)
 hist(sum_threshold$richness_98)
 
+# look at mean richness at different coverages
+mean(sum_threshold$obs.richness) # 213
+mean(sum_threshold$richness_80) # 100
+mean(sum_threshold$richness_90) # 132
+median(sum_threshold$richness_95) # 162
+mean(sum_threshold$richness_97) # 182
+mean(sum_threshold$richness_98) # 196
+
 # look at 95th quantile
 quantile(sum_threshold$sampsize_80, 0.95) # 21
 quantile(sum_threshold$sampsize_90, 0.95) # 42
@@ -279,10 +319,17 @@ quantile(sum_threshold$sampsize_97, 0.95) # 139.25
 quantile(sum_threshold$sampsize_98, 0.95) # 201
 # they are lower than the full year which is good
 
+# look at 95th quantile
+quantile(sum_threshold$sampsize_80, 0.95) # 21
+quantile(sum_threshold$sampsize_90, 0.95) # 42
+quantile(sum_threshold$sampsize_95, 0.75) # 86.5
+quantile(sum_threshold$sampsize_97, 0.95) # 139.25
+quantile(sum_threshold$sampsize_98, 0.95) # 201
+
 ### Winter
 wint_threshold <- read.csv("thresholding/winter/winter_coverage_top500.csv")
 
-wint_dat <- read.csv("winter_richness_summary.csv")
+wint_dat <- read.csv("winter_richness_summary.csv") 
 hist(wint_threshold$obs.richness)
 hist(wint_threshold$richness_80)
 hist(wint_threshold$richness_90)
@@ -290,18 +337,52 @@ hist(wint_threshold$richness_95)
 hist(wint_threshold$richness_97)
 hist(wint_threshold$richness_98)
 
+# look at mean richness at different coverages
+mean(wint_threshold$obs.richness) # 226
+mean(wint_threshold$richness_80) # 120
+mean(wint_threshold$richness_90) # 158
+mean(wint_threshold$richness_95) # 192
+mean(wint_threshold$richness_97) # 215
+mean(wint_threshold$richness_98) # 230
+
+# look at 95th quantile
+mean(wint_threshold$sampsize_80) # 34.5
+mean(wint_threshold$sampsize_90) # 70
+mean(wint_threshold$sampsize_95) # 121
+mean(wint_threshold$sampsize_97) # 176.5
+mean(wint_threshold$sampsize_98) # 249.5
+
 # look at 95th quantile
 quantile(wint_threshold$sampsize_80, 0.95) # 34.5
 quantile(wint_threshold$sampsize_90, 0.95) # 70
-quantile(wint_threshold$sampsize_95, 0.95) # 120.5
-quantile(wint_threshold$sampsize_97, 0.95) # 176.5
+quantile(wint_threshold$sampsize_95, 0.75) # 121 
+quantile(wint_threshold$sampsize_97, 0.5) # 176.5
 quantile(wint_threshold$sampsize_98, 0.95) # 249.5
 # they are lower than the full year which is good, but not really that different. Interesting that winter is higher than summer.
 
+
+season_threshold <- rbind(sum_threshold, wint_threshold)
+quantile(season_threshold$sampsize_95, 0.95) # 121 
+
+
+
+
+
+
+
+
+
 # I will threshold them at their respective thresholds (might as well)
-summer_filt95 <- sum_dat %>% filter(number_checklists >= 87) # 11109
-winter_filt95 <- wint_dat %>% filter(number_checklists >= 87) # 28257
-summary(wint_dat)
+summer_filt95 <- sum_dat %>% filter(number_checklists >= 68) 
+winter_filt95 <- wint_dat %>% filter(number_checklists >= 68) # this threshold is high, not sure about it
+
+mean(wint_dat$number_checklists)
+mean(sum_dat$number_checklists)
+hist(log(wint_dat$number_checklists))
+hist(log(sum_dat$number_checklists))
+
+hist(sum_dat$number_checklists)
+hist(wint_dat$number_checklists)
 
 ## Extract urbanization values for each
 GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/GHSL_filtMollweide.tif")
@@ -320,8 +401,26 @@ winter_filt95$urban <- as.data.frame(terra::extract(GHSL, winter_filt95[,c(9:10)
 winter_filt95$season <- "winter" # add season
 winter_filt95 <- winter_filt95 %>% filter(!is.na(urban)) # remove NAs for urbanization - 21,658
 
+
+
 ## Put them together 
 season_dat <- rbind(summer_filt95, winter_filt95)
+
+season_dat_sf <- st_as_sf(season_dat, coords=c("x", "y"), crs=st_crs(GHSL))
+season_dat_sf <- st_transform(season_dat_sf, crs=st_crs(4326)) # get lat long coordinates as well for the elevation extraction
+season_dat_sf <- season_dat_sf %>% mutate(long = sf::st_coordinates(.)[,1],
+                                     lat = sf::st_coordinates(.)[,2])
+
+
+season_dat_sf <- season_dat_sf %>% mutate(urban2=ifelse(urban%in% c(11, 12, 13), 1, ifelse(urban==30, 3, 2)))
+season_dat_sf$urban2 <- as.factor(season_dat_sf$urban2)
+
+ggplot(season_dat_sf, mapping=aes(y=total_SR, x=abs(lat), color=urban2)) +
+  geom_point(alpha=0.2)+
+  geom_smooth(method="lm")+
+  facet_wrap(~season)
+
+
 
 
 sum_long <- summer_filt95 %>% select(cell, total_SR) %>% rename(summer=total_SR)
@@ -333,6 +432,13 @@ season_long$y <- yFromCell(GHSL, season_long$cell)
 
 season_long <- season_long %>% mutate(diff = summer - winter)
 world <- ne_countries(scale = "medium", returnclass = "sf")
+
+
+
+
+
+
+
 # plot
 full.map<-ggplot(data=world)+
   geom_sf(lwd=0.15, fill="white") +
@@ -368,8 +474,12 @@ dat_latlong <- st_transform(dat_withbiome, crs=st_crs(4326)) # get lat long coor
 latlong_df <- dat_latlong %>% mutate(long = sf::st_coordinates(.)[,1],
                                      lat = sf::st_coordinates(.)[,2])
 
-latlong_df <- get_elev_point(latlong_df[,c(15,16,2:13)], prj=crs(dat_latlong), src="aws", overwrite=TRUE) # extract elevations from amazon web services
-
+install.packages('rgdal_1.6-6.tar.gz', repos = NULL, type = 'source')
+?install.packages
+library(rgdal)
+latlong_df <- elevatr::get_elev_point(latlong_df[,c(15,16,2:13)], prj=crs(dat_latlong), src="aws", overwrite=TRUE) # extract elevations from amazon web services
+latlong_df$elevation <- NA
+  
 dat <- as.data.frame(st_transform(latlong_df, crs=crs(GHSL)) %>% mutate(x = sf::st_coordinates(.)[,1],
                                                                              y = sf::st_coordinates(.)[,2]))
 
@@ -427,15 +537,18 @@ dat$urban2 <- factor(dat$urban2, levels = c("1", "2", "3"),
 
 #### Add precipitation data
 precip <- rast("precipitation/wc2.1_5m_bio_12.tif")
+plot(precip)
+precip
 #dat <- read.csv("season_modeling_data.csv")
-dat$precip <- as.data.frame(terra::extract(precip, dat[,c(1:2)], method="bilinear"))$wc2.1_5m_bio_12
+dat$precip <- as.data.frame(terra::extract(precip, dat[,c("long","lat")], method="bilinear"))$wc2.1_5m_bio_12
 
 ## Save data
 write_csv(dat, "season_modeling_data.csv")
 
 
-
-
+hist(coverage$sampsize_95)
+hist(wint_threshold$sampsize_95)
+hist(sum_threshold$sampsize_95)
 
 
 

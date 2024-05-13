@@ -8,25 +8,26 @@ library(emmeans)
 library(marginaleffects)
 library(ggeffects)
 library(infer)
+
 ##### Winter #################
 
-winter.model.data <- read.csv("season_modeling_data.csv") %>% filter(season=="winter")
+winter.model.data <- read.csv("season_modeling_data.csv") %>% filter(season=="Winter")
 
 unique(winter.model.data$square)
 
 years <- c(2017, 2018, 2019, 2020, 2021, 2022)
 
-names <- c("r1c1", "r1c2", "r1c3", "r1c4",
+names <- c("r1c1", "r1c2", "r1c3",
            "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
-           "r3c1", "r3c2", "r3c3", "r3c4",
-           "r4c2", "r4c4") # take out r4c1 and r4c4 because they are not in the final modelling data
+           "r3c2", "r3c3", "r3c4",
+           "r4c2") # take out r4c1 and r4c4 because they are not in the final modelling data
 
 GHSL <- rast("/Volumes/Backup/eBird/SMOD_global/SMOD_global.tif")
 
 datalist.years <- list()
 datalist.names <- list()
 
-for (i in 1:length(names)){ # come back to r1c4 (4) - no data in r1c4
+for (i in 1:length(names)){ 
   for (j in 1:length(years)) {
     dat <- read.table(paste("/Volumes/Backup/eBird/eBird_", years[j], "_data/winter/", names[i], "_", years[j], "_winter_filt.txt", sep=""), 
                       header=TRUE)
@@ -53,16 +54,24 @@ for (i in 1:length(names)){ # come back to r1c4 (4) - no data in r1c4
 }
 
 winter_unique_sp <- dplyr::bind_rows(datalist.names) # put all sections together
-length(unique(winter_unique_sp$SCIENTIFIC.NAME)) # 8,724 species
-#write.table(winter_unique_sp, "winter_unique_species.txt", row.names=FALSE)
+length(unique(winter_unique_sp$SCIENTIFIC.NAME)) # 7372 species
+write.table(winter_unique_sp, "winter_unique_species.txt", row.names=FALSE)
 
 
 
 
 
 ############# Summer ##################
-summer.model.data <- read.csv("season_modeling_data.csv") %>% filter(season=="summer")
+summer.model.data <- read.csv("season_modeling_data.csv") %>% filter(season=="Summer")
 
+unique(summer.model.data$square)
+
+years <- c(2017, 2018, 2019, 2020, 2021, 2022)
+
+names <- c("r1c1", "r1c2", "r1c3", "r1c4",
+           "r2c1", "r2c2AA", "r2c2ABA", "r2c2ABB", "r2c2B", "r2c3", "r2c4",
+           "r3c1", "r3c2", "r3c3", "r3c4",
+           "r4c2", "r4c4") # take out r4c1 and r4c4 because they are not in the final modelling data
 
 datalist.years <- list()
 datalist.names <- list()
@@ -94,23 +103,18 @@ for (i in 1:length(names)){
 }
 
 summer_unique_sp <- dplyr::bind_rows(datalist.names) # put all sections together
-length(unique(summer_unique_sp$SCIENTIFIC.NAME)) # 10,723 species
-#write.table(summer_unique_sp, "summer_unique_species.txt", row.names=FALSE)
+length(unique(summer_unique_sp$SCIENTIFIC.NAME)) # 7246 species
+write.table(summer_unique_sp, "summer_unique_species.txt", row.names=FALSE)
 
 
 
 ############################
 
-
-
-
-
-
 # Merge with trait data
 # Combine summer and winter dataframes
-#winter_uniquesp <- read.table("winter_unique_species.txt", header=TRUE)
+winter_uniquesp <- read.table("winter_unique_species.txt", header=TRUE)
 winter_uniquesp$season <- "Winter"
-#summer_uniquesp <- read.table("summer_unique_species.txt", header=TRUE)
+summer_uniquesp <- read.table("summer_unique_species.txt", header=TRUE)
 summer_uniquesp$season <- "Summer"
 # merge
 
@@ -118,7 +122,7 @@ season_uniquesp <- rbind(winter_uniquesp, summer_uniquesp)
 
 GHSL <- rast("/Volumes/Expansion/eBird/SMOD_global/GHSL_filtMollweide.tif")
 
-length(unique(season_uniquesp$SCIENTIFIC.NAME)) #9373 species
+length(unique(season_uniquesp$SCIENTIFIC.NAME)) #8556 species
 
 
 # add in lat long points to more easily bin by latitude
@@ -143,7 +147,7 @@ write.table(season_uniquesp, "season_unique_species.txt", row.names=FALSE)
 ########## Merge with trait data
 habitat <- read.csv("/Volumes/Expansion/eBird/Traits/habitat_breadth.csv")
 season_sp_habitat <- merge(season_uniquesp, habitat[,c(4,14)], by.x="SCIENTIFIC.NAME", by.y="Best_guess_binomial")
-length(unique(season_sp_habitat$SCIENTIFIC.NAME)) # 8,498 species
+length(unique(season_sp_habitat$SCIENTIFIC.NAME)) # 6,942 species
 
 season_sp_habitat$abslat <- abs(season_sp_habitat$lat)
 # Try with habitat data
